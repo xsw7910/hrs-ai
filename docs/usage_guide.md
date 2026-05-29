@@ -1,0 +1,157 @@
+# Usage Guide
+
+Run commands from the target repository root. Generated files are written under `.ai/<issue>/` and `.ai_memory/bugs/`.
+
+## Command Reference
+
+### `hrs-ai doctor`
+Purpose: Report local environment, git status, ripgrep, Jira env vars, and Copilot CLI availability.
+Generated files: None.
+Read-only: Yes.
+Modifies source code: No.
+
+### `hrs-ai copilot-check`
+Purpose: Check Copilot CLI and GitHub CLI availability and explain that automatic invocation is not enabled.
+Generated files: None.
+Read-only: Yes.
+Modifies source code: No.
+
+### `hrs-ai fetch <ISSUE>`
+Purpose: Fetch Jira data when configured, or generate clearly marked mock/demo data.
+Generated files: `.ai/<issue>/jira.json`, `.ai/<issue>/jira_summary.md`.
+Read-only: Writes generated artifacts only.
+Modifies source code: No.
+
+### `hrs-ai parse <ISSUE>`
+Purpose: Parse Jira data into structured markdown for downstream context.
+Generated files: `.ai/<issue>/jira_parsed.md`.
+Read-only: Writes generated artifacts only.
+Modifies source code: No.
+
+### `hrs-ai keywords <ISSUE>`
+Purpose: Extract high-value, normal, and dropped keywords from parsed Jira context.
+Generated files: `.ai/<issue>/extracted_keywords.json`.
+Read-only: Writes generated artifacts only.
+Modifies source code: No.
+
+### `hrs-ai search <ISSUE>`
+Purpose: Run ripgrep-based code search and rank related files.
+Generated files: `.ai/<issue>/code_search.md`, `.ai/<issue>/related_files.json`.
+Read-only: Writes generated artifacts only.
+Modifies source code: No.
+
+### `hrs-ai memory search <ISSUE or query>`
+Purpose: Search shared markdown memory by issue keywords or free-text query.
+Generated files: `.ai/<issue>/memory_search.md` when an issue key is provided.
+Read-only: Writes generated artifacts only for issue searches.
+Modifies source code: No.
+
+### `hrs-ai memory add <ISSUE>`
+Purpose: Create or refresh a shared memory entry for the issue.
+Generated files: `.ai/<issue>/memory_entry.md`, `.ai_memory/bugs/<issue>.md`.
+Read-only: Writes generated memory only.
+Modifies source code: No.
+
+### `hrs-ai memory update <ISSUE>`
+Purpose: Update shared memory with final result information after Copilot work.
+Generated files: Updates `.ai_memory/bugs/<issue>.md`.
+Read-only: Writes generated memory only.
+Modifies source code: No.
+
+### `hrs-ai git-context <ISSUE>`
+Purpose: Capture branch, working tree status, and recent git history for related files.
+Generated files: `.ai/<issue>/git_context.md`.
+Read-only: Writes generated artifacts only.
+Modifies source code: No.
+
+### `hrs-ai context <ISSUE>`
+Purpose: Build the enriched bug context package for Copilot CLI.
+Generated files: `.ai/<issue>/bug_context.md`.
+Read-only: Writes generated artifacts only.
+Modifies source code: No.
+
+### `hrs-ai prompt <ISSUE>`
+Purpose: Generate prompt and task files for Copilot and review workflows.
+Generated files: `.ai/<issue>/copilot_task.md`, `.ai/<issue>/copilot_handoff.md`, `.ai/<issue>/copilot_analysis_prompt.md`, `.ai/<issue>/copilot_fix_prompt.md`, `.ai/<issue>/review_prompt.md`, `.ai/<issue>/test_plan.md`.
+Read-only: Writes generated artifacts only.
+Modifies source code: No.
+
+### `hrs-ai copilot-task <ISSUE>`
+Purpose: Regenerate Copilot task and handoff files from existing bug context.
+Generated files: `.ai/<issue>/copilot_task.md`, `.ai/<issue>/copilot_handoff.md`, `.ai/<issue>/copilot_fix_prompt.md`, `.ai/<issue>/review_prompt.md`.
+Read-only: Writes generated artifacts only.
+Modifies source code: No.
+
+### `hrs-ai check-results <ISSUE>`
+Purpose: Check whether Copilot result files exist.
+Generated files: None.
+Read-only: Yes.
+Modifies source code: No.
+
+### `hrs-ai check-results <ISSUE> --strict`
+Purpose: Check result files and return nonzero if any are missing.
+Generated files: None.
+Read-only: Yes.
+Modifies source code: No.
+
+### `hrs-ai summarize-results <ISSUE>`
+Purpose: Concatenate Copilot result files into a final result summary and manual validation guide.
+Generated files: `.ai/<issue>/result_summary.md`, `.ai/<issue>/manual_validation.md`.
+Read-only: Writes generated artifacts only.
+Modifies source code: No.
+
+### `hrs-ai review-package <ISSUE>`
+Purpose: Generate a final review prompt for Copilot, Claude, Codex, or a human reviewer.
+Generated files: `.ai/<issue>/final_review_prompt.md`.
+Read-only: Writes generated artifacts only.
+Modifies source code: No.
+
+### `hrs-ai delivery-check <ISSUE>`
+Purpose: Check whether the issue package looks ready for manual delivery.
+Generated files: Updates workflow status and execution log when present.
+Read-only: Writes generated status/log artifacts only.
+Modifies source code: No.
+
+### `hrs-ai commit-plan <ISSUE>`
+Purpose: Generate a manual commit plan using read-only git commands.
+Generated files: `.ai/<issue>/commit_plan.md`.
+Read-only: Writes generated artifacts only.
+Modifies source code: No.
+
+### `hrs-ai push-plan <ISSUE>`
+Purpose: Generate a manual push plan using read-only git commands.
+Generated files: `.ai/<issue>/push_plan.md`.
+Read-only: Writes generated artifacts only.
+Modifies source code: No.
+
+### `hrs-ai commit <ISSUE> --execute`
+Purpose: Disabled prototype placeholder for future commit automation.
+Generated files: None.
+Read-only: Yes.
+Modifies source code: No.
+
+This intentionally does not run a real `git commit`. Use `commit-plan`, review the generated plan, and manually run git commands after review.
+
+### `hrs-ai push <ISSUE> --execute`
+Purpose: Disabled prototype placeholder for future push automation.
+Generated files: None.
+Read-only: Yes.
+Modifies source code: No.
+
+This intentionally does not run a real `git push`. Use `push-plan`, review the generated plan, and manually run git commands after review.
+
+### `hrs-ai status <ISSUE>`
+Purpose: Show workflow status and generated files for an issue.
+Generated files: None.
+Read-only: Yes.
+Modifies source code: No.
+
+### `hrs-ai bug <ISSUE>`
+Purpose: Run the main end-to-end prepare-only workflow.
+Generated files: Full issue package under `.ai/<issue>/` and shared memory entry `.ai_memory/bugs/<issue>.md`.
+Read-only: Writes generated artifacts only.
+Modifies source code: No.
+
+This command fetches or prepares Jira data, parses it, extracts keywords, runs code search, searches memory, captures git context, builds `bug_context.md`, generates Copilot task and handoff files, creates test and review artifacts, and writes the memory entry.
+
+It does not modify source code, commit, push, merge, create PRs, update Jira, or automatically invoke Copilot.
