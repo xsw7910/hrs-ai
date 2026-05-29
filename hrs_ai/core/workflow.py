@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 
 from .config import WORKFLOW_STEPS, issue_dir
@@ -240,6 +241,76 @@ def check_result_files(repo_root: Path, issue_key: str) -> list[str]:
     ]
 
 
+def check_results_step(repo_root: Path, issue_key: str, strict: bool = False) -> list[str]:
+    target = _prepare_issue_dir(repo_root, issue_key)
+    log(target, f"[START] check_results{' --strict' if strict else ''}")
+    missing = check_result_files(repo_root, issue_key)
+    if missing:
+        log(target, f"[WARN] check_results: missing {len(missing)} Copilot result file(s).")
+        for file_name in missing:
+            log(target, f"[WARN] missing result file: {file_name}")
+    else:
+        log(target, "[END] check_results: pass")
+    if missing:
+        log(target, "[END] check_results: warn")
+    return missing
+
+
+def summarize_results_step(repo_root: Path, issue_key: str) -> None:
+    target = _prepare_issue_dir(repo_root, issue_key)
+    log(target, "[START] summarize_results")
+    try:
+        result_summary = _build_result_summary(repo_root, issue_key)
+        manual_validation = _build_manual_validation(repo_root, issue_key)
+        (target / "result_summary.md").write_text(result_summary, encoding="utf-8")
+        (target / "manual_validation.md").write_text(manual_validation, encoding="utf-8")
+        _mark_step(repo_root, issue_key, "result_summary", "pass")
+        _mark_step(repo_root, issue_key, "manual_validation", "pass")
+        log(target, f"[GENERATED] .ai/{issue_key}/result_summary.md")
+        log(target, f"[GENERATED] .ai/{issue_key}/manual_validation.md")
+        log(target, "[END] summarize_results: pass")
+    except Exception as exc:
+        _mark_step(repo_root, issue_key, "result_summary", "fail")
+        _mark_step(repo_root, issue_key, "manual_validation", "fail")
+        log(target, f"[ERROR] summarize_results: {exc}")
+        raise
+
+
+def review_package_step(repo_root: Path, issue_key: str) -> None:
+    target = _prepare_issue_dir(repo_root, issue_key)
+    log(target, "[START] review_package")
+    try:
+        (target / "final_review_prompt.md").write_text(_build_final_review_prompt(issue_key), encoding="utf-8")
+        _mark_step(repo_root, issue_key, "final_review_prompt", "pass")
+        log(target, f"[GENERATED] .ai/{issue_key}/final_review_prompt.md")
+        log(target, "[END] review_package: pass")
+    except Exception as exc:
+        _mark_step(repo_root, issue_key, "final_review_prompt", "fail")
+        log(target, f"[ERROR] review_package: {exc}")
+        raise
+
+
+def memory_update_step(repo_root: Path, issue_key: str) -> bool:
+    target = _prepare_issue_dir(repo_root, issue_key)
+    log(target, "[START] memory_update")
+    summary_path = target / "result_summary.md"
+    memory_path = repo_root / ".ai_memory" / "bugs" / f"{issue_key}.md"
+    if not summary_path.exists():
+        log(target, f"[WARN] memory_update: missing .ai/{issue_key}/result_summary.md; run hrs-ai summarize-results {issue_key}")
+        _mark_step(repo_root, issue_key, "memory_update", "skipped")
+        return False
+
+    memory_path.parent.mkdir(parents=True, exist_ok=True)
+    existing = memory_path.read_text(encoding="utf-8") if memory_path.exists() else f"# {issue_key} AI Bug Workflow Memory\n"
+    final_result = _build_final_result_section(summary_path.read_text(encoding="utf-8"), bool(check_result_files(repo_root, issue_key)))
+    updated = _replace_section(existing, "## Final Result", final_result)
+    memory_path.write_text(updated, encoding="utf-8")
+    _mark_step(repo_root, issue_key, "memory_update", "pass")
+    log(target, f"[UPDATED] .ai_memory/bugs/{issue_key}.md")
+    log(target, "[END] memory_update: pass")
+    return True
+
+
 def memory_add_step(repo_root: Path, issue_key: str) -> None:
     target = _prepare_issue_dir(repo_root, issue_key)
     log(target, "[START] memory_add")
@@ -320,3 +391,149 @@ def _normalize_status(status: str) -> str:
     if status in {"exception", "error"}:
         return "fail"
     return "skipped"
+
+
+def _build_result_summary(repo_root: Path, issue_key: str) -> str:
+    target = issue_dir(repo_root, issue_key)
+    status_lines = []
+    sections = {}
+    for file_name in REQUIRED_COPILOT_RESULT_FILES:
+        path = target / file_name
+        present = path.exists()
+        status_lines.append(f"- {file_name}: {'present' if present else 'missing'}")
+        sections[file_name] = path.read_text(encoding="utf-8", errors="replace").strip() if present else "TBD"
+    all_present = all((target / file_name).exists() for file_name in REQUIRED_COPILOT_RESULT_FILES)
+    next_step = (
+        "All result files exist. Recommended next step: run final review."
+        if all_present
+        else "Some result files are missing. Recommended next step: complete the missing files."
+    )
+    return (
+        "# Result Summary\n\n"
+        "## Issue\n"
+        f"{issue_key}\n\n"
+        "## Result File Status\n"
+        + "\n".join(status_lines)
+        + "\n\n"
+        "## Root Cause Summary\n"
+        f"{sections['bug_analysis.md']}\n\n"
+        "## Fix Summary\n"
+        f"{sections['fix_summary.md']}\n\n"
+        "## Test Summary\n"
+        f"{sections['test_result.md']}\n\n"
+        "## Diff Summary\n"
+        f"{sections['diff_summary.md']}\n\n"
+        "## Review Notes\n"
+        f"{sections['review_notes.md']}\n\n"
+        "## Next Step\n"
+        f"{next_step}\n"
+    )
+
+
+def _build_manual_validation(repo_root: Path, issue_key: str) -> str:
+    target = issue_dir(repo_root, issue_key)
+    related = _read_json_default(target / "related_files.json", [])
+    review_notes = (target / "review_notes.md").read_text(encoding="utf-8", errors="replace").strip() if (target / "review_notes.md").exists() else ""
+    related_lines = []
+    if isinstance(related, list) and related:
+        for item in related[:10]:
+            if isinstance(item, dict) and item.get("file"):
+                related_lines.append(f"- {item['file']}")
+    if review_notes:
+        related_lines.append("- Risks from review_notes.md:")
+        related_lines.extend(f"  {line}" for line in review_notes.splitlines() if line.strip())
+    return (
+        "# Manual Validation\n\n"
+        "## Issue\n"
+        f"{issue_key}\n\n"
+        "## Original Context\n"
+        "Reference:\n"
+        f".ai/{issue_key}/bug_context.md\n\n"
+        "## Suggested Validation Steps\n"
+        "1. Reproduce the original issue if possible.\n"
+        "2. Confirm the failure no longer occurs.\n"
+        "3. Confirm the fix does not change unrelated behavior.\n"
+        "4. Run focused tests listed in test_result.md if present.\n"
+        "5. Check regression areas mentioned in bug_context.md and code_search.md.\n\n"
+        "## Regression Areas\n"
+        f"{chr(10).join(related_lines) if related_lines else '- No related files or review risks available yet.'}\n"
+    )
+
+
+def _build_final_review_prompt(issue_key: str) -> str:
+    return (
+        "# Final Review Request\n\n"
+        f"Please review the completed fix for Jira issue {issue_key}.\n\n"
+        "Use:\n"
+        f"- .ai/{issue_key}/bug_context.md\n"
+        f"- .ai/{issue_key}/code_search.md if present\n"
+        f"- .ai/{issue_key}/result_summary.md if present\n"
+        "- current git diff\n\n"
+        "Review focus:\n"
+        "1. Correctness\n"
+        "2. Regression risk\n"
+        "3. Whether the fix matches the Jira issue\n"
+        "4. Whether the fix is minimal and safe\n"
+        "5. Whether tests are sufficient\n"
+        "6. Whether memory entry should be updated\n"
+        "7. Any follow-up work\n\n"
+        "Expected output:\n"
+        "Verdict:\n"
+        "PASS / PASS WITH MINOR COMMENTS / NEEDS CHANGES\n\n"
+        "Blocking issues:\n"
+        "Non-blocking suggestions:\n"
+        "Test concerns:\n"
+        "Memory update suggestions:\n"
+        "Recommended next step:\n"
+    )
+
+
+def _build_final_result_section(result_summary: str, incomplete: bool) -> str:
+    marker = "\n\nResult files incomplete. Manual update required." if incomplete else ""
+    return (
+        "## Final Result\n\n"
+        "### Root Cause\n"
+        f"{_section(result_summary, '## Root Cause Summary')}\n\n"
+        "### Fix\n"
+        f"{_section(result_summary, '## Fix Summary')}\n\n"
+        "### Tests\n"
+        f"{_section(result_summary, '## Test Summary')}\n\n"
+        "### Review Notes\n"
+        f"{_section(result_summary, '## Review Notes')}{marker}\n\n"
+        "### Updated At\n"
+        f"{datetime.now(timezone.utc).isoformat()}\n"
+    )
+
+
+def _section(markdown: str, heading: str) -> str:
+    lines = markdown.splitlines()
+    try:
+        start = lines.index(heading) + 1
+    except ValueError:
+        return "TBD"
+    collected = []
+    for line in lines[start:]:
+        if line.startswith("## ") and collected:
+            break
+        collected.append(line)
+    text = "\n".join(collected).strip()
+    return text or "TBD"
+
+
+def _replace_section(markdown: str, heading: str, replacement: str) -> str:
+    start = markdown.find(heading)
+    if start == -1:
+        return markdown.rstrip() + "\n\n" + replacement
+    next_start = markdown.find("\n## ", start + len(heading))
+    if next_start == -1:
+        return markdown[:start].rstrip() + "\n\n" + replacement
+    return markdown[:start].rstrip() + "\n\n" + replacement.rstrip() + "\n" + markdown[next_start:]
+
+
+def _read_json_default(path: Path, default: object) -> object:
+    if not path.exists():
+        return default
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return default

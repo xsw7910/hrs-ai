@@ -22,14 +22,20 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers.add_parser("doctor", help="Check local environment readiness.")
     subparsers.add_parser("copilot-check", help="Check Copilot CLI readiness.")
 
-    for name in ("fetch", "parse", "keywords", "search", "git-context", "context", "prompt", "status", "copilot-task", "check-results"):
+    for name in ("fetch", "parse", "keywords", "search", "git-context", "context", "prompt", "status", "copilot-task", "summarize-results", "review-package"):
         command = subparsers.add_parser(name, help=f"Run the {name} step.")
         command.add_argument("issue_key")
+
+    check_parser = subparsers.add_parser("check-results", help="Check Copilot result files.")
+    check_parser.add_argument("issue_key")
+    check_parser.add_argument("--strict", action="store_true", help="Exit non-zero when result files are missing.")
 
     memory_parser = subparsers.add_parser("memory", help="Manage shared AI memory.")
     memory_subparsers = memory_parser.add_subparsers(dest="memory_command", required=True)
     memory_add = memory_subparsers.add_parser("add", help="Add bug memory entry.")
     memory_add.add_argument("issue_key")
+    memory_update = memory_subparsers.add_parser("update", help="Update bug memory from result summary.")
+    memory_update.add_argument("issue_key")
     memory_search = memory_subparsers.add_parser("search", help="Search shared AI memory.")
     memory_search.add_argument("query")
 
@@ -102,19 +108,36 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "check-results":
-        missing = workflow.check_result_files(repo_root, args.issue_key)
+        missing = workflow.check_results_step(repo_root, args.issue_key, strict=args.strict)
         if missing:
             print(f"WARN: missing {len(missing)} Copilot result file(s).")
             for file_name in missing:
                 print(f"  {file_name}")
+            return 1 if args.strict else 0
         else:
             print("PASS: all Copilot result files exist.")
+        return 0
+
+    if args.command == "summarize-results":
+        workflow.summarize_results_step(repo_root, args.issue_key)
+        print(f"Generated result summary and manual validation for {args.issue_key}.")
+        return 0
+
+    if args.command == "review-package":
+        workflow.review_package_step(repo_root, args.issue_key)
+        print(f"Generated final review prompt for {args.issue_key}.")
         return 0
 
     if args.command == "memory":
         if args.memory_command == "add":
             workflow.memory_add_step(repo_root, args.issue_key)
             print(f"Added shared memory entry for {args.issue_key}.")
+        elif args.memory_command == "update":
+            updated = workflow.memory_update_step(repo_root, args.issue_key)
+            if updated:
+                print(f"Updated shared memory entry for {args.issue_key}.")
+            else:
+                print(f"WARN: missing .ai/{args.issue_key}/result_summary.md. Run: hrs-ai summarize-results {args.issue_key}")
         elif args.memory_command == "search":
             issue_key = args.query if workflow.looks_like_issue_key(args.query) else None
             if issue_key:

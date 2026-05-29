@@ -43,6 +43,10 @@ def test_workflow_status_json_generation(tmp_path):
         "prompt": "pass",
         "memory_add": "pass",
         "copilot_fix": "skipped",
+        "result_summary": "skipped",
+        "manual_validation": "skipped",
+        "final_review_prompt": "skipped",
+        "memory_update": "skipped",
     }
     assert ".ai/HR-12345/copilot_task.md" in status["generated_files"]
     assert ".ai/HR-12345/copilot_handoff.md" in status["generated_files"]
@@ -345,6 +349,15 @@ def test_check_results_reports_missing_files(tmp_path, monkeypatch, capsys):
     assert ".ai/HR-12345/review_notes.md" in output
 
 
+def test_check_results_strict_missing_files_exits_nonzero(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+
+    assert main(["check-results", "HR-12345", "--strict"]) == 1
+    output = capsys.readouterr().out
+
+    assert "WARN: missing 5 Copilot result file(s)." in output
+
+
 def test_check_results_passes_when_all_files_exist(tmp_path, monkeypatch, capsys):
     issue_dir = tmp_path / ".ai" / "HR-12345"
     issue_dir.mkdir(parents=True)
@@ -353,6 +366,18 @@ def test_check_results_passes_when_all_files_exist(tmp_path, monkeypatch, capsys
     monkeypatch.chdir(tmp_path)
 
     assert main(["check-results", "HR-12345"]) == 0
+
+    assert "PASS: all Copilot result files exist." in capsys.readouterr().out
+
+
+def test_check_results_strict_passes_when_all_files_exist(tmp_path, monkeypatch, capsys):
+    issue_dir = tmp_path / ".ai" / "HR-12345"
+    issue_dir.mkdir(parents=True)
+    for file_name in ["bug_analysis.md", "fix_summary.md", "test_result.md", "diff_summary.md", "review_notes.md"]:
+        (issue_dir / file_name).write_text("done", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+
+    assert main(["check-results", "HR-12345", "--strict"]) == 0
 
     assert "PASS: all Copilot result files exist." in capsys.readouterr().out
 
@@ -370,3 +395,112 @@ def test_bug_copilot_fix_remains_manual_and_safe(tmp_path, monkeypatch, capsys):
     assert "[INFO] Copilot automatic invocation is not enabled, using manual handoff" in log_text
     assert "[INFO] Next Copilot CLI instruction: Read .ai/HR-12345/copilot_task.md and complete the workflow." in log_text
     assert status["steps"]["copilot_fix"] == "skipped"
+
+
+def test_summarize_results_generates_summary_and_manual_validation(tmp_path, monkeypatch):
+    issue_dir = tmp_path / ".ai" / "HR-12345"
+    issue_dir.mkdir(parents=True)
+    (issue_dir / "bug_analysis.md").write_text("Root cause: stale cache", encoding="utf-8")
+    (issue_dir / "fix_summary.md").write_text("Cleared cache on filter change", encoding="utf-8")
+    (issue_dir / "related_files.json").write_text(json.dumps([{"file": "src/EmployeeSearch.cpp"}]), encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+
+    assert main(["summarize-results", "HR-12345"]) == 0
+    summary = (issue_dir / "result_summary.md").read_text()
+    manual = (issue_dir / "manual_validation.md").read_text()
+    status = json.loads((issue_dir / "workflow_status.json").read_text())
+
+    assert "- bug_analysis.md: present" in summary
+    assert "- test_result.md: missing" in summary
+    assert "Root cause: stale cache" in summary
+    assert "Cleared cache on filter change" in summary
+    assert "## Suggested Validation Steps" in manual
+    assert "- src/EmployeeSearch.cpp" in manual
+    assert status["steps"]["result_summary"] == "pass"
+    assert status["steps"]["manual_validation"] == "pass"
+
+
+def test_memory_update_replaces_final_result_section(tmp_path, monkeypatch):
+    issue_dir = tmp_path / ".ai" / "HR-12345"
+    memory_dir = tmp_path / ".ai_memory" / "bugs"
+    issue_dir.mkdir(parents=True)
+    memory_dir.mkdir(parents=True)
+    (issue_dir / "result_summary.md").write_text(
+        "# Result Summary\n\n"
+        "## Root Cause Summary\nOld cache key\n\n"
+        "## Fix Summary\nNew query key\n\n"
+        "## Test Summary\nFocused tests passed\n\n"
+        "## Review Notes\nLooks safe\n",
+        encoding="utf-8",
+    )
+    (memory_dir / "HR-12345.md").write_text(
+        "# HR-12345 AI Bug Workflow Memory\n\n"
+        "## Jira Summary\n\nPreserve me.\n\n"
+        "## Code Search Summary\n\nPreserve code search.\n\n"
+        "## Related Files\n\nPreserve related files.\n\n"
+        "## Final Result\n\nold final\n",
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(tmp_path)
+
+    assert main(["memory", "update", "HR-12345"]) == 0
+    memory = (memory_dir / "HR-12345.md").read_text()
+    status = json.loads((issue_dir / "workflow_status.json").read_text())
+
+    assert "Preserve me." in memory
+    assert "Preserve code search." in memory
+    assert "Preserve related files." in memory
+    assert "old final" not in memory
+    assert "### Root Cause\nOld cache key" in memory
+    assert "### Fix\nNew query key" in memory
+    assert "### Tests\nFocused tests passed" in memory
+    assert "### Review Notes\nLooks safe" in memory
+    assert "Result files incomplete. Manual update required." in memory
+    assert status["steps"]["memory_update"] == "pass"
+
+
+def test_memory_update_missing_result_summary_is_graceful(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+
+    assert main(["memory", "update", "HR-12345"]) == 0
+    output = capsys.readouterr().out
+    status = json.loads((tmp_path / ".ai" / "HR-12345" / "workflow_status.json").read_text())
+
+    assert "WARN: missing .ai/HR-12345/result_summary.md" in output
+    assert status["steps"]["memory_update"] == "skipped"
+
+
+def test_review_package_generates_final_review_prompt(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+
+    assert main(["review-package", "HR-12345"]) == 0
+    prompt = (tmp_path / ".ai" / "HR-12345" / "final_review_prompt.md").read_text()
+    status = json.loads((tmp_path / ".ai" / "HR-12345" / "workflow_status.json").read_text())
+
+    assert "# Final Review Request" in prompt
+    assert "Please review the completed fix for Jira issue HR-12345." in prompt
+    assert ".ai/HR-12345/result_summary.md if present" in prompt
+    assert "Verdict:" in prompt
+    assert "PASS / PASS WITH MINOR COMMENTS / NEEDS CHANGES" in prompt
+    assert status["steps"]["final_review_prompt"] == "pass"
+
+
+def test_phase_4_commands_log_generated_and_updated_files(tmp_path, monkeypatch):
+    issue_dir = tmp_path / ".ai" / "HR-12345"
+    memory_dir = tmp_path / ".ai_memory" / "bugs"
+    issue_dir.mkdir(parents=True)
+    memory_dir.mkdir(parents=True)
+    (issue_dir / "bug_analysis.md").write_text("Root cause", encoding="utf-8")
+    (issue_dir / "fix_summary.md").write_text("Fix", encoding="utf-8")
+    (memory_dir / "HR-12345.md").write_text("# HR-12345\n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+
+    main(["summarize-results", "HR-12345"])
+    main(["memory", "update", "HR-12345"])
+    main(["review-package", "HR-12345"])
+    log_text = (issue_dir / "execution.log").read_text()
+
+    assert "[GENERATED] .ai/HR-12345/result_summary.md" in log_text
+    assert "[GENERATED] .ai/HR-12345/manual_validation.md" in log_text
+    assert "[UPDATED] .ai_memory/bugs/HR-12345.md" in log_text
+    assert "[GENERATED] .ai/HR-12345/final_review_prompt.md" in log_text

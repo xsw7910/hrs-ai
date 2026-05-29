@@ -19,6 +19,10 @@ WORKFLOW_STEPS = [
     "prompt",
     "memory_add",
     "copilot_fix",
+    "result_summary",
+    "manual_validation",
+    "final_review_prompt",
+    "memory_update",
 ]
 
 
