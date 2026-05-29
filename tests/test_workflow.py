@@ -45,6 +45,7 @@ def test_workflow_status_json_generation(tmp_path):
         "copilot_fix": "skipped",
     }
     assert ".ai/HR-12345/copilot_task.md" in status["generated_files"]
+    assert ".ai/HR-12345/copilot_handoff.md" in status["generated_files"]
     assert ".ai/HR-12345/code_search.md" in status["generated_files"]
     assert ".ai/HR-12345/related_files.json" in status["generated_files"]
     assert ".ai/HR-12345/memory_search.md" in status["generated_files"]
@@ -97,6 +98,7 @@ def test_execution_log_contains_prepare_only_lifecycle(tmp_path, monkeypatch):
     assert "[GENERATED] .ai/HR-12345/memory_search.md" in log_text
     assert "[GENERATED] .ai/HR-12345/git_context.md" in log_text
     assert "[GENERATED] .ai/HR-12345/copilot_task.md" in log_text
+    assert "[GENERATED] .ai/HR-12345/copilot_handoff.md" in log_text
     assert "[GENERATED] .ai_memory/bugs/HR-12345.md" in log_text
     assert "[END] workflow: pass" in log_text
 
@@ -106,12 +108,27 @@ def test_copilot_task_references_code_search(tmp_path):
     task = (tmp_path / ".ai" / "HR-12345" / "copilot_task.md").read_text()
 
     assert "Run Copilot CLI from the target repo root" in task
+    assert "Do not run Copilot CLI from the hrs-ai tool source directory" in task
+    assert ".ai/HR-12345/` files are relative to the target repo root" in task
     assert "feature/HR-12345-ai-assisted-jira-bug-workflow" in task
+    assert "Check the current branch before editing" in task
+    assert "Create or switch to the feature branch before editing files" in task
+    assert ".ai/HR-12345/bug_context.md" in task
     assert ".ai/HR-12345/code_search.md" in task
     assert ".ai/HR-12345/related_files.json" in task
+    assert ".ai/HR-12345/memory_search.md" in task
+    assert ".ai/HR-12345/git_context.md" in task
     assert "Do not edit code until after reviewing context and related files" in task
     assert "matched line numbers" in task
     assert ".ai/HR-12345/bug_analysis.md" in task
+    assert ".ai/HR-12345/fix_summary.md" in task
+    assert ".ai/HR-12345/test_result.md" in task
+    assert ".ai/HR-12345/diff_summary.md" in task
+    assert ".ai/HR-12345/review_notes.md" in task
+    assert "git reset --hard" in task
+    assert "git clean -fd" in task
+    assert "Do not push unless explicitly instructed" in task
+    assert "Do not update Jira" in task
 
 
 def test_keyword_schema_matches_phase_2_plan():
@@ -193,6 +210,7 @@ def test_bug_workflow_generates_phase_2_files_and_enriched_context(tmp_path):
     assert "## Code Search Summary" in context
     assert "## Similar Historical Issues" in context
     assert "## Git Context" in context
+    assert (issue_dir / "copilot_handoff.md").is_file()
 
 
 def test_rg_subprocess_uses_utf8_replace_and_include_globs(tmp_path, monkeypatch):
@@ -279,3 +297,76 @@ def test_context_code_search_summary_prefers_related_files_over_warnings():
 
     assert summary.startswith("- `src/EmployeeSearch.cpp`")
     assert "Warnings:" in summary
+
+
+def test_copilot_handoff_is_generated(tmp_path):
+    run_bug_workflow(tmp_path, "HR-12345")
+    handoff = (tmp_path / ".ai" / "HR-12345" / "copilot_handoff.md").read_text()
+
+    assert "Read `.ai/HR-12345/copilot_task.md` and complete the workflow." in handoff
+    assert "Run Copilot CLI from the target repo root" in handoff
+    assert "Do not work directly on main/master" in handoff
+    assert "Do not push or merge" in handoff
+
+
+def test_copilot_task_command_regenerates_task_files(tmp_path, monkeypatch):
+    issue_dir = tmp_path / ".ai" / "HR-12345"
+    issue_dir.mkdir(parents=True)
+    (issue_dir / "bug_context.md").write_text("# Bug Context\n", encoding="utf-8")
+    (issue_dir / "copilot_task.md").write_text("old", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+
+    assert main(["copilot-task", "HR-12345"]) == 0
+
+    assert "Copilot CLI Task" in (issue_dir / "copilot_task.md").read_text()
+    assert (issue_dir / "copilot_handoff.md").is_file()
+    assert (issue_dir / "copilot_fix_prompt.md").is_file()
+    assert (issue_dir / "review_prompt.md").is_file()
+
+
+def test_copilot_task_command_reports_missing_bug_context(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+
+    assert main(["copilot-task", "HR-12345"]) == 1
+    error = capsys.readouterr().err
+
+    assert "Missing .ai/HR-12345/bug_context.md." in error
+    assert "Run: hrs-ai bug HR-12345" in error
+
+
+def test_check_results_reports_missing_files(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+
+    assert main(["check-results", "HR-12345"]) == 0
+    output = capsys.readouterr().out
+
+    assert "WARN: missing 5 Copilot result file(s)." in output
+    assert ".ai/HR-12345/bug_analysis.md" in output
+    assert ".ai/HR-12345/review_notes.md" in output
+
+
+def test_check_results_passes_when_all_files_exist(tmp_path, monkeypatch, capsys):
+    issue_dir = tmp_path / ".ai" / "HR-12345"
+    issue_dir.mkdir(parents=True)
+    for file_name in ["bug_analysis.md", "fix_summary.md", "test_result.md", "diff_summary.md", "review_notes.md"]:
+        (issue_dir / file_name).write_text("done", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+
+    assert main(["check-results", "HR-12345"]) == 0
+
+    assert "PASS: all Copilot result files exist." in capsys.readouterr().out
+
+
+def test_bug_copilot_fix_remains_manual_and_safe(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+
+    assert main(["bug", "HR-12345", "--copilot-fix"]) == 0
+    output = capsys.readouterr().out
+    log_text = (tmp_path / ".ai" / "HR-12345" / "execution.log").read_text()
+    status = json.loads((tmp_path / ".ai" / "HR-12345" / "workflow_status.json").read_text())
+
+    assert "Copilot automatic invocation is not enabled." in output
+    assert "Read .ai/HR-12345/copilot_task.md and complete the workflow." in output
+    assert "[INFO] Copilot automatic invocation is not enabled, using manual handoff" in log_text
+    assert "[INFO] Next Copilot CLI instruction: Read .ai/HR-12345/copilot_task.md and complete the workflow." in log_text
+    assert status["steps"]["copilot_fix"] == "skipped"

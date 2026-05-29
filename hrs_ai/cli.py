@@ -22,7 +22,7 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers.add_parser("doctor", help="Check local environment readiness.")
     subparsers.add_parser("copilot-check", help="Check Copilot CLI readiness.")
 
-    for name in ("fetch", "parse", "keywords", "search", "git-context", "context", "prompt", "status"):
+    for name in ("fetch", "parse", "keywords", "search", "git-context", "context", "prompt", "status", "copilot-task", "check-results"):
         command = subparsers.add_parser(name, help=f"Run the {name} step.")
         command.add_argument("issue_key")
 
@@ -91,6 +91,26 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Generated prompts for {args.issue_key}.")
         return 0
 
+    if args.command == "copilot-task":
+        try:
+            workflow.copilot_task_step(repo_root, args.issue_key)
+        except FileNotFoundError:
+            print(f"Missing .ai/{args.issue_key}/bug_context.md.", file=sys.stderr)
+            print(f"Run: hrs-ai bug {args.issue_key}", file=sys.stderr)
+            return 1
+        print(f"Regenerated Copilot task files for {args.issue_key}.")
+        return 0
+
+    if args.command == "check-results":
+        missing = workflow.check_result_files(repo_root, args.issue_key)
+        if missing:
+            print(f"WARN: missing {len(missing)} Copilot result file(s).")
+            for file_name in missing:
+                print(f"  {file_name}")
+        else:
+            print("PASS: all Copilot result files exist.")
+        return 0
+
     if args.command == "memory":
         if args.memory_command == "add":
             workflow.memory_add_step(repo_root, args.issue_key)
@@ -111,12 +131,13 @@ def main(argv: list[str] | None = None) -> int:
         return _print_status(repo_root, args.issue_key)
 
     if args.command == "bug":
-        result = workflow.run_bug_workflow(repo_root, args.issue_key)
+        result = workflow.run_bug_workflow(repo_root, args.issue_key, copilot_fix=args.copilot_fix)
         print(f"Prepared hrs-ai workflow package for {args.issue_key}.")
         print(f"Artifacts: {result.issue_dir}")
         print("Next manual Copilot CLI instruction:")
         print(f"  Read .ai/{args.issue_key}/copilot_task.md and complete the workflow.")
         if args.copilot_fix:
+            copilot.print_copilot_check()
             copilot.print_auto_invocation_not_implemented(args.issue_key)
         return 0
 

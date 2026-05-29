@@ -14,7 +14,7 @@ from .jira import fetch_issue, jira_summary_markdown, parse_issue, parsed_markdo
 from .keywords import extract_keywords, keywords_json
 from .logging_utils import log
 from .memory import ISSUE_KEY_RE, add_memory_entry, build_memory_entry, search_memory
-from .prompts import generate_prompts
+from .prompts import generate_copilot_task_files, generate_prompts
 from .search import related_files_json, run_code_search
 
 
@@ -25,11 +25,20 @@ class WorkflowResult:
     generated_files: list[str]
 
 
+REQUIRED_COPILOT_RESULT_FILES = [
+    "bug_analysis.md",
+    "fix_summary.md",
+    "test_result.md",
+    "diff_summary.md",
+    "review_notes.md",
+]
+
+
 def looks_like_issue_key(value: str) -> bool:
     return bool(ISSUE_KEY_RE.match(value.strip()))
 
 
-def run_bug_workflow(repo_root: Path, issue_key: str) -> WorkflowResult:
+def run_bug_workflow(repo_root: Path, issue_key: str, copilot_fix: bool = False) -> WorkflowResult:
     target = _prepare_issue_dir(repo_root, issue_key)
     log(target, f"[START] command: hrs-ai bug {issue_key}")
 
@@ -56,6 +65,9 @@ def run_bug_workflow(repo_root: Path, issue_key: str) -> WorkflowResult:
 
     _mark_step(repo_root, issue_key, "copilot_fix", "skipped")
     log(target, "[SKIP] copilot_fix: prepare-only mode")
+    if copilot_fix:
+        log(target, "[INFO] Copilot automatic invocation is not enabled, using manual handoff")
+        log(target, f"[INFO] Next Copilot CLI instruction: Read .ai/{issue_key}/copilot_task.md and complete the workflow.")
     generated = _generated_files(repo_root, issue_key)
     for file_name in generated:
         log(target, f"[GENERATED] {file_name}")
@@ -202,6 +214,30 @@ def prompt_step(repo_root: Path, issue_key: str) -> None:
         _mark_step(repo_root, issue_key, "prompt", "fail")
         log(target, f"[ERROR] prompt: {exc}")
         raise
+
+
+def copilot_task_step(repo_root: Path, issue_key: str) -> None:
+    target = _prepare_issue_dir(repo_root, issue_key)
+    bug_context = target / "bug_context.md"
+    if not bug_context.exists():
+        raise FileNotFoundError(f"Missing {bug_context}. Run: hrs-ai bug {issue_key}")
+    log(target, "[START] copilot_task")
+    try:
+        for file_name, content in generate_copilot_task_files(issue_key).items():
+            (target / file_name).write_text(content, encoding="utf-8")
+        log(target, "[END] copilot_task: pass")
+    except Exception as exc:
+        log(target, f"[ERROR] copilot_task: {exc}")
+        raise
+
+
+def check_result_files(repo_root: Path, issue_key: str) -> list[str]:
+    target = issue_dir(repo_root, issue_key)
+    return [
+        f".ai/{issue_key}/{file_name}"
+        for file_name in REQUIRED_COPILOT_RESULT_FILES
+        if not (target / file_name).exists()
+    ]
 
 
 def memory_add_step(repo_root: Path, issue_key: str) -> None:
