@@ -47,6 +47,9 @@ def test_workflow_status_json_generation(tmp_path):
         "manual_validation": "skipped",
         "final_review_prompt": "skipped",
         "memory_update": "skipped",
+        "delivery_check": "skipped",
+        "commit_plan": "skipped",
+        "push_plan": "skipped",
     }
     assert ".ai/HR-12345/copilot_task.md" in status["generated_files"]
     assert ".ai/HR-12345/copilot_handoff.md" in status["generated_files"]
@@ -504,3 +507,142 @@ def test_phase_4_commands_log_generated_and_updated_files(tmp_path, monkeypatch)
     assert "[GENERATED] .ai/HR-12345/manual_validation.md" in log_text
     assert "[UPDATED] .ai_memory/bugs/HR-12345.md" in log_text
     assert "[GENERATED] .ai/HR-12345/final_review_prompt.md" in log_text
+
+
+def _write_delivery_artifacts(tmp_path):
+    issue_dir = tmp_path / ".ai" / "HR-12345"
+    memory_dir = tmp_path / ".ai_memory" / "bugs"
+    issue_dir.mkdir(parents=True, exist_ok=True)
+    memory_dir.mkdir(parents=True, exist_ok=True)
+    for file_name in ["bug_analysis.md", "fix_summary.md", "test_result.md", "diff_summary.md", "review_notes.md"]:
+        (issue_dir / file_name).write_text("done", encoding="utf-8")
+    (issue_dir / "result_summary.md").write_text("## Fix Summary\nshort summary\n", encoding="utf-8")
+    (issue_dir / "final_review_prompt.md").write_text("review", encoding="utf-8")
+    (memory_dir / "HR-12345.md").write_text("memory", encoding="utf-8")
+    return issue_dir
+
+
+def test_delivery_check_warns_when_required_files_missing(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+
+    assert main(["delivery-check", "HR-12345"]) == 0
+    output = capsys.readouterr().out
+    status = json.loads((tmp_path / ".ai" / "HR-12345" / "workflow_status.json").read_text())
+
+    assert "WARN: delivery is not ready." in output
+    assert "Missing required result file: .ai/HR-12345/bug_analysis.md" in output
+    assert status["steps"]["delivery_check"] == "fail"
+
+
+def test_delivery_check_passes_when_ready(tmp_path, monkeypatch, capsys):
+    _write_delivery_artifacts(tmp_path)
+
+    monkeypatch.setattr("hrs_ai.core.workflow.inside_git_repo", lambda repo_root: True)
+    monkeypatch.setattr("hrs_ai.core.workflow.current_branch", lambda repo_root: "feature/HR-12345-demo")
+    monkeypatch.setattr("hrs_ai.core.workflow.working_tree_status", lambda repo_root: " M src/file.cpp")
+    monkeypatch.chdir(tmp_path)
+
+    assert main(["delivery-check", "HR-12345"]) == 0
+    output = capsys.readouterr().out
+    status = json.loads((tmp_path / ".ai" / "HR-12345" / "workflow_status.json").read_text())
+
+    assert "PASS: ready for manual commit/push." in output
+    assert status["steps"]["delivery_check"] == "pass"
+
+
+def test_commit_plan_generates_file_without_git_mutation(tmp_path, monkeypatch):
+    calls = []
+
+    def fake_run_command(args, repo_root):
+        calls.append(args)
+        if args[:3] == ["git", "branch", "--show-current"]:
+            return 0, "feature/HR-12345-demo"
+        if args[:3] == ["git", "diff", "--name-only"]:
+            return 0, "src/file.cpp"
+        if args[:3] == ["git", "diff", "--stat"]:
+            return 0, " src/file.cpp | 2 +-\n 1 file changed"
+        return 0, ""
+
+    monkeypatch.setattr("hrs_ai.core.workflow.run_command", fake_run_command)
+    monkeypatch.chdir(tmp_path)
+
+    assert main(["commit-plan", "HR-12345"]) == 0
+    plan = (tmp_path / ".ai" / "HR-12345" / "commit_plan.md").read_text()
+
+    assert "# Commit Plan" in plan
+    assert "feature/HR-12345-demo" in plan
+    assert "src/file.cpp" in plan
+    assert 'git commit -m "Fix HR-12345:' in plan
+    assert not any(call[:2] == ["git", "add"] for call in calls)
+    assert not any(call[:2] == ["git", "commit"] for call in calls)
+
+
+def test_push_plan_generates_file_without_git_push(tmp_path, monkeypatch):
+    calls = []
+
+    def fake_run_command(args, repo_root):
+        calls.append(args)
+        if args[:3] == ["git", "branch", "--show-current"]:
+            return 0, "feature/HR-12345-demo"
+        if args[:2] == ["git", "remote"]:
+            return 0, "origin https://example/repo.git (fetch)\norigin https://example/repo.git (push)"
+        if args[:2] == ["git", "log"]:
+            return 0, "abc123 Fix HR-12345"
+        if args[:3] == ["git", "status", "--porcelain"]:
+            return 0, " M src/file.cpp"
+        return 0, ""
+
+    monkeypatch.setattr("hrs_ai.core.workflow.run_command", fake_run_command)
+    monkeypatch.chdir(tmp_path)
+
+    assert main(["push-plan", "HR-12345"]) == 0
+    plan = (tmp_path / ".ai" / "HR-12345" / "push_plan.md").read_text()
+
+    assert "# Push Plan" in plan
+    assert "feature/HR-12345-demo" in plan
+    assert "git push -u origin feature/HR-12345-demo" in plan
+    assert not any(call[:2] == ["git", "push"] for call in calls)
+
+
+def test_delivery_commands_are_safe_outside_git_repo(tmp_path, monkeypatch, capsys):
+    _write_delivery_artifacts(tmp_path)
+    monkeypatch.setattr("hrs_ai.core.workflow.inside_git_repo", lambda repo_root: False)
+    monkeypatch.setattr("hrs_ai.core.workflow.current_branch", lambda repo_root: None)
+    monkeypatch.setattr("hrs_ai.core.workflow.working_tree_status", lambda repo_root: None)
+    monkeypatch.chdir(tmp_path)
+
+    assert main(["delivery-check", "HR-12345"]) == 0
+    output = capsys.readouterr().out
+
+    assert "Current directory is not inside a git repository." in output
+    assert "Current branch is unavailable." in output
+
+
+def test_delivery_plan_status_and_log_entries(tmp_path, monkeypatch):
+    monkeypatch.setattr("hrs_ai.core.workflow.run_command", lambda args, repo_root: (0, "feature/HR-12345-demo"))
+    monkeypatch.chdir(tmp_path)
+
+    main(["commit-plan", "HR-12345"])
+    main(["push-plan", "HR-12345"])
+    status = json.loads((tmp_path / ".ai" / "HR-12345" / "workflow_status.json").read_text())
+    log_text = (tmp_path / ".ai" / "HR-12345" / "execution.log").read_text()
+
+    assert status["steps"]["commit_plan"] == "pass"
+    assert status["steps"]["push_plan"] == "pass"
+    assert ".ai/HR-12345/commit_plan.md" in status["generated_files"]
+    assert ".ai/HR-12345/push_plan.md" in status["generated_files"]
+    assert "[GENERATED] .ai/HR-12345/commit_plan.md" in log_text
+    assert "[GENERATED] .ai/HR-12345/push_plan.md" in log_text
+
+
+def test_commit_and_push_execute_placeholders_do_not_mutate_git(tmp_path, monkeypatch, capsys):
+    calls = []
+    monkeypatch.setattr("hrs_ai.core.workflow.run_command", lambda args, repo_root: calls.append(args) or (0, ""))
+    monkeypatch.chdir(tmp_path)
+
+    assert main(["commit", "HR-12345", "--execute"]) == 0
+    assert main(["push", "HR-12345", "--execute"]) == 0
+    output = capsys.readouterr().out
+
+    assert "Automatic commit/push execution is not enabled in this prototype." in output
+    assert calls == []

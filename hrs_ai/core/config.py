@@ -23,6 +23,9 @@ WORKFLOW_STEPS = [
     "manual_validation",
     "final_review_prompt",
     "memory_update",
+    "delivery_check",
+    "commit_plan",
+    "push_plan",
 ]
 
 

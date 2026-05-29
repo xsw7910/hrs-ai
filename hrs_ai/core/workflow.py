@@ -10,7 +10,7 @@ from pathlib import Path
 from .config import WORKFLOW_STEPS, issue_dir
 from .context import build_context
 from .doctor import collect_doctor_report
-from .git_ops import generate_git_context
+from .git_ops import current_branch, generate_git_context, inside_git_repo, run_command, working_tree_status
 from .jira import fetch_issue, jira_summary_markdown, parse_issue, parsed_markdown
 from .keywords import extract_keywords, keywords_json
 from .logging_utils import log
@@ -290,6 +290,55 @@ def review_package_step(repo_root: Path, issue_key: str) -> None:
         raise
 
 
+def delivery_check_step(repo_root: Path, issue_key: str) -> list[str]:
+    target = _prepare_issue_dir(repo_root, issue_key)
+    log(target, "[START] delivery_check")
+    warnings = _delivery_warnings(repo_root, issue_key)
+    if warnings:
+        for warning in warnings:
+            log(target, f"[WARN] delivery_check: {warning}")
+        _mark_step(repo_root, issue_key, "delivery_check", "fail")
+        log(target, "[END] delivery_check: warn")
+    else:
+        _mark_step(repo_root, issue_key, "delivery_check", "pass")
+        log(target, "[END] delivery_check: pass")
+    return warnings
+
+
+def commit_plan_step(repo_root: Path, issue_key: str) -> Path:
+    target = _prepare_issue_dir(repo_root, issue_key)
+    log(target, "[START] commit_plan")
+    try:
+        plan = _build_commit_plan(repo_root, issue_key)
+        path = target / "commit_plan.md"
+        path.write_text(plan, encoding="utf-8")
+        _mark_step(repo_root, issue_key, "commit_plan", "pass")
+        log(target, f"[GENERATED] .ai/{issue_key}/commit_plan.md")
+        log(target, "[END] commit_plan: pass")
+        return path
+    except Exception as exc:
+        _mark_step(repo_root, issue_key, "commit_plan", "fail")
+        log(target, f"[ERROR] commit_plan: {exc}")
+        raise
+
+
+def push_plan_step(repo_root: Path, issue_key: str) -> Path:
+    target = _prepare_issue_dir(repo_root, issue_key)
+    log(target, "[START] push_plan")
+    try:
+        plan = _build_push_plan(repo_root, issue_key)
+        path = target / "push_plan.md"
+        path.write_text(plan, encoding="utf-8")
+        _mark_step(repo_root, issue_key, "push_plan", "pass")
+        log(target, f"[GENERATED] .ai/{issue_key}/push_plan.md")
+        log(target, "[END] push_plan: pass")
+        return path
+    except Exception as exc:
+        _mark_step(repo_root, issue_key, "push_plan", "fail")
+        log(target, f"[ERROR] push_plan: {exc}")
+        raise
+
+
 def memory_update_step(repo_root: Path, issue_key: str) -> bool:
     target = _prepare_issue_dir(repo_root, issue_key)
     log(target, "[START] memory_update")
@@ -537,3 +586,126 @@ def _read_json_default(path: Path, default: object) -> object:
         return json.loads(path.read_text(encoding="utf-8"))
     except json.JSONDecodeError:
         return default
+
+
+def _delivery_warnings(repo_root: Path, issue_key: str) -> list[str]:
+    warnings = []
+    if not inside_git_repo(repo_root):
+        warnings.append("Current directory is not inside a git repository.")
+    branch = current_branch(repo_root)
+    if not branch:
+        warnings.append("Current branch is unavailable.")
+    elif branch in {"main", "master"}:
+        warnings.append(f"Current branch is {branch}; do not deliver directly from main/master.")
+    status = working_tree_status(repo_root)
+    if status in {None, "clean"}:
+        warnings.append("Working tree has no uncommitted changes visible for delivery.")
+
+    warnings.extend(f"Missing required result file: {file_name}" for file_name in check_result_files(repo_root, issue_key))
+    for file_name in [
+        f".ai/{issue_key}/result_summary.md",
+        f".ai/{issue_key}/final_review_prompt.md",
+        f".ai_memory/bugs/{issue_key}.md",
+    ]:
+        if not (repo_root / file_name).exists():
+            warnings.append(f"Missing delivery artifact: {file_name}")
+    return warnings
+
+
+def _build_commit_plan(repo_root: Path, issue_key: str) -> str:
+    branch = _git_output(repo_root, ["git", "branch", "--show-current"], "unknown")
+    status = _git_output(repo_root, ["git", "status", "--porcelain"], "_No status available._")
+    changed_files = _git_output(repo_root, ["git", "diff", "--name-only"], "_No git diff files found._")
+    diff_stat = _git_output(repo_root, ["git", "diff", "--stat"], "_No diff stat available._")
+    short_summary = _result_summary_line(repo_root, issue_key)
+    return (
+        "# Commit Plan\n\n"
+        "## Issue\n"
+        f"{issue_key}\n\n"
+        "## Current Branch\n"
+        f"{branch}\n\n"
+        "## Working Tree Status\n"
+        "```text\n"
+        f"{status or 'clean'}\n"
+        "```\n\n"
+        "## Changed Files\n"
+        "```text\n"
+        f"{changed_files}\n"
+        "```\n\n"
+        "## Diff Stat\n"
+        "```text\n"
+        f"{diff_stat}\n"
+        "```\n\n"
+        "## Suggested Commit Message\n"
+        f"Fix {issue_key}: {short_summary}\n\n"
+        "## Suggested Commit Body\n"
+        "- Root cause:\n"
+        "- Fix:\n"
+        "- Tests:\n"
+        "- Risk:\n\n"
+        "## Safety Notes\n"
+        "- Confirm branch is not main/master.\n"
+        "- Confirm result files are complete.\n"
+        "- Confirm tests are complete.\n\n"
+        "## Manual Commands\n"
+        "```bash\n"
+        "git status\n"
+        "git add <files>\n"
+        f"git commit -m \"Fix {issue_key}: {short_summary}\"\n"
+        "```\n"
+    )
+
+
+def _build_push_plan(repo_root: Path, issue_key: str) -> str:
+    branch = _git_output(repo_root, ["git", "branch", "--show-current"], "unknown")
+    remote = _git_output(repo_root, ["git", "remote", "-v"], "_No remotes configured._")
+    recent = _git_output(repo_root, ["git", "log", "--oneline", "-n", "5"], "_No recent commits available._")
+    status = _git_output(repo_root, ["git", "status", "--porcelain"], "_No status available._")
+    return (
+        "# Push Plan\n\n"
+        "## Issue\n"
+        f"{issue_key}\n\n"
+        "## Current Branch\n"
+        f"{branch}\n\n"
+        "## Remote\n"
+        "```text\n"
+        f"{remote}\n"
+        "```\n\n"
+        "## Working Tree Status\n"
+        "```text\n"
+        f"{status or 'clean'}\n"
+        "```\n\n"
+        "## Recent Commits\n"
+        "```text\n"
+        f"{recent}\n"
+        "```\n\n"
+        "## Safety Checklist\n"
+        "- Not on main/master\n"
+        "- Result files complete\n"
+        "- Review package generated\n"
+        "- Memory updated\n\n"
+        "## Manual Push Command\n"
+        "```bash\n"
+        f"git push -u origin {branch or '<current-branch>'}\n"
+        "```\n"
+    )
+
+
+def _git_output(repo_root: Path, args: list[str], fallback: str) -> str:
+    code, output = run_command(args, repo_root)
+    if code != 0:
+        return fallback
+    cleaned = "\n".join(
+        line for line in output.splitlines()
+        if not line.startswith("warning:")
+    ).strip()
+    return cleaned or fallback
+
+
+def _result_summary_line(repo_root: Path, issue_key: str) -> str:
+    path = issue_dir(repo_root, issue_key) / "result_summary.md"
+    if not path.exists():
+        return "complete AI-assisted bug fix"
+    fix = _section(path.read_text(encoding="utf-8", errors="replace"), "## Fix Summary")
+    first_line = next((line.strip("- ").strip() for line in fix.splitlines() if line.strip() and line.strip() != "TBD"), "")
+    return first_line[:72] or "complete AI-assisted bug fix"

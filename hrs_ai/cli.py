@@ -22,9 +22,17 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers.add_parser("doctor", help="Check local environment readiness.")
     subparsers.add_parser("copilot-check", help="Check Copilot CLI readiness.")
 
-    for name in ("fetch", "parse", "keywords", "search", "git-context", "context", "prompt", "status", "copilot-task", "summarize-results", "review-package"):
+    for name in ("fetch", "parse", "keywords", "search", "git-context", "context", "prompt", "status", "copilot-task", "summarize-results", "review-package", "delivery-check", "commit-plan", "push-plan"):
         command = subparsers.add_parser(name, help=f"Run the {name} step.")
         command.add_argument("issue_key")
+
+    commit_parser = subparsers.add_parser("commit", help="Commit placeholder.")
+    commit_parser.add_argument("issue_key")
+    commit_parser.add_argument("--execute", action="store_true", help="Placeholder only; execution is disabled.")
+
+    push_parser = subparsers.add_parser("push", help="Push placeholder.")
+    push_parser.add_argument("issue_key")
+    push_parser.add_argument("--execute", action="store_true", help="Placeholder only; execution is disabled.")
 
     check_parser = subparsers.add_parser("check-results", help="Check Copilot result files.")
     check_parser.add_argument("issue_key")
@@ -126,6 +134,31 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "review-package":
         workflow.review_package_step(repo_root, args.issue_key)
         print(f"Generated final review prompt for {args.issue_key}.")
+        return 0
+
+    if args.command == "delivery-check":
+        warnings = workflow.delivery_check_step(repo_root, args.issue_key)
+        if warnings:
+            print("WARN: delivery is not ready.")
+            for warning in warnings:
+                print(f"  {warning}")
+        else:
+            print("PASS: ready for manual commit/push.")
+        return 0
+
+    if args.command == "commit-plan":
+        workflow.commit_plan_step(repo_root, args.issue_key)
+        print(f"Generated commit plan for {args.issue_key}.")
+        return 0
+
+    if args.command == "push-plan":
+        workflow.push_plan_step(repo_root, args.issue_key)
+        print(f"Generated push plan for {args.issue_key}.")
+        return 0
+
+    if args.command in {"commit", "push"}:
+        print("Automatic commit/push execution is not enabled in this prototype.")
+        print("Use commit-plan or push-plan and run the commands manually.")
         return 0
 
     if args.command == "memory":
