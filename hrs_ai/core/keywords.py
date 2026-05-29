@@ -29,9 +29,12 @@ STOP_WORDS = {
 def extract_keywords(text: str, max_keywords: int = 15) -> dict[str, object]:
     words = re.findall(r"[A-Za-z][A-Za-z0-9_-]{2,}", text)
     counter = Counter(word.lower() for word in words if word.lower() not in STOP_WORDS)
-    ranked = [{"keyword": word, "score": score} for word, score in counter.most_common(max_keywords)]
-    high_value = [item["keyword"] for item in ranked[:5]]
-    return {"high_value": high_value, "ranked": ranked}
+    ranked = [word for word, _score in counter.most_common()]
+    return {
+        "high_value_keywords": ranked[:5],
+        "normal_keywords": ranked[5:max_keywords],
+        "dropped_keywords": ranked[max_keywords:],
+    }
 
 
 def keywords_json(keywords: dict[str, object]) -> str:

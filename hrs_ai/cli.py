@@ -11,7 +11,7 @@ from hrs_ai.core import copilot, doctor, workflow
 from hrs_ai.core.context import build_context
 from hrs_ai.core.jira import fetch_issue, parse_issue
 from hrs_ai.core.keywords import extract_keywords
-from hrs_ai.core.memory import add_memory_entry
+from hrs_ai.core.memory import add_memory_entry, search_memory
 from hrs_ai.core.prompts import generate_prompts
 
 
@@ -22,7 +22,7 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers.add_parser("doctor", help="Check local environment readiness.")
     subparsers.add_parser("copilot-check", help="Check Copilot CLI readiness.")
 
-    for name in ("fetch", "parse", "keywords", "context", "prompt", "status"):
+    for name in ("fetch", "parse", "keywords", "search", "git-context", "context", "prompt", "status"):
         command = subparsers.add_parser(name, help=f"Run the {name} step.")
         command.add_argument("issue_key")
 
@@ -30,6 +30,8 @@ def build_parser() -> argparse.ArgumentParser:
     memory_subparsers = memory_parser.add_subparsers(dest="memory_command", required=True)
     memory_add = memory_subparsers.add_parser("add", help="Add bug memory entry.")
     memory_add.add_argument("issue_key")
+    memory_search = memory_subparsers.add_parser("search", help="Search shared AI memory.")
+    memory_search.add_argument("query")
 
     bug_parser = subparsers.add_parser("bug", help="Run prepare-only bug workflow.")
     bug_parser.add_argument("issue_key")
@@ -69,6 +71,16 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Extracted keywords for {args.issue_key}.")
         return 0
 
+    if args.command == "search":
+        workflow.code_search_step(repo_root, args.issue_key)
+        print(f"Generated code search for {args.issue_key}.")
+        return 0
+
+    if args.command == "git-context":
+        workflow.git_context_step(repo_root, args.issue_key)
+        print(f"Generated git context for {args.issue_key}.")
+        return 0
+
     if args.command == "context":
         workflow.context_step(repo_root, args.issue_key)
         print(f"Generated bug context for {args.issue_key}.")
@@ -80,8 +92,19 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "memory":
-        workflow.memory_add_step(repo_root, args.issue_key)
-        print(f"Added shared memory entry for {args.issue_key}.")
+        if args.memory_command == "add":
+            workflow.memory_add_step(repo_root, args.issue_key)
+            print(f"Added shared memory entry for {args.issue_key}.")
+        elif args.memory_command == "search":
+            issue_key = args.query if workflow.looks_like_issue_key(args.query) else None
+            if issue_key:
+                workflow.memory_search_step(repo_root, issue_key)
+                print(f"Generated memory search for {issue_key}.")
+            else:
+                _issue_key, markdown, _results = search_memory(repo_root, args.query)
+                print(markdown, end="")
+        else:
+            return 1
         return 0
 
     if args.command == "status":
@@ -131,4 +154,5 @@ __all__ = [
     "main",
     "parse_issue",
     "add_memory_entry",
+    "search_memory",
 ]

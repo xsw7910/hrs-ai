@@ -9,11 +9,13 @@ from pathlib import Path
 from .config import WORKFLOW_STEPS, issue_dir
 from .context import build_context
 from .doctor import collect_doctor_report
+from .git_ops import generate_git_context
 from .jira import fetch_issue, jira_summary_markdown, parse_issue, parsed_markdown
 from .keywords import extract_keywords, keywords_json
 from .logging_utils import log
-from .memory import add_memory_entry, build_memory_entry
+from .memory import ISSUE_KEY_RE, add_memory_entry, build_memory_entry, search_memory
 from .prompts import generate_prompts
+from .search import related_files_json, run_code_search
 
 
 @dataclass
@@ -21,6 +23,10 @@ class WorkflowResult:
     issue_key: str
     issue_dir: Path
     generated_files: list[str]
+
+
+def looks_like_issue_key(value: str) -> bool:
+    return bool(ISSUE_KEY_RE.match(value.strip()))
 
 
 def run_bug_workflow(repo_root: Path, issue_key: str) -> WorkflowResult:
@@ -37,6 +43,9 @@ def run_bug_workflow(repo_root: Path, issue_key: str) -> WorkflowResult:
         fetch_step(repo_root, issue_key)
         parse_step(repo_root, issue_key)
         keywords_step(repo_root, issue_key)
+        memory_search_step(repo_root, issue_key)
+        code_search_step(repo_root, issue_key)
+        git_context_step(repo_root, issue_key)
         context_step(repo_root, issue_key)
         prompt_step(repo_root, issue_key)
         memory_add_step(repo_root, issue_key)
@@ -59,6 +68,9 @@ def run_bug_workflow(repo_root: Path, issue_key: str) -> WorkflowResult:
             "fetch": "pass",
             "parse": "pass",
             "keywords": "pass",
+            "memory_search": "pass",
+            "code_search": "pass",
+            "git_context": "pass",
             "context": "pass",
             "prompt": "pass",
             "memory_add": "pass",
@@ -116,6 +128,49 @@ def keywords_step(repo_root: Path, issue_key: str) -> None:
     except Exception as exc:
         _mark_step(repo_root, issue_key, "keywords", "fail")
         log(target, f"[ERROR] keywords: {exc}")
+        raise
+
+
+def memory_search_step(repo_root: Path, issue_key: str) -> None:
+    target = _prepare_issue_dir(repo_root, issue_key)
+    log(target, "[START] memory_search")
+    try:
+        search_memory(repo_root, issue_key)
+        _mark_step(repo_root, issue_key, "memory_search", "pass")
+        log(target, "[END] memory_search: pass")
+    except Exception as exc:
+        _mark_step(repo_root, issue_key, "memory_search", "fail")
+        log(target, f"[ERROR] memory_search: {exc}")
+        raise
+
+
+def code_search_step(repo_root: Path, issue_key: str) -> None:
+    target = _prepare_issue_dir(repo_root, issue_key)
+    log(target, "[START] code_search")
+    try:
+        keywords = _read_json(target / "extracted_keywords.json")
+        markdown, related_files = run_code_search(repo_root, issue_key, keywords)
+        (target / "code_search.md").write_text(markdown, encoding="utf-8")
+        (target / "related_files.json").write_text(related_files_json(related_files), encoding="utf-8")
+        _mark_step(repo_root, issue_key, "code_search", "pass")
+        log(target, "[END] code_search: pass")
+    except Exception as exc:
+        _mark_step(repo_root, issue_key, "code_search", "fail")
+        log(target, f"[ERROR] code_search: {exc}")
+        raise
+
+
+def git_context_step(repo_root: Path, issue_key: str) -> None:
+    target = _prepare_issue_dir(repo_root, issue_key)
+    log(target, "[START] git_context")
+    try:
+        context = generate_git_context(repo_root, issue_key)
+        (target / "git_context.md").write_text(context, encoding="utf-8")
+        _mark_step(repo_root, issue_key, "git_context", "pass")
+        log(target, "[END] git_context: pass")
+    except Exception as exc:
+        _mark_step(repo_root, issue_key, "git_context", "fail")
+        log(target, f"[ERROR] git_context: {exc}")
         raise
 
 
