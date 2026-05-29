@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.egg-info/
+.venv/
+.ai/
+.ai_memory/
+
+.ai/
+.ai_memory/
+hrs_ai.egg-info/
+
+.ai/
+.ai_memory/
+hrs_ai.egg-info/
