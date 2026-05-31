@@ -60,7 +60,7 @@ Generated files: `.ai/<issue>/jira_parsed.md`.
 Read-only: Writes generated artifacts only.
 Modifies source code: No.
 
-ADF descriptions and comments are converted before parsed context is written.
+ADF descriptions and comments are converted before parsed context is written. `jira_parsed.md` extracts reproduction steps, actual/expected results, environment/version information, error messages, stack traces, log signals, regression signals, and a missing information checklist from the Jira description and comments.
 
 ### `hrs-ai keywords <ISSUE>`
 Purpose: Extract high-value, normal, and dropped keywords from parsed Jira context.

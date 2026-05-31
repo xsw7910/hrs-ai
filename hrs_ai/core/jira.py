@@ -14,6 +14,7 @@ from urllib.parse import urlsplit, urlunsplit
 
 from .config import load_config
 from .jira_adf import adf_to_markdown
+from .jira_parse import extract_parsed_details
 
 
 @dataclass
@@ -124,6 +125,7 @@ def parse_issue(issue: dict) -> dict[str, object]:
         ]
     ).strip()
 
+    parsed_details = extract_parsed_details(description_text, comment_details, attachments)
     return {
         "issue_key": issue.get("key"),
         "summary": fields.get("summary", ""),
@@ -142,6 +144,15 @@ def parse_issue(issue: dict) -> dict[str, object]:
         "attachment_kinds": _attachment_kinds(attachments),
         "combined_text": text,
         "is_mock": bool(issue.get("mock") or issue.get("hrs_ai_fetch", {}).get("mock")),
+        "reproduction_steps": parsed_details["reproduction_steps"],
+        "actual_result": parsed_details["actual_result"],
+        "expected_result": parsed_details["expected_result"],
+        "environment": parsed_details["environment"],
+        "error_messages": parsed_details["error_messages"],
+        "stack_traces": parsed_details["stack_traces"],
+        "log_signals": parsed_details["log_signals"],
+        "regression_signals": parsed_details["regression_signals"],
+        "missing_information": parsed_details["missing_information"],
     }
 
 
@@ -187,21 +198,54 @@ def jira_summary_markdown(issue: dict, fetch_message: str) -> str:
 
 
 def parsed_markdown(parsed: dict[str, object]) -> str:
-    comments = parsed.get("comments") or []
-    comments_text = "\n\n".join(f"- {comment}" for comment in comments) or "_No comments available._"
+    issue_key = parsed.get("issue_key", "")
+    summary = parsed.get("summary", "")
+
+    steps = parsed.get("reproduction_steps") or []
+    steps_text = "\n".join(f"{i}. {s}" for i, s in enumerate(steps, 1)) if steps else "Not found."
+
+    actual = str(parsed.get("actual_result") or "").strip() or "Not found."
+    expected = str(parsed.get("expected_result") or "").strip() or "Not found."
+    environment = str(parsed.get("environment") or "").strip() or "Not found."
+
+    errors = parsed.get("error_messages") or []
+    errors_text = "\n".join(f"- {e}" for e in errors) if errors else "None found."
+
+    traces = parsed.get("stack_traces") or []
+    traces_text = "\n\n".join(f"```\n{t}\n```" for t in traces) if traces else "None found."
+
+    log_signals = parsed.get("log_signals") or []
+    log_text = "\n".join(f"- {s}" for s in log_signals) if log_signals else "None found."
+
+    regression_signals = parsed.get("regression_signals") or []
+    regression_text = "\n".join(f'- "{s}"' for s in regression_signals) if regression_signals else "None found."
+
     comment_signals = parsed.get("comment_signal_terms", [])
     attachment_kinds = parsed.get("attachment_kinds", [])
+
+    missing = parsed.get("missing_information") or []
+    missing_text = "\n".join(f"- {m}" for m in missing) if missing else "- No missing information identified."
+
     return (
-        f"# Parsed Jira: {parsed['issue_key']}\n\n"
-        f"- Summary: {parsed['summary']}\n"
-        f"- Issue type: {parsed['issue_type']}\n"
-        f"- Status: {parsed['status']}\n"
-        f"- Priority: {parsed['priority']}\n"
-        f"- Mock/demo data: {parsed['is_mock']}\n\n"
-        "## Reproduction And Signals\n\n"
-        f"{parsed['description'] or '_No reproduction details available yet._'}\n\n"
-        "## Comments\n\n"
-        f"{comments_text}\n\n"
+        "# Jira Parsed Details\n\n"
+        "## Issue\n\n"
+        f"{issue_key} — {summary}\n\n"
+        "## Reproduction Steps\n\n"
+        f"{steps_text}\n\n"
+        "## Actual Result\n\n"
+        f"{actual}\n\n"
+        "## Expected Result\n\n"
+        f"{expected}\n\n"
+        "## Environment / Version\n\n"
+        f"{environment}\n\n"
+        "## Error Messages\n\n"
+        f"{errors_text}\n\n"
+        "## Stack Traces\n\n"
+        f"{traces_text}\n\n"
+        "## Log Signals\n\n"
+        f"{log_text}\n\n"
+        "## Regression Signals\n\n"
+        f"{regression_text}\n\n"
         "## Comment Signals\n\n"
         f"- Number of comments: {parsed.get('comment_total', 0)}\n"
         f"- Latest comment timestamp: {parsed.get('latest_comment_timestamp') or '_None_'}\n"
@@ -210,10 +254,7 @@ def parsed_markdown(parsed: dict[str, object]) -> str:
         f"- Number of attachments: {len(parsed.get('attachments', [])) if isinstance(parsed.get('attachments'), list) else 0}\n"
         f"- Attachment kinds found: {', '.join(map(str, attachment_kinds)) or '_None_'}\n\n"
         "## Missing Information Checklist\n\n"
-        f"- Description present: {'yes' if parsed.get('description') else 'no'}\n"
-        f"- Comments present: {'yes' if comments else 'no'}\n"
-        "- Reproduction steps identified: review description/comments above\n"
-        "- Expected vs actual behavior identified: review description/comments above\n"
+        f"{missing_text}\n"
     )
 
 

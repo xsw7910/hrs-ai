@@ -14,6 +14,7 @@ from hrs_ai.core.context import _code_search_summary
 from hrs_ai.core.git_ops import branch_name
 from hrs_ai.core.jira import JiraFetchError, classify_attachment, fetch_issue
 from hrs_ai.core.jira import jira_summary_markdown, parse_issue, parsed_markdown
+from hrs_ai.core.jira_parse import extract_parsed_details
 from hrs_ai.core.jira_adf import adf_to_markdown
 from hrs_ai.core.keywords import extract_keywords
 from hrs_ai.core.memory import build_memory_entry, search_memory
@@ -1643,3 +1644,217 @@ def _adf_text(text):
 
 def _adf_marked_text(text, mark):
     return {"type": "doc", "content": [{"type": "paragraph", "content": [{"type": "text", "text": text, "marks": [{"type": mark}]}]}]}
+
+
+# ---------------------------------------------------------------------------
+# Phase 8.3 — Richer jira_parsed.md / Missing Information Extraction
+# ---------------------------------------------------------------------------
+
+
+def test_jira_parse_section_extraction_with_markdown_headings():
+    description = (
+        "## Steps to Reproduce\n\n"
+        "1. Open the HR employee search\n"
+        "2. Apply a department filter\n"
+        "3. Observe stale results\n\n"
+        "## Actual Result\n\n"
+        "Prior results remain visible until page refresh.\n\n"
+        "## Expected Result\n\n"
+        "Results refresh immediately after filter changes.\n\n"
+        "## Environment\n\n"
+        "Windows 11\n"
+    )
+
+    result = extract_parsed_details(description, [], [])
+
+    assert result["reproduction_steps"] == [
+        "Open the HR employee search",
+        "Apply a department filter",
+        "Observe stale results",
+    ]
+    assert "Prior results remain" in result["actual_result"]
+    assert "Results refresh immediately" in result["expected_result"]
+    assert "Results refresh" not in result["actual_result"]
+    assert "Windows" not in result["expected_result"]
+    joined_steps = "\n".join(result["reproduction_steps"])
+    assert "Prior results remain" not in joined_steps
+    assert "Results refresh" not in joined_steps
+
+
+def test_jira_parse_section_extraction_with_plain_labels():
+    description = (
+        "Steps to Reproduce:\n"
+        "- Open search\n"
+        "- Apply filter\n\n"
+        "Actual:\n"
+        "Stale data is shown.\n"
+    )
+
+    result = extract_parsed_details(description, [], [])
+
+    assert len(result["reproduction_steps"]) >= 1
+    assert any("filter" in s.lower() or "search" in s.lower() for s in result["reproduction_steps"])
+    assert "Stale data" in result["actual_result"]
+
+
+def test_jira_parse_missing_information_checklist():
+    result = extract_parsed_details("", [], [])
+
+    assert "Reproduction steps are missing." in result["missing_information"]
+    assert "Actual result is missing." in result["missing_information"]
+    assert "Expected result is missing." in result["missing_information"]
+    assert "Environment/version information is missing." in result["missing_information"]
+    assert "No error message or stack trace was found." in result["missing_information"]
+    assert "No logs or relevant attachments were found." in result["missing_information"]
+    assert len(result["missing_information"]) == 6
+
+
+def test_jira_parse_environment_detection():
+    description = "We are running Version: 2026.1 on OS: Windows 11 and Qt 6.5."
+
+    result = extract_parsed_details(description, [], [])
+
+    assert "2026.1" in result["environment"]
+    assert "Windows" in result["environment"]
+
+
+def test_jira_parse_error_message_extraction():
+    description = (
+        "When the filter is applied, the following happens:\n"
+        "Error: filter cache failed to refresh\n"
+        "The UI shows old data.\n"
+    )
+
+    result = extract_parsed_details(description, [], [])
+
+    assert any("filter cache failed" in e for e in result["error_messages"])
+
+
+def test_jira_parse_stack_trace_extraction():
+    description = (
+        "Crash report:\n"
+        "```\n"
+        "EmployeeSearchWidget.cpp:142 in void EmployeeSearchWidget::refresh()\n"
+        "FilterManager.cpp:87 in bool FilterManager::apply()\n"
+        "```\n"
+    )
+
+    result = extract_parsed_details(description, [], [])
+
+    assert len(result["stack_traces"]) >= 1
+    assert "EmployeeSearchWidget.cpp" in result["stack_traces"][0]
+
+
+def test_jira_parse_regression_signals():
+    description = "This used to work before 2025.4, regression was introduced in the last release."
+
+    result = extract_parsed_details(description, [], [])
+
+    assert len(result["regression_signals"]) >= 1
+    assert any("used to work" in s.lower() or "regression" in s.lower() for s in result["regression_signals"])
+
+
+def test_jira_parse_output_caps():
+    long_actual = "A" * 2500
+    long_expected = "E" * 2500
+    trace_blocks = []
+    for block_index in range(4):
+        lines = [f"File \"module_{block_index}.py\", line {line}, in fn" for line in range(90)]
+        trace_blocks.append("```\n" + "\n".join(lines) + "\n```")
+    regression_lines = "\n".join(f"regression signal {index}" for index in range(12))
+    description = (
+        "## Actual Result\n\n"
+        f"{long_actual}\n\n"
+        "## Expected Result\n\n"
+        f"{long_expected}\n\n"
+        "## Stack Trace\n\n"
+        + "\n\n".join(trace_blocks)
+        + "\n\n"
+        + regression_lines
+    )
+
+    result = extract_parsed_details(description, [], [])
+
+    assert len(result["actual_result"]) == 2000
+    assert len(result["expected_result"]) == 2000
+    assert len(result["stack_traces"]) == 3
+    assert all(len(trace.splitlines()) == 80 for trace in result["stack_traces"])
+    assert len(result["regression_signals"]) == 10
+
+
+def test_jira_parse_log_signals_from_attachments():
+    issue = _jira_issue(attachments=[_jira_attachment("crash.log", "text/plain", 8192, "QA")])
+    parsed = parse_issue(issue)
+
+    assert any("crash.log" in s for s in parsed["log_signals"])
+
+
+def test_jira_parsed_md_has_structured_sections():
+    description = (
+        "## Steps to Reproduce\n"
+        "1. Open search\n"
+        "2. Apply filter\n\n"
+        "## Actual Result\n"
+        "Stale results shown.\n\n"
+        "## Expected Result\n"
+        "Fresh results shown.\n"
+    )
+    issue = {
+        "key": "HR-12345",
+        "source": "jira",
+        "mock": False,
+        "fields": {
+            "summary": "Test structured sections",
+            "description": description,  # plain string — adf_to_markdown passes through
+            "issuetype": {"name": "Bug"},
+            "status": {"name": "Open"},
+            "priority": {"name": "High"},
+            "comment": {"comments": []},
+            "attachment": [],
+        },
+    }
+    parsed = parse_issue(issue)
+    markdown = parsed_markdown(parsed)
+
+    assert "## Reproduction Steps" in markdown
+    assert "1. Open search" in markdown
+    assert "## Actual Result" in markdown
+    assert "## Expected Result" in markdown
+    assert "## Missing Information Checklist" in markdown
+
+
+def test_bug_context_includes_reproduction_and_missing_info(tmp_path):
+    description = (
+        "## Steps to Reproduce\n"
+        "1. Open search\n"
+        "2. Change filter\n\n"
+        "## Actual Result\n"
+        "Stale data.\n\n"
+        "## Expected Result\n"
+        "Fresh data.\n"
+    )
+    issue = _jira_issue()
+    issue["fields"]["description"] = description  # plain string passthrough
+    issue_dir = tmp_path / ".ai" / "HR-12345"
+    issue_dir.mkdir(parents=True)
+    (issue_dir / "jira.json").write_text(json.dumps(issue), encoding="utf-8")
+
+    workflow.parse_step(tmp_path, "HR-12345")
+    workflow.keywords_step(tmp_path, "HR-12345")
+    workflow.memory_search_step(tmp_path, "HR-12345")
+    workflow.code_search_step(tmp_path, "HR-12345")
+    workflow.git_context_step(tmp_path, "HR-12345")
+    workflow.context_step(tmp_path, "HR-12345")
+
+    context = (issue_dir / "bug_context.md").read_text(encoding="utf-8")
+    assert "## Reproduction Steps" in context
+    assert "## Missing Information Checklist" in context
+
+
+def test_copilot_task_includes_jira_parsed_guidance(tmp_path):
+    run_bug_workflow(tmp_path, "HR-12345")
+    task = (tmp_path / ".ai" / "HR-12345" / "copilot_task.md").read_text(encoding="utf-8")
+
+    assert "jira_parsed.md" in task
+    assert "Do not invent reproduction steps" in task
+    assert "missing information" in task.lower()
