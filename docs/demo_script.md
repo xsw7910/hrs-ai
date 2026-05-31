@@ -31,6 +31,14 @@ hrs-ai bug HR-12345
 
 Explain that this is prepare-only. It builds context, prompts, memory, git context, and handoff files without modifying source code.
 
+For a fresh demo reset, run:
+
+```powershell
+hrs-ai bug HR-12345 --fresh
+```
+
+This removes old `.ai/HR-12345/` workflow artifacts first while preserving memory by default.
+
 3. Show generated files:
 
 ```text

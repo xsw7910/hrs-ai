@@ -646,3 +646,146 @@ def test_commit_and_push_execute_placeholders_do_not_mutate_git(tmp_path, monkey
 
     assert "Automatic commit/push execution is not enabled in this prototype." in output
     assert calls == []
+
+
+def test_clean_removes_issue_artifact_directory(tmp_path, monkeypatch, capsys):
+    issue_dir = tmp_path / ".ai" / "HR-12345"
+    issue_dir.mkdir(parents=True)
+    (issue_dir / "some_old_file.md").write_text("old", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+
+    assert main(["clean", "HR-12345"]) == 0
+    output = capsys.readouterr().out
+
+    assert not issue_dir.exists()
+    assert "deleted: .ai/HR-12345/" in output
+
+
+def test_clean_preserves_memory_by_default(tmp_path, monkeypatch):
+    issue_dir = tmp_path / ".ai" / "HR-12345"
+    memory_file = tmp_path / ".ai_memory" / "bugs" / "HR-12345.md"
+    issue_dir.mkdir(parents=True)
+    memory_file.parent.mkdir(parents=True)
+    memory_file.write_text("keep me", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+
+    assert main(["clean", "HR-12345"]) == 0
+
+    assert not issue_dir.exists()
+    assert memory_file.read_text(encoding="utf-8") == "keep me"
+
+
+def test_clean_include_memory_removes_only_that_issue_memory(tmp_path, monkeypatch):
+    issue_dir = tmp_path / ".ai" / "HR-12345"
+    memory_dir = tmp_path / ".ai_memory" / "bugs"
+    issue_dir.mkdir(parents=True)
+    memory_dir.mkdir(parents=True)
+    (memory_dir / "HR-12345.md").write_text("delete", encoding="utf-8")
+    (memory_dir / "HR-99999.md").write_text("keep", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+
+    assert main(["clean", "HR-12345", "--include-memory"]) == 0
+
+    assert not issue_dir.exists()
+    assert not (memory_dir / "HR-12345.md").exists()
+    assert (memory_dir / "HR-99999.md").read_text(encoding="utf-8") == "keep"
+
+
+def test_clean_handles_missing_artifacts_gracefully(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+
+    assert main(["clean", "HR-12345"]) == 0
+    output = capsys.readouterr().out
+
+    assert "No workflow artifacts found for HR-12345." in output
+    assert "Preserved memory entry: .ai_memory/bugs/HR-12345.md" in output
+
+
+def test_clean_rejects_invalid_issue_keys_without_deleting(tmp_path, monkeypatch, capsys):
+    product_file = tmp_path / "src" / "example.cpp"
+    product_file.parent.mkdir()
+    product_file.write_text("int main() { return 0; }\n", encoding="utf-8")
+    protected_dir = tmp_path / ".ai" / "HR-12345"
+    protected_dir.mkdir(parents=True)
+    (protected_dir / "keep.md").write_text("keep", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+
+    for invalid in ["../HR-12345", "..\\HR-12345", "HR-12345/../../x", "HR", "12345", " HR-12345", "HR-12345 "]:
+        assert main(["clean", invalid]) == 1
+
+    assert protected_dir.exists()
+    assert product_file.exists()
+    assert "Invalid issue key" in capsys.readouterr().err
+
+
+def test_clean_accepts_unpadded_valid_issue_key(tmp_path, monkeypatch):
+    issue_dir = tmp_path / ".ai" / "HR-12345"
+    issue_dir.mkdir(parents=True)
+    monkeypatch.chdir(tmp_path)
+
+    assert main(["clean", "HR-12345"]) == 0
+
+    assert not issue_dir.exists()
+
+
+def test_bug_fresh_removes_old_later_phase_artifacts(tmp_path, monkeypatch):
+    issue_dir = tmp_path / ".ai" / "HR-12345"
+    issue_dir.mkdir(parents=True)
+    (issue_dir / "result_summary.md").write_text("old result", encoding="utf-8")
+    (issue_dir / "commit_plan.md").write_text("old commit", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+
+    assert main(["bug", "HR-12345", "--fresh"]) == 0
+
+    assert not (issue_dir / "result_summary.md").exists()
+    assert not (issue_dir / "commit_plan.md").exists()
+    assert (issue_dir / "workflow_status.json").is_file()
+    assert (issue_dir / "bug_context.md").is_file()
+    log_text = (issue_dir / "execution.log").read_text(encoding="utf-8")
+    assert "[INFO] fresh run requested" in log_text
+    assert "[INFO] memory entry preserved" in log_text
+
+
+def test_bug_fresh_preserves_memory_by_default(tmp_path, monkeypatch):
+    memory_file = tmp_path / ".ai_memory" / "bugs" / "HR-12345.md"
+    memory_file.parent.mkdir(parents=True)
+    memory_file.write_text("old memory", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+
+    assert main(["bug", "HR-12345", "--fresh"]) == 0
+
+    assert memory_file.exists()
+
+
+def test_bug_fresh_include_memory_removes_old_memory_then_recreates(tmp_path, monkeypatch):
+    memory_file = tmp_path / ".ai_memory" / "bugs" / "HR-12345.md"
+    memory_file.parent.mkdir(parents=True)
+    memory_file.write_text("UNIQUE OLD MEMORY", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+
+    assert main(["bug", "HR-12345", "--fresh", "--include-memory"]) == 0
+
+    memory = memory_file.read_text(encoding="utf-8")
+    assert "UNIQUE OLD MEMORY" not in memory
+    assert "Prototype prepare-only workflow" in memory
+
+
+def test_clean_does_not_affect_product_files(tmp_path, monkeypatch):
+    issue_dir = tmp_path / ".ai" / "HR-12345"
+    product_file = tmp_path / "src" / "example.cpp"
+    issue_dir.mkdir(parents=True)
+    product_file.parent.mkdir()
+    product_file.write_text("source", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+
+    assert main(["clean", "HR-12345"]) == 0
+
+    assert product_file.read_text(encoding="utf-8") == "source"
+
+
+def test_bug_include_memory_requires_fresh(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+
+    assert main(["bug", "HR-12345", "--include-memory"]) == 1
+
+    assert "--include-memory can only be used with --fresh" in capsys.readouterr().err

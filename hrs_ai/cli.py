@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 
 from hrs_ai.core import copilot, doctor, workflow
+from hrs_ai.core.cleanup import clean_issue_artifacts
 from hrs_ai.core.context import build_context
 from hrs_ai.core.jira import fetch_issue, parse_issue
 from hrs_ai.core.keywords import extract_keywords
@@ -25,6 +26,10 @@ def build_parser() -> argparse.ArgumentParser:
     for name in ("fetch", "parse", "keywords", "search", "git-context", "context", "prompt", "status", "copilot-task", "summarize-results", "review-package", "delivery-check", "commit-plan", "push-plan"):
         command = subparsers.add_parser(name, help=f"Run the {name} step.")
         command.add_argument("issue_key")
+
+    clean_parser = subparsers.add_parser("clean", help="Remove generated workflow artifacts for an issue.")
+    clean_parser.add_argument("issue_key")
+    clean_parser.add_argument("--include-memory", action="store_true", help="Also remove that issue's memory entry.")
 
     commit_parser = subparsers.add_parser("commit", help="Commit placeholder.")
     commit_parser.add_argument("issue_key")
@@ -54,6 +59,16 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Print experimental Copilot invocation guidance after preparation.",
     )
+    bug_parser.add_argument(
+        "--fresh",
+        action="store_true",
+        help="Remove existing .ai/<issue>/ artifacts before running the workflow.",
+    )
+    bug_parser.add_argument(
+        "--include-memory",
+        action="store_true",
+        help="With --fresh, also remove that issue's memory entry before rerunning.",
+    )
 
     return parser
 
@@ -68,6 +83,15 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "copilot-check":
         copilot.print_copilot_check()
+        return 0
+
+    if args.command == "clean":
+        try:
+            result = clean_issue_artifacts(repo_root, args.issue_key, include_memory=args.include_memory)
+        except ValueError as exc:
+            print(f"ERROR: {exc}", file=sys.stderr)
+            return 1
+        _print_clean_result(result, include_memory=args.include_memory)
         return 0
 
     if args.command == "fetch":
@@ -187,7 +211,20 @@ def main(argv: list[str] | None = None) -> int:
         return _print_status(repo_root, args.issue_key)
 
     if args.command == "bug":
-        result = workflow.run_bug_workflow(repo_root, args.issue_key, copilot_fix=args.copilot_fix)
+        if args.include_memory and not args.fresh:
+            print("ERROR: --include-memory can only be used with --fresh.", file=sys.stderr)
+            return 1
+        try:
+            result = workflow.run_bug_workflow(
+                repo_root,
+                args.issue_key,
+                copilot_fix=args.copilot_fix,
+                fresh=args.fresh,
+                include_memory=args.include_memory,
+            )
+        except ValueError as exc:
+            print(f"ERROR: {exc}", file=sys.stderr)
+            return 1
         print(f"Prepared hrs-ai workflow package for {args.issue_key}.")
         print(f"Artifacts: {result.issue_dir}")
         print("Next manual Copilot CLI instruction:")
@@ -203,7 +240,9 @@ def main(argv: list[str] | None = None) -> int:
 def _print_status(repo_root: Path, issue_key: str) -> int:
     status_path = repo_root / ".ai" / issue_key / "workflow_status.json"
     if not status_path.exists():
-        print(f"No workflow status found at {status_path}", file=sys.stderr)
+        print(f"No workflow status found for {issue_key}.", file=sys.stderr)
+        print("Run:", file=sys.stderr)
+        print(f"  hrs-ai bug {issue_key}", file=sys.stderr)
         return 1
 
     status = json.loads(status_path.read_text(encoding="utf-8"))
@@ -221,6 +260,23 @@ def _print_status(repo_root: Path, issue_key: str) -> int:
     for file_name in status.get("generated_files", []):
         print(f"  {file_name}")
     return 0
+
+
+def _print_clean_result(result, include_memory: bool) -> None:
+    if f".ai/{result.issue_key}/" in result.deleted_paths:
+        print(f"Cleaned workflow artifacts for {result.issue_key}:")
+        print(f"  deleted: .ai/{result.issue_key}/")
+    else:
+        print(f"No workflow artifacts found for {result.issue_key}.")
+
+    memory_path = f".ai_memory/bugs/{result.issue_key}.md"
+    if include_memory:
+        if memory_path in result.deleted_paths:
+            print(f"  deleted memory: {memory_path}")
+        else:
+            print(f"  memory not found: {memory_path}")
+    else:
+        print(f"Preserved memory entry: {memory_path}")
 
 
 __all__ = [

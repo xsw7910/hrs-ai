@@ -13,6 +13,12 @@ python -m hrs_ai review-package HR-12345
 python -m hrs_ai delivery-check HR-12345
 python -m hrs_ai commit-plan HR-12345
 python -m hrs_ai push-plan HR-12345
+python -m hrs_ai clean HR-12345
+python -m hrs_ai status HR-12345
+python -m hrs_ai bug HR-12345 --fresh
+python -m hrs_ai status HR-12345
+python -m hrs_ai clean HR-12345 --include-memory
+python -m hrs_ai bug HR-12345 --fresh --include-memory
 ```
 
 Expected outcomes:
@@ -22,5 +28,8 @@ Expected outcomes:
 - `.ai_memory/bugs/HR-12345.md` is generated or updated.
 - `result_summary.md`, `manual_validation.md`, and `final_review_prompt.md` can be generated.
 - `commit_plan.md` and `push_plan.md` can be generated.
+- `clean` removes only `.ai/HR-12345/`.
+- `--fresh` creates a clean `.ai/HR-12345/` run output.
+- Memory is preserved unless `--include-memory` is provided.
 - No automatic Copilot invocation occurs.
 - No automatic Jira write, commit, push, merge, or PR creation occurs.

@@ -13,6 +13,9 @@ hrs-ai is designed as a prepare-only and planning tool. The developer remains in
 - Commit and push execute commands are placeholders only in this prototype.
 - Generated artifacts live under `.ai` and `.ai_memory`.
 - The developer reviews context, runs Copilot CLI manually, validates changes, and performs delivery actions manually.
+- `hrs-ai clean <ISSUE>` deletes only `.ai/<issue>/`.
+- `hrs-ai clean <ISSUE> --include-memory` also deletes only `.ai_memory/bugs/<issue>.md`.
+- `hrs-ai bug <ISSUE> --fresh` performs the same scoped cleanup before rerunning the prepare-only workflow.
 
 ## Generated Artifact Scope
 hrs-ai writes generated workflow files to:
@@ -23,6 +26,8 @@ hrs-ai writes generated workflow files to:
 ```
 
 These paths are relative to the current working directory, which should be the target product repository root.
+
+Clean and fresh-run commands validate issue keys and are scoped to those generated artifact paths. They do not delete product source code.
 
 ## Manual Handoff
 Copilot CLI should be run from the target product repository root. The generated `copilot_task.md` instructs Copilot to avoid destructive git commands, avoid unrelated refactoring, and generate result files before delivery planning.

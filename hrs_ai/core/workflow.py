@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
+from .cleanup import clean_issue_artifacts, validate_issue_key
 from .config import WORKFLOW_STEPS, issue_dir
 from .context import build_context
 from .doctor import collect_doctor_report
@@ -39,9 +40,39 @@ def looks_like_issue_key(value: str) -> bool:
     return bool(ISSUE_KEY_RE.match(value.strip()))
 
 
-def run_bug_workflow(repo_root: Path, issue_key: str, copilot_fix: bool = False) -> WorkflowResult:
+def run_bug_workflow(
+    repo_root: Path,
+    issue_key: str,
+    copilot_fix: bool = False,
+    fresh: bool = False,
+    include_memory: bool = False,
+) -> WorkflowResult:
+    clean_result = None
+    if fresh:
+        validate_issue_key(issue_key)
+        clean_result = clean_issue_artifacts(repo_root, issue_key, include_memory=include_memory)
+
     target = _prepare_issue_dir(repo_root, issue_key)
-    log(target, f"[START] command: hrs-ai bug {issue_key}")
+    command = f"hrs-ai bug {issue_key}"
+    if fresh:
+        command += " --fresh"
+    if include_memory:
+        command += " --include-memory"
+    log(target, f"[START] command: {command}")
+    if fresh:
+        log(target, "[INFO] fresh run requested")
+        log(target, "[INFO] previous workflow artifacts were removed before this run")
+        if include_memory:
+            log(target, "[INFO] memory entry removed due to --include-memory")
+        else:
+            log(target, "[INFO] memory entry preserved")
+        if clean_result:
+            for path in clean_result.deleted_paths:
+                log(target, f"[INFO] fresh deleted: {path}")
+            for path in clean_result.preserved_paths:
+                log(target, f"[INFO] fresh preserved: {path}")
+            for path in clean_result.missing_paths:
+                log(target, f"[INFO] fresh missing: {path}")
 
     try:
         log(target, "[START] doctor")

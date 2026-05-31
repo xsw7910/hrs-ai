@@ -16,6 +16,22 @@ Generated files: None.
 Read-only: Yes.
 Modifies source code: No.
 
+### `hrs-ai clean <ISSUE>`
+Purpose: Remove generated workflow artifacts for one issue.
+Generated files: None.
+Read-only: No; deletes generated `.ai/<issue>/` artifacts only.
+Modifies source code: No.
+
+Memory is preserved by default. This command does not delete product source files, update Jira, or run git commands.
+
+### `hrs-ai clean <ISSUE> --include-memory`
+Purpose: Remove generated workflow artifacts and that issue's shared memory entry.
+Generated files: None.
+Read-only: No; deletes `.ai/<issue>/` and `.ai_memory/bugs/<issue>.md` only.
+Modifies source code: No.
+
+Other memory entries are preserved.
+
 ### `hrs-ai fetch <ISSUE>`
 Purpose: Fetch Jira data when configured, or generate clearly marked mock/demo data.
 Generated files: `.ai/<issue>/jira.json`, `.ai/<issue>/jira_summary.md`.
@@ -155,3 +171,19 @@ Modifies source code: No.
 This command fetches or prepares Jira data, parses it, extracts keywords, runs code search, searches memory, captures git context, builds `bug_context.md`, generates Copilot task and handoff files, creates test and review artifacts, and writes the memory entry.
 
 It does not modify source code, commit, push, merge, create PRs, update Jira, or automatically invoke Copilot.
+
+### `hrs-ai bug <ISSUE> --fresh`
+Purpose: Remove old `.ai/<issue>/` workflow artifacts, then run the main prepare-only workflow.
+Generated files: Fresh issue package under `.ai/<issue>/` and memory entry `.ai_memory/bugs/<issue>.md`.
+Read-only: No; deletes generated `.ai/<issue>/` artifacts before regenerating them.
+Modifies source code: No.
+
+Memory is preserved before the rerun unless `--include-memory` is also provided. This is useful for demos where older result summaries, review prompts, or commit/push plans should not appear in a new prepare-only run.
+
+### `hrs-ai bug <ISSUE> --fresh --include-memory`
+Purpose: Remove old `.ai/<issue>/` artifacts and that issue's memory entry, then run the main prepare-only workflow.
+Generated files: Fresh issue package under `.ai/<issue>/` and a newly generated `.ai_memory/bugs/<issue>.md`.
+Read-only: No; deletes generated artifacts for the requested issue only.
+Modifies source code: No.
+
+Other memory entries and product source files are preserved.

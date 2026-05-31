@@ -40,6 +40,8 @@ hrs-ai bug HR-12345
 hrs-ai doctor
 hrs-ai bug HR-12345
 hrs-ai status HR-12345
+hrs-ai clean HR-12345
+hrs-ai bug HR-12345 --fresh
 hrs-ai copilot-task HR-12345
 hrs-ai check-results HR-12345
 hrs-ai summarize-results HR-12345
@@ -71,8 +73,12 @@ hrs-ai push-plan HR-12345
 - `hrs-ai delivery-check <ISSUE>`: check readiness for manual delivery.
 - `hrs-ai commit-plan <ISSUE>`: generate a manual commit plan.
 - `hrs-ai push-plan <ISSUE>`: generate a manual push plan.
+- `hrs-ai clean <ISSUE>`: remove generated `.ai/<issue>/` workflow artifacts while preserving memory.
+- `hrs-ai clean <ISSUE> --include-memory`: also remove `.ai_memory/bugs/<issue>.md` for that issue only.
 - `hrs-ai status <ISSUE>`: show workflow status and generated files.
 - `hrs-ai bug <ISSUE>`: run the prepare-only workflow end to end.
+- `hrs-ai bug <ISSUE> --fresh`: clean `.ai/<issue>/` first, then run a fresh prepare-only workflow.
+- `hrs-ai bug <ISSUE> --fresh --include-memory`: clean `.ai/<issue>/` and that issue's memory entry first, then rerun.
 
 ## Safety Rules
 - hrs-ai does not automatically modify product source code.
@@ -84,6 +90,8 @@ hrs-ai push-plan HR-12345
 - `commit-plan` and `push-plan` only generate markdown plans.
 - Placeholder commit/push execute commands do not perform real delivery actions in this prototype.
 - `hrs-ai commit <ISSUE> --execute` and `hrs-ai push <ISSUE> --execute` are disabled placeholders only.
+- `clean` and `--fresh` remove only generated hrs-ai artifacts for the requested issue.
+- Memory is preserved by default; `--include-memory` removes only `.ai_memory/bugs/<issue>.md`.
 
 ## Generated Artifacts
 Primary issue package:
