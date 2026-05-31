@@ -33,6 +33,9 @@ def build_parser() -> argparse.ArgumentParser:
     fetch_mock.add_argument("--allow-mock", action="store_true", help="Allow mock/demo fallback when Jira fetch fails.")
     fetch_mock.add_argument("--no-mock", action="store_true", help="Fail instead of generating mock/demo Jira data.")
 
+    jira_validate_parser = subparsers.add_parser("jira-validate", help="Validate Jira issue fetch and field mapping (requires real Jira credentials).")
+    jira_validate_parser.add_argument("issue_key")
+
     clean_parser = subparsers.add_parser("clean", help="Remove generated workflow artifacts for an issue.")
     clean_parser.add_argument("issue_key")
     clean_parser.add_argument("--include-memory", action="store_true", help="Also remove that issue's memory entry.")
@@ -101,6 +104,18 @@ def main(argv: list[str] | None = None) -> int:
             print(f"ERROR: {exc}", file=sys.stderr)
             return 1
         _print_clean_result(result, include_memory=args.include_memory)
+        return 0
+
+    if args.command == "jira-validate":
+        try:
+            summary = workflow.jira_validate_step(repo_root, args.issue_key)
+        except JiraFetchError as exc:
+            _print_jira_validate_error(exc)
+            return 1
+        except Exception as exc:
+            print(f"ERROR: {exc}", file=sys.stderr)
+            return 1
+        _print_jira_validate_summary(args.issue_key, summary)
         return 0
 
     if args.command == "fetch":
@@ -296,6 +311,30 @@ def _print_jira_error(exc: JiraFetchError) -> None:
     print(f"ERROR: {exc.result.error_message}", file=sys.stderr)
     print("Mock fallback is disabled by --no-mock.", file=sys.stderr)
     print("No mock Jira artifacts were generated.", file=sys.stderr)
+
+
+def _print_jira_validate_error(exc: JiraFetchError) -> None:
+    print(f"ERROR: {exc.result.error_message}", file=sys.stderr)
+    print("jira-validate requires real Jira credentials (JIRA_BASE_URL, JIRA_EMAIL, JIRA_TOKEN).", file=sys.stderr)
+    print("No Jira artifacts were generated.", file=sys.stderr)
+
+
+def _print_jira_validate_summary(issue_key: str, summary: dict) -> None:
+    print(f"Jira validation: {issue_key}")
+    print(f"  source: {summary.get('source', '')}")
+    print(f"  issue type: {summary.get('issue_type', '') or '(not specified)'}")
+    print(f"  status: {summary.get('status', '') or '(not specified)'}")
+    print(f"  priority: {summary.get('priority', '') or '(not specified)'}")
+    print(f"  comments: {summary.get('comment_count', 0)}")
+    print(f"  attachments: {summary.get('attachment_count', 0)}")
+    print(f"  description: {'yes' if summary.get('has_description') else 'no'}")
+    print(f"  reproduction steps found: {'yes' if summary.get('has_reproduction_steps') else 'no'}")
+    count = summary.get("missing_information_count", 0)
+    print(f"  missing information: {count} item(s)")
+    print(f"Generated: .ai/{issue_key}/jira.json")
+    print(f"Generated: .ai/{issue_key}/jira_summary.md")
+    print(f"Generated: .ai/{issue_key}/jira_parsed.md")
+    print(f"Generated: .ai/{issue_key}/jira_field_report.md")
 
 
 def _print_clean_result(result, include_memory: bool) -> None:

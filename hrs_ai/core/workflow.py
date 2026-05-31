@@ -12,7 +12,7 @@ from .config import WORKFLOW_STEPS, issue_dir
 from .context import build_context
 from .doctor import collect_doctor_report
 from .git_ops import current_branch, generate_git_context, inside_git_repo, run_command, working_tree_status
-from .jira import JiraFetchError, JiraFetchResult, enrich_issue, fetch_issue, jira_summary_markdown, parse_issue, parsed_markdown
+from .jira import JiraFetchError, JiraFetchResult, enrich_issue, fetch_issue, jira_field_report_markdown, jira_summary_markdown, parse_issue, parsed_markdown
 from .keywords import extract_keywords, keywords_json
 from .logging_utils import log
 from .memory import ISSUE_KEY_RE, add_memory_entry, build_memory_entry, search_memory
@@ -156,6 +156,45 @@ def fetch_step(repo_root: Path, issue_key: str, allow_mock: bool = True) -> Jira
     except Exception as exc:
         _mark_step(repo_root, issue_key, "fetch", "fail")
         log(target, f"[ERROR] fetch: {exc}")
+        raise
+
+
+def jira_validate_step(repo_root: Path, issue_key: str) -> dict:
+    """Fetch and validate a real Jira issue. No mock fallback.
+
+    Writes jira.json, jira_summary.md, jira_parsed.md, jira_field_report.md.
+    Returns a validation summary dict.
+    """
+    target = _prepare_issue_dir(repo_root, issue_key)
+    log(target, "[START] jira_validate")
+    try:
+        result = fetch_issue(repo_root, issue_key, allow_mock=False)
+        issue = result.data
+        enrich_issue(issue)
+        message = "Fetched Jira data from configured Jira instance."
+        (target / "jira.json").write_text(json.dumps(issue, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        (target / "jira_summary.md").write_text(jira_summary_markdown(issue, message), encoding="utf-8")
+        parsed = parse_issue(issue)
+        (target / "jira_parsed.md").write_text(parsed_markdown(parsed), encoding="utf-8")
+        (target / "jira_field_report.md").write_text(jira_field_report_markdown(issue), encoding="utf-8")
+        log(target, "[END] jira_validate: pass")
+        return {
+            "source": "jira",
+            "issue_type": str(parsed.get("issue_type", "") or ""),
+            "status": str(parsed.get("status", "") or ""),
+            "priority": str(parsed.get("priority", "") or ""),
+            "comment_count": int(parsed.get("comment_total", 0)),
+            "attachment_count": len(parsed.get("attachments", []) or []),
+            "has_description": bool(parsed.get("description")),
+            "has_reproduction_steps": bool(parsed.get("reproduction_steps")),
+            "missing_information_count": len(parsed.get("missing_information", []) or []),
+        }
+    except JiraFetchError as exc:
+        log(target, f"[ERROR] jira_validate Jira fetch failed: {exc.result.error_type} - {exc.result.error_message}")
+        log(target, "[END] jira_validate: fail")
+        raise
+    except Exception as exc:
+        log(target, f"[ERROR] jira_validate: {exc}")
         raise
 
 

@@ -13,7 +13,7 @@ from hrs_ai.cli import main
 from hrs_ai.core.context import _code_search_summary
 from hrs_ai.core.git_ops import branch_name
 from hrs_ai.core.jira import JiraFetchError, classify_attachment, fetch_issue
-from hrs_ai.core.jira import jira_summary_markdown, parse_issue, parsed_markdown
+from hrs_ai.core.jira import jira_field_report_markdown, jira_summary_markdown, normalize_core_fields, normalize_attachments, parse_issue, parsed_markdown
 from hrs_ai.core.jira_parse import extract_parsed_details
 from hrs_ai.core.jira_adf import adf_to_markdown
 from hrs_ai.core.keywords import extract_keywords
@@ -1858,3 +1858,382 @@ def test_copilot_task_includes_jira_parsed_guidance(tmp_path):
     assert "jira_parsed.md" in task
     assert "Do not invent reproduction steps" in task
     assert "missing information" in task.lower()
+
+
+# ---------------------------------------------------------------------------
+# Phase 8.4 — Real Jira Field Mapping Polish
+# ---------------------------------------------------------------------------
+
+
+def _full_jira_issue(issue_key: str = "HR-12345") -> dict:
+    """A realistic Jira API response with all standard fields present."""
+    return {
+        "key": issue_key,
+        "source": "jira",
+        "mock": False,
+        "fields": {
+            "summary": "Employee search returns stale results after filter change",
+            "description": "Steps to reproduce the issue.",
+            "issuetype": {"name": "Bug"},
+            "status": {"name": "In Progress"},
+            "resolution": {"name": "Unresolved"},
+            "priority": {"name": "High"},
+            "labels": ["search", "performance"],
+            "components": [{"name": "Search"}, {"name": "Filters"}],
+            "fixVersions": [{"name": "2026.2"}, {"name": "2026.1-patch"}],
+            "versions": [{"name": "2026.0"}],
+            "assignee": {"displayName": "Jane Dev", "accountId": "jane-id"},
+            "reporter": {"displayName": "QA User", "accountId": "qa-id"},
+            "created": "2026-05-01T10:00:00.000+0000",
+            "updated": "2026-05-30T12:00:00.000+0000",
+            "project": {"key": "HR", "name": "HR System"},
+            "comment": {
+                "total": 3,
+                "comments": [
+                    {
+                        "author": {"displayName": "QA User"},
+                        "created": "2026-05-10T09:00:00.000+0000",
+                        "updated": "2026-05-10T09:00:00.000+0000",
+                        "body": "Reproduced on 2026.0.",
+                    },
+                ],
+            },
+            "attachment": [
+                {
+                    "filename": "screenshot.png",
+                    "mimeType": "image/png",
+                    "size": 1024,
+                    "created": "2026-05-01T12:00:00.000+0000",
+                    "author": {"displayName": "QA User"},
+                    "content": "https://jira.example.test/secure/attachment/screenshot.png?token=secret",
+                    "thumbnail": "https://jira.example.test/secure/thumbnail/screenshot.png?token=secret",
+                },
+            ],
+        },
+    }
+
+
+def _good_jira_response(issue_key: str = "HR-12345") -> type:
+    payload = _full_jira_issue(issue_key)
+
+    class GoodResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def read(self):
+            return json.dumps({"key": issue_key, "fields": payload["fields"]}).encode("utf-8")
+
+    return GoodResponse
+
+
+# A. Normalized field mapping with complete Jira issue
+def test_normalize_core_fields_extracts_all_standard_fields():
+    issue = _full_jira_issue()
+    from hrs_ai.core.jira import enrich_issue
+
+    enrich_issue(issue)
+    normalized = issue["hrs_ai_normalized"]
+
+    assert normalized["issue_key"] == "HR-12345"
+    assert normalized["summary"] == "Employee search returns stale results after filter change"
+    assert normalized["issue_type"] == "Bug"
+    assert normalized["status"] == "In Progress"
+    assert normalized["resolution"] == "Unresolved"
+    assert normalized["priority"] == "High"
+    assert normalized["labels"] == ["search", "performance"]
+    assert "Search" in normalized["components"]
+    assert "2026.2" in normalized["fix_versions"]
+    assert "2026.0" in normalized["affected_versions"]
+    assert normalized["assignee"] == "Jane Dev"
+    assert normalized["reporter"] == "QA User"
+    assert normalized["created"] == "2026-05-01T10:00:00.000+0000"
+    assert normalized["project_key"] == "HR"
+    assert normalized["project_name"] == "HR System"
+    assert normalized["comment_count_total"] == 3
+    assert normalized["attachment_count"] == 1
+
+
+# B. Missing/null field safety
+def test_normalize_core_fields_handles_missing_and_null_fields():
+    issue = {
+        "key": "HR-99",
+        "source": "jira",
+        "mock": False,
+        "fields": {
+            "summary": "Minimal issue",
+            "description": None,
+            "issuetype": None,
+            "status": None,
+            "resolution": None,
+            "priority": None,
+            "labels": None,
+            "components": None,
+            "fixVersions": None,
+            "versions": None,
+            "assignee": None,
+            "reporter": None,
+            "created": None,
+            "updated": None,
+            "project": None,
+            "comment": None,
+            "attachment": None,
+        },
+    }
+    from hrs_ai.core.jira import enrich_issue
+
+    enrich_issue(issue)
+    normalized = issue["hrs_ai_normalized"]
+
+    # Should not crash and should have empty/safe defaults
+    assert normalized["issue_key"] == "HR-99"
+    assert normalized["issue_type"] == ""
+    assert normalized["resolution"] == ""
+    assert normalized["assignee"] == ""
+    assert normalized["labels"] == []
+    assert normalized["fix_versions"] == []
+    assert normalized["affected_versions"] == []
+    assert normalized["comment_count_total"] == 0
+    assert normalized["attachment_count"] == 0
+
+
+# C. jira_summary.md includes real Jira fields
+def test_jira_summary_includes_real_jira_fields():
+    issue = _full_jira_issue()
+    summary = jira_summary_markdown(issue, "Fetched Jira data from configured Jira instance.")
+
+    assert "## Issue Type" in summary
+    assert "Bug" in summary
+    assert "## Resolution" in summary
+    assert "Unresolved" in summary
+    assert "## Project" in summary
+    assert "HR — HR System" in summary
+    assert "## Assignee" in summary
+    assert "Jane Dev" in summary
+    assert "## Reporter" in summary
+    assert "QA User" in summary
+    assert "## Created / Updated" in summary
+    assert "2026-05-01T10:00:00.000+0000" in summary
+    assert "## Affected Versions" in summary
+    assert "2026.0" in summary
+    assert "## Fix Versions" in summary
+    assert "2026.2" in summary
+
+
+# D. jira_parsed.md uses summary / version fields for environment detection
+def test_jira_parsed_uses_versions_for_environment():
+    issue = _full_jira_issue()
+    parsed = parse_issue(issue)
+
+    # fix_versions and affected_versions should appear in environment
+    environment = parsed.get("environment", "")
+    assert "2026.2" in environment or "2026.0" in environment
+
+
+# E. jira-validate success path
+def test_jira_validate_success_generates_required_files(tmp_path, monkeypatch):
+    _set_jira_env(monkeypatch)
+    monkeypatch.setattr(
+        "hrs_ai.core.jira.urllib.request.urlopen",
+        lambda request, timeout: _good_jira_response()(),
+    )
+    monkeypatch.chdir(tmp_path)
+
+    assert main(["jira-validate", "HR-12345"]) == 0
+
+    issue_dir = tmp_path / ".ai" / "HR-12345"
+    assert (issue_dir / "jira.json").is_file()
+    assert (issue_dir / "jira_summary.md").is_file()
+    assert (issue_dir / "jira_parsed.md").is_file()
+    assert (issue_dir / "jira_field_report.md").is_file()
+    # Must NOT generate code search or copilot task
+    assert not (issue_dir / "code_search.md").exists()
+    assert not (issue_dir / "copilot_task.md").exists()
+
+
+# F. jira-validate failure path
+def test_jira_validate_fails_without_credentials(tmp_path, monkeypatch, capsys):
+    # clear_jira_env fixture already removed env vars
+    monkeypatch.chdir(tmp_path)
+
+    assert main(["jira-validate", "HR-12345"]) == 1
+
+    err = capsys.readouterr().err
+    assert "JIRA_BASE_URL" in err or "Jira environment variables" in err
+    assert not (tmp_path / ".ai" / "HR-12345" / "jira.json").exists()
+
+
+# G. jira_field_report.md content
+def test_jira_field_report_includes_diagnostic_fields():
+    issue = _full_jira_issue()
+    from hrs_ai.core.jira import enrich_issue
+
+    enrich_issue(issue)
+    report = jira_field_report_markdown(issue)
+
+    assert "## Populated Normalized Fields" in report
+    assert "issue_key: present" in report
+    assert "## Missing Normalized Fields" in report
+    assert "## Comments" in report
+    assert "Total comments: 3" in report
+    assert "## Attachments" in report
+    assert "Total attachments: 1" in report
+    assert "## Raw Jira Standard Field Keys" in report
+    # No credential content
+    assert "token=secret" not in report
+    assert "jane-id" not in report
+
+
+# H. bug --fresh --no-mock uses real Jira and real normalized fields
+def test_bug_fresh_no_mock_uses_real_jira_normalized_fields(tmp_path, monkeypatch):
+    _set_jira_env(monkeypatch)
+    monkeypatch.setattr(
+        "hrs_ai.core.jira.urllib.request.urlopen",
+        lambda request, timeout: _good_jira_response()(),
+    )
+    monkeypatch.chdir(tmp_path)
+
+    assert main(["bug", "HR-12345", "--fresh", "--no-mock"]) == 0
+
+    issue_dir = tmp_path / ".ai" / "HR-12345"
+    jira = json.loads((issue_dir / "jira.json").read_text(encoding="utf-8"))
+    summary_md = (issue_dir / "jira_summary.md").read_text(encoding="utf-8")
+
+    assert jira.get("source") == "jira"
+    assert jira.get("mock") is False
+    assert "hrs_ai_normalized" in jira
+    assert "## Issue Type" in summary_md
+    assert "## Fix Versions" in summary_md
+
+
+# I. bug --fresh --no-mock fails if Jira is unavailable
+def test_bug_fresh_no_mock_fails_when_jira_unavailable(tmp_path, monkeypatch, capsys):
+    # clear_jira_env fixture already removed env vars
+    monkeypatch.chdir(tmp_path)
+
+    assert main(["bug", "HR-12345", "--fresh", "--no-mock"]) == 1
+
+    err = capsys.readouterr().err
+    assert "ERROR" in err
+    assert not (tmp_path / ".ai" / "HR-12345" / "jira.json").exists()
+
+
+# ---------------------------------------------------------------------------
+# Phase 8.4 blocking fixes — attachment size safety + field report redaction
+# ---------------------------------------------------------------------------
+
+
+def _issue_with_attachments(*attachments: dict) -> dict:
+    issue = _jira_issue()
+    issue["fields"]["attachment"] = list(attachments)
+    return issue
+
+
+def _attachment_raw(**kwargs) -> dict:
+    base = {
+        "filename": "file.log",
+        "mimeType": "text/plain",
+        "size": 1024,
+        "created": "2026-05-30T12:00:00.000+0000",
+        "author": {"displayName": "Dev"},
+        "content": "https://jira.example.test/secure/attachment/file.log",
+        "thumbnail": "",
+    }
+    base.update(kwargs)
+    return base
+
+
+def test_malformed_attachment_size_string_does_not_crash():
+    issue = _issue_with_attachments(_attachment_raw(size="abc"))
+    attachments = normalize_attachments(issue)
+    assert len(attachments) == 1
+    assert attachments[0]["size"] == 0
+
+
+def test_numeric_string_attachment_size_is_coerced():
+    issue = _issue_with_attachments(_attachment_raw(size="12345"))
+    attachments = normalize_attachments(issue)
+    assert attachments[0]["size"] == 12345
+
+
+def test_null_attachment_size_defaults_to_zero():
+    issue = _issue_with_attachments(_attachment_raw(size=None))
+    attachments = normalize_attachments(issue)
+    assert attachments[0]["size"] == 0
+
+
+def test_missing_attachment_size_defaults_to_zero():
+    raw = _attachment_raw()
+    del raw["size"]
+    issue = _issue_with_attachments(raw)
+    attachments = normalize_attachments(issue)
+    assert attachments[0]["size"] == 0
+
+
+def test_malformed_attachment_size_renders_in_summary_without_crash():
+    issue = _issue_with_attachments(_attachment_raw(size="abc"))
+    from hrs_ai.core.jira import enrich_issue
+    enrich_issue(issue)
+    summary = jira_summary_markdown(issue, "Fetched Jira data from configured Jira instance.")
+    assert "file.log" in summary
+    assert "0 B" in summary
+
+
+def test_field_report_redacts_token_in_url():
+    issue = _jira_issue()
+    issue["fields"]["customfield_token_url"] = "https://example.test/path?token=mysecret&x=1"
+    from hrs_ai.core.jira import enrich_issue
+    enrich_issue(issue)
+    report = jira_field_report_markdown(issue)
+    assert "mysecret" not in report
+    assert "<redacted>" in report
+
+
+def test_field_report_redacts_secret_kv_pairs():
+    issue = _jira_issue()
+    issue["fields"]["customfield_creds"] = "password=abc123 api_key=xyz secret: hidden"
+    from hrs_ai.core.jira import enrich_issue
+    enrich_issue(issue)
+    report = jira_field_report_markdown(issue)
+    assert "abc123" not in report
+    assert "xyz" not in report
+    assert "hidden" not in report
+    assert "<redacted>" in report
+
+
+# ---------------------------------------------------------------------------
+# Phase 8.4 fix — key= / ?key= redaction
+# ---------------------------------------------------------------------------
+
+
+def test_field_report_redacts_plain_key_assignment():
+    issue = _jira_issue()
+    issue["fields"]["customfield_plain_key"] = "key=xyz"
+    from hrs_ai.core.jira import enrich_issue
+    enrich_issue(issue)
+    report = jira_field_report_markdown(issue)
+    assert "xyz" not in report
+    assert "key=<redacted>" in report
+
+
+def test_field_report_redacts_url_query_key_param():
+    issue = _jira_issue()
+    issue["fields"]["customfield_url_key"] = "https://example.test/path?key=xyz&x=1"
+    from hrs_ai.core.jira import enrich_issue
+    enrich_issue(issue)
+    report = jira_field_report_markdown(issue)
+    assert "xyz" not in report
+    assert "key=<redacted>" in report
+
+
+def test_field_report_does_not_redact_innocent_key_words():
+    issue = _jira_issue()
+    issue["fields"]["customfield_text"] = "keyboard monkey key field missing"
+    from hrs_ai.core.jira import enrich_issue
+    enrich_issue(issue)
+    report = jira_field_report_markdown(issue)
+    assert "keyboard" in report
+    assert "monkey" in report
+    assert "<redacted>" not in report

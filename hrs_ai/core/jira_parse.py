@@ -133,6 +133,10 @@ def extract_parsed_details(
     description: str,
     comments: list[dict],
     attachments: list[dict],
+    *,
+    summary: str = "",
+    fix_versions: list[str] | None = None,
+    affected_versions: list[str] | None = None,
 ) -> dict:
     """Extract structured bug investigation fields from ADF-converted Jira text.
 
@@ -140,8 +144,14 @@ def extract_parsed_details(
         reproduction_steps, actual_result, expected_result, environment,
         error_messages, stack_traces, log_signals, regression_signals,
         missing_information
+
+    Optional keyword-only args enrich extraction:
+        summary         — issue title, included in environment/error scans
+        fix_versions    — Jira fixVersions list, merged into environment
+        affected_versions — Jira versions list, merged into environment
     """
     description = description if isinstance(description, str) else ""
+    summary = summary if isinstance(summary, str) else ""
     comments = comments if isinstance(comments, list) else []
     attachments = attachments if isinstance(attachments, list) else []
 
@@ -150,7 +160,7 @@ def extract_parsed_details(
         for c in comments
         if isinstance(c, dict)
     ]
-    combined_text = "\n".join([description] + comment_bodies)
+    combined_text = "\n".join(s for s in [summary, description] + comment_bodies if s)
 
     desc_sections = _extract_sections(description)
     combined_sections = _extract_sections(combined_text)
@@ -167,6 +177,16 @@ def extract_parsed_details(
 
     reproduction_steps = _extract_reproduction_steps(repro_section)
     environment = env_section.strip() if env_section.strip() else _detect_environment(combined_text)
+
+    # Augment environment with structured Jira version fields
+    version_hints = [v for v in (fix_versions or []) + (affected_versions or []) if v]
+    if version_hints:
+        if environment:
+            for v in version_hints:
+                if v not in environment:
+                    environment = f"{environment}, {v}"
+        else:
+            environment = ", ".join(version_hints)
 
     error_scan = (error_section_text + "\n" + combined_text) if error_section_text else combined_text
     error_messages = _extract_error_messages(error_scan)

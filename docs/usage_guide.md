@@ -62,6 +62,14 @@ Modifies source code: No.
 
 ADF descriptions and comments are converted before parsed context is written. `jira_parsed.md` extracts reproduction steps, actual/expected results, environment/version information, error messages, stack traces, log signals, regression signals, and a missing information checklist from the Jira description and comments.
 
+### `hrs-ai jira-validate <ISSUE>`
+Purpose: Validate Jira issue fetch and field mapping without running code search or Copilot task generation.
+Generated files: `.ai/<issue>/jira.json`, `.ai/<issue>/jira_summary.md`, `.ai/<issue>/jira_parsed.md`, `.ai/<issue>/jira_field_report.md`.
+Read-only: Writes generated artifacts only.
+Modifies source code: No.
+
+Requires real Jira credentials (`JIRA_BASE_URL`, `JIRA_EMAIL`, `JIRA_TOKEN`). Does not use mock fallback. Useful for verifying field mapping and diagnosing unexpected Jira responses before running the full workflow. Attachment metadata is collected but attachment content is not downloaded.
+
 ### `hrs-ai keywords <ISSUE>`
 Purpose: Extract high-value, normal, and dropped keywords from parsed Jira context.
 Generated files: `.ai/<issue>/extracted_keywords.json`.

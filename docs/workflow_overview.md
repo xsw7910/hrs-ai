@@ -40,7 +40,7 @@ delivery-check / commit-plan / push-plan
 The workflow starts from a Jira issue key such as `HR-12345`. If Jira is not configured or fetch fails, the prototype can continue with clearly marked mock/demo data.
 
 ### Fetch, Parse, Keywords
-hrs-ai collects Jira content, converts Jira Cloud ADF descriptions/comments into readable Markdown, writes summary files, and extracts high-value and normal keywords for search. Jira integration remains read-only.
+hrs-ai collects Jira content, converts Jira Cloud ADF descriptions/comments into readable Markdown, writes summary files, and extracts high-value and normal keywords for search. Jira integration remains read-only. The recommended real Jira path is `hrs-ai bug REAL-ISSUE --fresh --no-mock`. Use `hrs-ai jira-validate REAL-ISSUE` to validate Jira field mapping before running the full workflow — it writes `jira_summary.md`, `jira_parsed.md`, and `jira_field_report.md` without running code search or generating Copilot tasks.
 
 ### Code Search, Memory Search, Git Context
 The tool searches source files with ripgrep, ranks related files, assesses search confidence, searches prior issue memory under `.ai_memory`, and captures branch/status/history information with read-only git commands.

@@ -107,6 +107,13 @@ hrs-ai push-plan HR-12345
 - `hrs-ai bug <ISSUE> --fresh --include-memory`: clean `.ai/<issue>/` and that issue's memory entry first, then rerun.
 - `hrs-ai bug <ISSUE> --allow-mock`: explicitly allow mock/demo Jira fallback.
 - `hrs-ai bug <ISSUE> --no-mock`: require real Jira data and stop if Jira fetch fails.
+- `hrs-ai jira-validate <ISSUE>`: validate Jira field mapping for a real issue (no code search, no Copilot task). Generates `jira_summary.md`, `jira_parsed.md`, and `jira_field_report.md`.
+
+## Recommended Real Jira Workflow
+```powershell
+hrs-ai bug REAL-ISSUE --fresh --no-mock
+hrs-ai jira-validate REAL-ISSUE
+```
 
 ## Safety Rules
 - hrs-ai does not automatically modify product source code.

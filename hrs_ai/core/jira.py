@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import json
+import re
 import socket
 import urllib.error
 import urllib.request
@@ -15,6 +16,13 @@ from urllib.parse import urlsplit, urlunsplit
 from .config import load_config
 from .jira_adf import adf_to_markdown
 from .jira_parse import extract_parsed_details
+
+NORMALIZED_CORE_FIELDS = [
+    "issue_key", "summary", "description_markdown", "issue_type", "status",
+    "resolution", "priority", "labels", "components", "fix_versions",
+    "affected_versions", "assignee", "reporter", "created", "updated",
+    "project_key", "project_name",
+]
 
 
 @dataclass
@@ -125,7 +133,16 @@ def parse_issue(issue: dict) -> dict[str, object]:
         ]
     ).strip()
 
-    parsed_details = extract_parsed_details(description_text, comment_details, attachments)
+    fix_versions = normalized.get("fix_versions", []) or []
+    affected_versions = normalized.get("affected_versions", []) or []
+    parsed_details = extract_parsed_details(
+        description_text,
+        comment_details,
+        attachments,
+        summary=str(fields.get("summary", "") or ""),
+        fix_versions=fix_versions if isinstance(fix_versions, list) else [],
+        affected_versions=affected_versions if isinstance(affected_versions, list) else [],
+    )
     return {
         "issue_key": issue.get("key"),
         "summary": fields.get("summary", ""),
@@ -158,11 +175,28 @@ def parse_issue(issue: dict) -> dict[str, object]:
 
 def jira_summary_markdown(issue: dict, fetch_message: str) -> str:
     parsed = parse_issue(issue)
+    normalized = issue.get("hrs_ai_normalized", {}) if isinstance(issue.get("hrs_ai_normalized"), dict) else {}
+
     is_mock = bool(parsed["is_mock"])
     data_source = "mock/demo fallback" if is_mock else "jira"
     reason = issue.get("fallback_reason") or fetch_message
-    labels = ", ".join(map(str, parsed.get("labels", []))) or "_None_"
-    components = ", ".join(map(str, parsed.get("components", []))) or "_None_"
+
+    _na = "Not specified."
+
+    resolution = normalized.get("resolution") or _na
+    project_key = normalized.get("project_key", "")
+    project_name = normalized.get("project_name", "")
+    project = f"{project_key} — {project_name}".strip(" — ") or _na
+    assignee = normalized.get("assignee") or _na
+    reporter = normalized.get("reporter") or _na
+    created = normalized.get("created") or _na
+    updated = normalized.get("updated") or _na
+    fix_versions = ", ".join(normalized.get("fix_versions", []) or []) or "None."
+    affected_versions = ", ".join(normalized.get("affected_versions", []) or []) or "None."
+
+    labels = ", ".join(map(str, parsed.get("labels", []))) or "None."
+    components = ", ".join(map(str, parsed.get("components", []))) or "None."
+
     comments = parsed.get("comment_details", [])
     comments_text = _comments_markdown(comments if isinstance(comments, list) else [])
     attachments = parsed.get("attachments", [])
@@ -177,19 +211,34 @@ def jira_summary_markdown(issue: dict, fetch_message: str) -> str:
         f"{reason}\n\n"
         f"**Mock/demo Jira data:** {'yes' if is_mock else 'no'}\n\n"
         "## Summary\n\n"
-        f"{parsed['summary'] or '_No summary available._'}\n\n"
+        f"{parsed['summary'] or _na}\n\n"
+        "## Issue Type\n\n"
+        f"{parsed['issue_type'] or _na}\n\n"
         "## Status\n\n"
-        f"{parsed['status'] or '_Unknown_'}\n\n"
+        f"{parsed['status'] or _na}\n\n"
+        "## Resolution\n\n"
+        f"{resolution}\n\n"
         "## Priority\n\n"
-        f"{parsed['priority'] or '_Unknown_'}\n\n"
-        "## Type\n\n"
-        f"{parsed['issue_type'] or '_Unknown_'}\n\n"
+        f"{parsed['priority'] or _na}\n\n"
+        "## Project\n\n"
+        f"{project}\n\n"
+        "## Assignee\n\n"
+        f"{assignee}\n\n"
+        "## Reporter\n\n"
+        f"{reporter}\n\n"
+        "## Created / Updated\n\n"
+        f"Created: {created}\n"
+        f"Updated: {updated}\n\n"
         "## Labels\n\n"
         f"{labels}\n\n"
         "## Components\n\n"
         f"{components}\n\n"
+        "## Affected Versions\n\n"
+        f"{affected_versions}\n\n"
+        "## Fix Versions\n\n"
+        f"{fix_versions}\n\n"
         "## Description\n\n"
-        f"{parsed['description'] or '_No description available._'}\n\n"
+        f"{parsed['description'] or _na}\n\n"
         "## Comments\n\n"
         f"{comments_text}\n\n"
         "## Attachments\n\n"
@@ -259,11 +308,39 @@ def parsed_markdown(parsed: dict[str, object]) -> str:
 
 
 def enrich_issue(issue: dict) -> dict:
+    core = normalize_core_fields(issue)
     issue["hrs_ai_normalized"] = {
+        **core,
         "comments": normalize_comments(issue),
+        "comment_count_total": _comment_count_total(issue),
         "attachments": normalize_attachments(issue),
+        "attachment_count": _attachment_count(issue),
     }
     return issue
+
+
+def normalize_core_fields(issue: dict) -> dict:
+    fields = issue.get("fields", {}) if isinstance(issue.get("fields"), dict) else {}
+    project = fields.get("project", {}) if isinstance(fields.get("project"), dict) else {}
+    return {
+        "issue_key": str(issue.get("key", "") or ""),
+        "summary": str(fields.get("summary", "") or ""),
+        "description_markdown": adf_to_markdown(fields.get("description")),
+        "issue_type": _field_name(fields.get("issuetype")),
+        "status": _field_name(fields.get("status")),
+        "resolution": _field_name(fields.get("resolution")),
+        "priority": _field_name(fields.get("priority")),
+        "labels": _normalize_string_list(fields.get("labels")),
+        "components": [c.get("name", "") for c in (fields.get("components") or []) if isinstance(c, dict)],
+        "fix_versions": _normalize_version_list(fields.get("fixVersions")),
+        "affected_versions": _normalize_version_list(fields.get("versions")),
+        "assignee": _user_name(fields.get("assignee")),
+        "reporter": _user_name(fields.get("reporter")),
+        "created": str(fields.get("created", "") or ""),
+        "updated": str(fields.get("updated", "") or ""),
+        "project_key": str(project.get("key", "") or ""),
+        "project_name": str(project.get("name", "") or ""),
+    }
 
 
 def normalize_comments(issue: dict) -> list[dict[str, str]]:
@@ -303,7 +380,7 @@ def normalize_attachments(issue: dict) -> list[dict[str, object]]:
             {
                 "filename": filename,
                 "mime_type": mime_type,
-                "size": int(attachment.get("size") or 0),
+                "size": _safe_int(attachment.get("size")),
                 "created": str(attachment.get("created", "") or ""),
                 "author": str(author.get("displayName") or author.get("accountId") or ""),
                 "content_url": _safe_url(attachment.get("content")),
@@ -390,10 +467,95 @@ def _attachments_markdown(attachments: list[object]) -> str:
     return "\n".join(lines)
 
 
+def jira_field_report_markdown(issue: dict) -> str:
+    normalized = issue.get("hrs_ai_normalized", {}) if isinstance(issue.get("hrs_ai_normalized"), dict) else {}
+    fields = issue.get("fields", {}) if isinstance(issue.get("fields"), dict) else {}
+
+    populated = [f for f in NORMALIZED_CORE_FIELDS if normalized.get(f)]
+    missing = [f for f in NORMALIZED_CORE_FIELDS if not normalized.get(f)]
+
+    std_keys = sorted(k for k in fields if not k.startswith("customfield_") and k not in {"id", "self", "expand"})
+    custom_keys = sorted(k for k in fields if k.startswith("customfield_"))
+    interesting_custom = []
+    for key in custom_keys[:20]:
+        val = fields.get(key)
+        if val is not None:
+            preview = _safe_preview(val)
+            interesting_custom.append(f"- `{key}`: {preview}")
+
+    populated_lines = "\n".join(f"- {f}: present" for f in populated) or "None."
+    missing_lines = "\n".join(f"- {f}: missing" for f in missing) or "None."
+    std_keys_text = ", ".join(f"`{k}`" for k in std_keys) or "None."
+    custom_text = "\n".join(interesting_custom) if interesting_custom else "None."
+
+    return (
+        "# Jira Field Report\n\n"
+        "This report is for developer diagnostics only.\n"
+        "It does not contain attachment content or credentials.\n\n"
+        "## Populated Normalized Fields\n\n"
+        f"{populated_lines}\n\n"
+        "## Missing Normalized Fields\n\n"
+        f"{missing_lines}\n\n"
+        "## Comments\n\n"
+        f"- Total comments: {normalized.get('comment_count_total', 0)}\n"
+        f"- Normalized comments: {len(normalized.get('comments', []) or [])}\n\n"
+        "## Attachments\n\n"
+        f"- Total attachments: {normalized.get('attachment_count', 0)}\n"
+        f"- Normalized attachments: {len(normalized.get('attachments', []) or [])}\n\n"
+        "## Raw Jira Standard Field Keys\n\n"
+        f"{std_keys_text}\n\n"
+        "## Custom Fields (non-null, up to 20)\n\n"
+        f"{custom_text}\n"
+    )
+
+
 def _field_name(value: object) -> str:
     if isinstance(value, dict):
         return str(value.get("name", "") or "")
     return ""
+
+
+def _user_name(value: object) -> str:
+    if isinstance(value, dict):
+        return str(value.get("displayName") or value.get("accountId") or "")
+    return ""
+
+
+def _normalize_string_list(value: object) -> list[str]:
+    if isinstance(value, list):
+        return [str(v) for v in value if v]
+    return []
+
+
+def _normalize_version_list(value: object) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    names: list[str] = []
+    for v in value:
+        if isinstance(v, dict):
+            name = v.get("name") or v.get("id") or ""
+            if name:
+                names.append(str(name))
+        elif v:
+            names.append(str(v))
+    return names
+
+
+def _comment_count_total(issue: dict) -> int:
+    fields = issue.get("fields", {}) if isinstance(issue.get("fields"), dict) else {}
+    comment_raw = fields.get("comment")
+    if isinstance(comment_raw, dict):
+        total = comment_raw.get("total")
+        if isinstance(total, int):
+            return total
+        return len(comment_raw.get("comments", []) or [])
+    return 0
+
+
+def _attachment_count(issue: dict) -> int:
+    fields = issue.get("fields", {}) if isinstance(issue.get("fields"), dict) else {}
+    raw = fields.get("attachment")
+    return len(raw) if isinstance(raw, list) else 0
 
 
 def _ordered_comments(comments: list[dict[str, str]]) -> list[dict[str, str]]:
@@ -442,6 +604,15 @@ def _safe_url(value: object) -> str:
     return urlunsplit((parts.scheme, parts.netloc, parts.path, "", ""))
 
 
+def _safe_int(value: object, default: int = 0) -> int:
+    if value is None:
+        return default
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
 def _format_size(value: object) -> str:
     try:
         size = int(value)
@@ -456,6 +627,31 @@ def _format_size(value: object) -> str:
 
 def _table_cell(value: object) -> str:
     return str(value or "").replace("|", "\\|")
+
+
+_SENSITIVE_QUERY_RE = re.compile(
+    r"(?i)([?&](?:token|access_token|refresh_token|password|passwd|secret|api_key|apikey|key)=)[^&\s#]*"
+)
+_SENSITIVE_KV_RE = re.compile(
+    r"(?i)(?<![?&])\b(token|access_token|refresh_token|password|passwd|secret|api_key|apikey|key)"
+    r"(\s*[=:]\s*)\S+"
+)
+
+
+def _redact_query_params(text: str) -> str:
+    return _SENSITIVE_QUERY_RE.sub(r"\1<redacted>", text)
+
+
+def _redact_kv(text: str) -> str:
+    return _SENSITIVE_KV_RE.sub(r"\1\2<redacted>", text)
+
+
+def _safe_preview(value: object, max_len: int = 80) -> str:
+    """Return a sanitized, length-capped preview of a custom field value."""
+    text = str(value).replace("\n", " ").replace("\r", " ")
+    text = _redact_query_params(text)
+    text = _redact_kv(text)
+    return text[:max_len]
 
 
 def _failure(issue_key: str, error_type: str) -> JiraFetchResult:
