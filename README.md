@@ -24,6 +24,29 @@ hrs-ai prepares files under `.ai/<issue>/` and shared memory under `.ai_memory/b
 python -m pip install -e .
 ```
 
+## Jira Configuration
+For real Jira fetches, set:
+
+```powershell
+$env:JIRA_BASE_URL="https://your-company.atlassian.net"
+$env:JIRA_EMAIL="you@example.com"
+$env:JIRA_TOKEN="your_jira_api_token"
+```
+
+Demo mode allows mock fallback by default:
+
+```powershell
+hrs-ai bug HR-12345 --allow-mock
+```
+
+Real Jira mode can disable mock fallback:
+
+```powershell
+hrs-ai bug HR-12345 --no-mock
+```
+
+When mock fallback is used, `jira_summary.md`, `jira.json`, and `execution.log` clearly mark the data as mock/demo fallback.
+
 ## Important: Run From Target Repo Root
 The hrs-ai source repo can be anywhere. Run `hrs-ai` from the target product repository root, because generated `.ai` and `.ai_memory` folders are written relative to the current working directory.
 
@@ -56,6 +79,8 @@ hrs-ai push-plan HR-12345
 - `hrs-ai doctor`: report environment, git, ripgrep, Jira env vars, and Copilot CLI availability.
 - `hrs-ai copilot-check`: check Copilot and GitHub CLI availability without invoking Copilot.
 - `hrs-ai fetch <ISSUE>`: fetch Jira data or create clearly marked mock/demo data.
+- `hrs-ai fetch <ISSUE> --allow-mock`: allow clearly marked mock/demo fallback when Jira fetch fails.
+- `hrs-ai fetch <ISSUE> --no-mock`: fail instead of generating mock/demo Jira data.
 - `hrs-ai parse <ISSUE>`: parse Jira data into a markdown summary.
 - `hrs-ai keywords <ISSUE>`: extract high-value, normal, and dropped keywords.
 - `hrs-ai search <ISSUE>`: run ripgrep-based code search and related file ranking.
@@ -79,11 +104,14 @@ hrs-ai push-plan HR-12345
 - `hrs-ai bug <ISSUE>`: run the prepare-only workflow end to end.
 - `hrs-ai bug <ISSUE> --fresh`: clean `.ai/<issue>/` first, then run a fresh prepare-only workflow.
 - `hrs-ai bug <ISSUE> --fresh --include-memory`: clean `.ai/<issue>/` and that issue's memory entry first, then rerun.
+- `hrs-ai bug <ISSUE> --allow-mock`: explicitly allow mock/demo Jira fallback.
+- `hrs-ai bug <ISSUE> --no-mock`: require real Jira data and stop if Jira fetch fails.
 
 ## Safety Rules
 - hrs-ai does not automatically modify product source code.
 - hrs-ai does not automatically invoke Copilot CLI.
 - hrs-ai does not update Jira.
+- Jira integration is read-only; hrs-ai does not comment, assign, close, or transition Jira issues.
 - hrs-ai does not create pull requests.
 - hrs-ai does not merge.
 - hrs-ai does not run `git add`, `git commit`, or `git push`.

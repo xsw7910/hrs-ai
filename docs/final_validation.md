@@ -19,6 +19,11 @@ python -m hrs_ai bug HR-12345 --fresh
 python -m hrs_ai status HR-12345
 python -m hrs_ai clean HR-12345 --include-memory
 python -m hrs_ai bug HR-12345 --fresh --include-memory
+python -m hrs_ai bug HR-12345 --fresh --allow-mock
+python -m hrs_ai clean HR-12345
+python -m hrs_ai bug HR-12345 --no-mock
+python -m hrs_ai fetch HR-12345 --allow-mock
+python -m hrs_ai fetch HR-12345 --no-mock
 ```
 
 Expected outcomes:
@@ -31,5 +36,7 @@ Expected outcomes:
 - `clean` removes only `.ai/HR-12345/`.
 - `--fresh` creates a clean `.ai/HR-12345/` run output.
 - Memory is preserved unless `--include-memory` is provided.
+- Default/demo Jira mode still works without Jira env vars by using clearly marked mock fallback.
+- `--no-mock` fails clearly when Jira fetch fails.
 - No automatic Copilot invocation occurs.
 - No automatic Jira write, commit, push, merge, or PR creation occurs.

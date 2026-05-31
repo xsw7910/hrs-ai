@@ -10,7 +10,7 @@ from pathlib import Path
 from hrs_ai.core import copilot, doctor, workflow
 from hrs_ai.core.cleanup import clean_issue_artifacts
 from hrs_ai.core.context import build_context
-from hrs_ai.core.jira import fetch_issue, parse_issue
+from hrs_ai.core.jira import JiraFetchError, fetch_issue, parse_issue
 from hrs_ai.core.keywords import extract_keywords
 from hrs_ai.core.memory import add_memory_entry, search_memory
 from hrs_ai.core.prompts import generate_prompts
@@ -23,9 +23,15 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers.add_parser("doctor", help="Check local environment readiness.")
     subparsers.add_parser("copilot-check", help="Check Copilot CLI readiness.")
 
-    for name in ("fetch", "parse", "keywords", "search", "git-context", "context", "prompt", "status", "copilot-task", "summarize-results", "review-package", "delivery-check", "commit-plan", "push-plan"):
+    for name in ("parse", "keywords", "search", "git-context", "context", "prompt", "status", "copilot-task", "summarize-results", "review-package", "delivery-check", "commit-plan", "push-plan"):
         command = subparsers.add_parser(name, help=f"Run the {name} step.")
         command.add_argument("issue_key")
+
+    fetch_parser = subparsers.add_parser("fetch", help="Fetch Jira data.")
+    fetch_parser.add_argument("issue_key")
+    fetch_mock = fetch_parser.add_mutually_exclusive_group()
+    fetch_mock.add_argument("--allow-mock", action="store_true", help="Allow mock/demo fallback when Jira fetch fails.")
+    fetch_mock.add_argument("--no-mock", action="store_true", help="Fail instead of generating mock/demo Jira data.")
 
     clean_parser = subparsers.add_parser("clean", help="Remove generated workflow artifacts for an issue.")
     clean_parser.add_argument("issue_key")
@@ -69,6 +75,9 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="With --fresh, also remove that issue's memory entry before rerunning.",
     )
+    bug_mock = bug_parser.add_mutually_exclusive_group()
+    bug_mock.add_argument("--allow-mock", action="store_true", help="Allow mock/demo fallback when Jira fetch fails.")
+    bug_mock.add_argument("--no-mock", action="store_true", help="Fail instead of generating mock/demo Jira data.")
 
     return parser
 
@@ -95,7 +104,13 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "fetch":
-        workflow.fetch_step(repo_root, args.issue_key)
+        try:
+            result = workflow.fetch_step(repo_root, args.issue_key, allow_mock=_allow_mock(args))
+        except JiraFetchError as exc:
+            _print_jira_error(exc)
+            return 1
+        if result.source == "mock":
+            print(f"WARN: {result.error_message} Using mock/demo Jira data.")
         print(f"Fetched Jira data for {args.issue_key} into .ai/{args.issue_key}/")
         return 0
 
@@ -221,10 +236,16 @@ def main(argv: list[str] | None = None) -> int:
                 copilot_fix=args.copilot_fix,
                 fresh=args.fresh,
                 include_memory=args.include_memory,
+                allow_mock=_allow_mock(args),
             )
+        except JiraFetchError as exc:
+            _print_jira_error(exc)
+            return 1
         except ValueError as exc:
             print(f"ERROR: {exc}", file=sys.stderr)
             return 1
+        if result.jira_result and result.jira_result.source == "mock":
+            print(f"WARN: {result.jira_result.error_message} Using mock/demo Jira data.")
         print(f"Prepared hrs-ai workflow package for {args.issue_key}.")
         print(f"Artifacts: {result.issue_dir}")
         print("Next manual Copilot CLI instruction:")
@@ -260,6 +281,16 @@ def _print_status(repo_root: Path, issue_key: str) -> int:
     for file_name in status.get("generated_files", []):
         print(f"  {file_name}")
     return 0
+
+
+def _allow_mock(args) -> bool:
+    return not getattr(args, "no_mock", False)
+
+
+def _print_jira_error(exc: JiraFetchError) -> None:
+    print(f"ERROR: {exc.result.error_message}", file=sys.stderr)
+    print("Mock fallback is disabled by --no-mock.", file=sys.stderr)
+    print("No mock Jira artifacts were generated.", file=sys.stderr)
 
 
 def _print_clean_result(result, include_memory: bool) -> None:

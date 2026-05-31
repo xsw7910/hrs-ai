@@ -38,6 +38,20 @@ Generated files: `.ai/<issue>/jira.json`, `.ai/<issue>/jira_summary.md`.
 Read-only: Writes generated artifacts only.
 Modifies source code: No.
 
+Mock fallback is allowed by default for demos. Generated files clearly state `Data Source: mock/demo fallback` when fallback is used.
+
+### `hrs-ai fetch <ISSUE> --allow-mock`
+Purpose: Explicitly allow mock/demo fallback when Jira fetch fails.
+Generated files: `.ai/<issue>/jira.json`, `.ai/<issue>/jira_summary.md`.
+Read-only: Writes generated artifacts only.
+Modifies source code: No.
+
+### `hrs-ai fetch <ISSUE> --no-mock`
+Purpose: Require real Jira data and fail if Jira fetch fails.
+Generated files: `workflow_status.json` and `execution.log` may be written to record failure; no mock Jira files are generated.
+Read-only: Writes generated status/log artifacts only.
+Modifies source code: No.
+
 ### `hrs-ai parse <ISSUE>`
 Purpose: Parse Jira data into structured markdown for downstream context.
 Generated files: `.ai/<issue>/jira_parsed.md`.
@@ -172,6 +186,22 @@ This command fetches or prepares Jira data, parses it, extracts keywords, runs c
 
 It does not modify source code, commit, push, merge, create PRs, update Jira, or automatically invoke Copilot.
 
+Mock fallback is allowed by default. If Jira env vars are missing or Jira fetch fails, the workflow uses clearly marked mock/demo Jira data.
+
+### `hrs-ai bug <ISSUE> --allow-mock`
+Purpose: Explicitly allow mock/demo Jira fallback.
+Generated files: Full issue package under `.ai/<issue>/` and memory entry `.ai_memory/bugs/<issue>.md`.
+Read-only: Writes generated artifacts only.
+Modifies source code: No.
+
+### `hrs-ai bug <ISSUE> --no-mock`
+Purpose: Require real Jira data.
+Generated files: `workflow_status.json` and `execution.log` may be written if Jira fetch fails.
+Read-only: Writes generated status/log artifacts only when failing.
+Modifies source code: No.
+
+When Jira fetch fails, this stops the workflow before parse, keyword extraction, code search, context generation, prompts, or memory add.
+
 ### `hrs-ai bug <ISSUE> --fresh`
 Purpose: Remove old `.ai/<issue>/` workflow artifacts, then run the main prepare-only workflow.
 Generated files: Fresh issue package under `.ai/<issue>/` and memory entry `.ai_memory/bugs/<issue>.md`.
@@ -187,3 +217,24 @@ Read-only: No; deletes generated artifacts for the requested issue only.
 Modifies source code: No.
 
 Other memory entries and product source files are preserved.
+
+## Jira Environment
+Set these variables for real Jira usage:
+
+```powershell
+$env:JIRA_BASE_URL="https://your-company.atlassian.net"
+$env:JIRA_EMAIL="you@example.com"
+$env:JIRA_TOKEN="your_jira_api_token"
+```
+
+Demo usage:
+
+```powershell
+hrs-ai bug HR-12345 --allow-mock
+```
+
+Real Jira usage:
+
+```powershell
+hrs-ai bug HR-12345 --no-mock
+```

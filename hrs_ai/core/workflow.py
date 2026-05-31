@@ -12,7 +12,7 @@ from .config import WORKFLOW_STEPS, issue_dir
 from .context import build_context
 from .doctor import collect_doctor_report
 from .git_ops import current_branch, generate_git_context, inside_git_repo, run_command, working_tree_status
-from .jira import fetch_issue, jira_summary_markdown, parse_issue, parsed_markdown
+from .jira import JiraFetchError, JiraFetchResult, fetch_issue, jira_summary_markdown, parse_issue, parsed_markdown
 from .keywords import extract_keywords, keywords_json
 from .logging_utils import log
 from .memory import ISSUE_KEY_RE, add_memory_entry, build_memory_entry, search_memory
@@ -25,6 +25,7 @@ class WorkflowResult:
     issue_key: str
     issue_dir: Path
     generated_files: list[str]
+    jira_result: JiraFetchResult | None = None
 
 
 REQUIRED_COPILOT_RESULT_FILES = [
@@ -46,6 +47,7 @@ def run_bug_workflow(
     copilot_fix: bool = False,
     fresh: bool = False,
     include_memory: bool = False,
+    allow_mock: bool = True,
 ) -> WorkflowResult:
     clean_result = None
     if fresh:
@@ -58,6 +60,8 @@ def run_bug_workflow(
         command += " --fresh"
     if include_memory:
         command += " --include-memory"
+    if not allow_mock:
+        command += " --no-mock"
     log(target, f"[START] command: {command}")
     if fresh:
         log(target, "[INFO] fresh run requested")
@@ -81,7 +85,7 @@ def run_bug_workflow(
         _mark_step(repo_root, issue_key, "doctor", "pass")
         log(target, "[END] doctor: pass")
 
-        fetch_step(repo_root, issue_key)
+        jira_result = fetch_step(repo_root, issue_key, allow_mock=allow_mock)
         parse_step(repo_root, issue_key)
         keywords_step(repo_root, issue_key)
         memory_search_step(repo_root, issue_key)
@@ -122,23 +126,32 @@ def run_bug_workflow(
         },
         generated,
     )
-    return WorkflowResult(issue_key=issue_key, issue_dir=target, generated_files=generated)
+    return WorkflowResult(issue_key=issue_key, issue_dir=target, generated_files=generated, jira_result=jira_result)
 
 
-def fetch_step(repo_root: Path, issue_key: str) -> None:
+def fetch_step(repo_root: Path, issue_key: str, allow_mock: bool = True) -> JiraFetchResult:
     target = _prepare_issue_dir(repo_root, issue_key)
     log(target, "[START] fetch")
     try:
-        issue, is_mock, message = fetch_issue(repo_root, issue_key)
+        result = fetch_issue(repo_root, issue_key, allow_mock=allow_mock)
+        issue = result.data
+        message = _fetch_message(result)
         (target / "jira.json").write_text(json.dumps(issue, indent=2, sort_keys=True) + "\n", encoding="utf-8")
         (target / "jira_summary.md").write_text(jira_summary_markdown(issue, message), encoding="utf-8")
-        if is_mock:
-            log(target, f"[WARN] {message}")
-            log(target, "[WARN] MOCK/DEMO Jira data was generated for this run.")
+        if result.source == "mock":
+            log(target, f"[WARN] Jira fetch failed: {result.error_type} - {result.error_message}")
+            log(target, "[WARN] Using mock/demo Jira data")
         else:
             log(target, message)
         _mark_step(repo_root, issue_key, "fetch", "pass")
         log(target, "[END] fetch: pass")
+        return result
+    except JiraFetchError as exc:
+        _mark_step(repo_root, issue_key, "fetch", "fail")
+        log(target, f"[ERROR] Jira fetch failed: {exc.result.error_type} - {exc.result.error_message}")
+        log(target, "[ERROR] Mock fallback disabled by --no-mock")
+        log(target, "[END] fetch: fail")
+        raise
     except Exception as exc:
         _mark_step(repo_root, issue_key, "fetch", "fail")
         log(target, f"[ERROR] fetch: {exc}")
@@ -415,6 +428,12 @@ def _prepare_issue_dir(repo_root: Path, issue_key: str) -> Path:
 
 def _read_json(path: Path) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _fetch_message(result: JiraFetchResult) -> str:
+    if result.source == "mock":
+        return f"{result.error_message} Using mock/demo Jira data."
+    return "Fetched Jira data from configured Jira instance."
 
 
 def _generated_files(repo_root: Path, issue_key: str) -> list[str]:

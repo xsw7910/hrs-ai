@@ -1,15 +1,27 @@
 from __future__ import annotations
 
 import json
+import socket
+import urllib.error
 from subprocess import CompletedProcess
+
+import pytest
 
 from hrs_ai.cli import main
 from hrs_ai.core.context import _code_search_summary
 from hrs_ai.core.git_ops import branch_name
+from hrs_ai.core.jira import JiraFetchError, fetch_issue
 from hrs_ai.core.keywords import extract_keywords
 from hrs_ai.core.memory import build_memory_entry, search_memory
 from hrs_ai.core.search import INCLUDE_GLOBS, run_code_search
 from hrs_ai.core.workflow import git_context_step, run_bug_workflow
+
+
+@pytest.fixture(autouse=True)
+def clear_jira_env(monkeypatch):
+    monkeypatch.delenv("JIRA_BASE_URL", raising=False)
+    monkeypatch.delenv("JIRA_EMAIL", raising=False)
+    monkeypatch.delenv("JIRA_TOKEN", raising=False)
 
 
 def test_output_directory_creation(tmp_path, monkeypatch):
@@ -81,7 +93,8 @@ def test_execution_log_contains_prepare_only_lifecycle(tmp_path, monkeypatch):
     assert "[START] doctor" in log_text
     assert "[END] doctor: pass" in log_text
     assert "[START] fetch" in log_text
-    assert "[WARN] Using mock/demo Jira data because Jira environment variables are missing." in log_text
+    assert "[WARN] Jira fetch failed: missing_env - Jira environment variables are missing." in log_text
+    assert "[WARN] Using mock/demo Jira data" in log_text
     assert "[END] fetch: pass" in log_text
     assert "[START] parse" in log_text
     assert "[END] parse: pass" in log_text
@@ -789,3 +802,206 @@ def test_bug_include_memory_requires_fresh(tmp_path, monkeypatch, capsys):
     assert main(["bug", "HR-12345", "--include-memory"]) == 1
 
     assert "--include-memory can only be used with --fresh" in capsys.readouterr().err
+
+
+def test_missing_env_default_allow_mock_marks_fallback(tmp_path, monkeypatch, capsys):
+    monkeypatch.delenv("JIRA_BASE_URL", raising=False)
+    monkeypatch.delenv("JIRA_EMAIL", raising=False)
+    monkeypatch.delenv("JIRA_TOKEN", raising=False)
+    monkeypatch.chdir(tmp_path)
+
+    assert main(["bug", "HR-12345"]) == 0
+    output = capsys.readouterr().out
+    issue_dir = tmp_path / ".ai" / "HR-12345"
+    jira = json.loads((issue_dir / "jira.json").read_text(encoding="utf-8"))
+    summary = (issue_dir / "jira_summary.md").read_text(encoding="utf-8")
+    log_text = (issue_dir / "execution.log").read_text(encoding="utf-8")
+
+    assert "WARN: Jira environment variables are missing." in output
+    assert jira["source"] == "mock"
+    assert jira["mock"] is True
+    assert jira["fallback_error_type"] == "missing_env"
+    assert "Data Source: mock/demo fallback" in summary
+    assert "Jira environment variables are missing" in summary
+    assert "[WARN] Jira fetch failed: missing_env" in log_text
+
+
+def test_missing_env_no_mock_fails_without_mock_artifacts(tmp_path, monkeypatch, capsys):
+    monkeypatch.delenv("JIRA_BASE_URL", raising=False)
+    monkeypatch.delenv("JIRA_EMAIL", raising=False)
+    monkeypatch.delenv("JIRA_TOKEN", raising=False)
+    monkeypatch.chdir(tmp_path)
+
+    assert main(["bug", "HR-12345", "--no-mock"]) == 1
+    error = capsys.readouterr().err
+    issue_dir = tmp_path / ".ai" / "HR-12345"
+    status = json.loads((issue_dir / "workflow_status.json").read_text(encoding="utf-8"))
+    log_text = (issue_dir / "execution.log").read_text(encoding="utf-8")
+
+    assert "ERROR: Jira environment variables are missing." in error
+    assert "Mock fallback is disabled by --no-mock." in error
+    assert not (issue_dir / "jira_summary.md").exists()
+    assert not (issue_dir / "jira.json").exists()
+    assert status["steps"]["fetch"] == "fail"
+    assert status["steps"]["parse"] == "skipped"
+    assert "[ERROR] Jira fetch failed: missing_env" in log_text
+
+
+def test_fetch_default_allow_mock_generates_mock_files(tmp_path, monkeypatch, capsys):
+    monkeypatch.delenv("JIRA_BASE_URL", raising=False)
+    monkeypatch.delenv("JIRA_EMAIL", raising=False)
+    monkeypatch.delenv("JIRA_TOKEN", raising=False)
+    monkeypatch.chdir(tmp_path)
+
+    assert main(["fetch", "HR-12345"]) == 0
+    output = capsys.readouterr().out
+    jira = json.loads((tmp_path / ".ai" / "HR-12345" / "jira.json").read_text(encoding="utf-8"))
+
+    assert "WARN: Jira environment variables are missing." in output
+    assert jira["source"] == "mock"
+    assert jira["mock"] is True
+
+
+def test_fetch_no_mock_fails_without_mock_fallback(tmp_path, monkeypatch, capsys):
+    monkeypatch.delenv("JIRA_BASE_URL", raising=False)
+    monkeypatch.delenv("JIRA_EMAIL", raising=False)
+    monkeypatch.delenv("JIRA_TOKEN", raising=False)
+    monkeypatch.chdir(tmp_path)
+
+    assert main(["fetch", "HR-12345", "--no-mock"]) == 1
+    error = capsys.readouterr().err
+    issue_dir = tmp_path / ".ai" / "HR-12345"
+
+    assert "Mock fallback is disabled by --no-mock." in error
+    assert not (issue_dir / "jira.json").exists()
+    assert not (issue_dir / "jira_summary.md").exists()
+    status = json.loads((issue_dir / "workflow_status.json").read_text(encoding="utf-8"))
+    assert status["steps"]["fetch"] == "fail"
+
+
+def _set_jira_env(monkeypatch):
+    monkeypatch.setenv("JIRA_BASE_URL", "https://jira.example.test")
+    monkeypatch.setenv("JIRA_EMAIL", "dev@example.test")
+    monkeypatch.setenv("JIRA_TOKEN", "token")
+
+
+def _http_error(status_code: int) -> urllib.error.HTTPError:
+    return urllib.error.HTTPError(
+        "https://jira.example.test/rest/api/3/issue/HR-12345",
+        status_code,
+        "error",
+        hdrs=None,
+        fp=None,
+    )
+
+
+def test_jira_http_401_403_classifies_auth_or_permission(tmp_path, monkeypatch):
+    _set_jira_env(monkeypatch)
+    monkeypatch.setattr("hrs_ai.core.jira.urllib.request.urlopen", lambda request, timeout: (_ for _ in ()).throw(_http_error(401)))
+
+    fallback = fetch_issue(tmp_path, "HR-12345", allow_mock=True)
+    assert fallback.source == "mock"
+    assert fallback.error_type == "auth_or_permission"
+
+    monkeypatch.setattr("hrs_ai.core.jira.urllib.request.urlopen", lambda request, timeout: (_ for _ in ()).throw(_http_error(403)))
+    with pytest.raises(JiraFetchError) as exc_info:
+        fetch_issue(tmp_path, "HR-12345", allow_mock=False)
+    assert exc_info.value.result.error_type == "auth_or_permission"
+
+
+def test_jira_http_404_classifies_not_found(tmp_path, monkeypatch):
+    _set_jira_env(monkeypatch)
+    monkeypatch.setattr("hrs_ai.core.jira.urllib.request.urlopen", lambda request, timeout: (_ for _ in ()).throw(_http_error(404)))
+
+    result = fetch_issue(tmp_path, "HR-12345")
+
+    assert result.error_type == "not_found"
+    assert result.source == "mock"
+
+
+def test_jira_http_429_classifies_rate_limited(tmp_path, monkeypatch):
+    _set_jira_env(monkeypatch)
+    monkeypatch.setattr("hrs_ai.core.jira.urllib.request.urlopen", lambda request, timeout: (_ for _ in ()).throw(_http_error(429)))
+
+    result = fetch_issue(tmp_path, "HR-12345")
+
+    assert result.error_type == "rate_limited"
+
+
+def test_jira_timeout_classifies_timeout(tmp_path, monkeypatch):
+    _set_jira_env(monkeypatch)
+    monkeypatch.setattr("hrs_ai.core.jira.urllib.request.urlopen", lambda request, timeout: (_ for _ in ()).throw(socket.timeout()))
+
+    result = fetch_issue(tmp_path, "HR-12345")
+
+    assert result.error_type == "timeout"
+
+    monkeypatch.setattr("hrs_ai.core.jira.urllib.request.urlopen", lambda request, timeout: (_ for _ in ()).throw(TimeoutError()))
+
+    result = fetch_issue(tmp_path, "HR-12345")
+
+    assert result.error_type == "timeout"
+
+
+def test_jira_network_error_classifies_network_error(tmp_path, monkeypatch):
+    _set_jira_env(monkeypatch)
+    monkeypatch.setattr("hrs_ai.core.jira.urllib.request.urlopen", lambda request, timeout: (_ for _ in ()).throw(urllib.error.URLError("dns failed")))
+
+    result = fetch_issue(tmp_path, "HR-12345")
+
+    assert result.error_type == "network_error"
+
+
+def test_jira_invalid_response_classifies_invalid_response(tmp_path, monkeypatch):
+    _set_jira_env(monkeypatch)
+
+    class BadResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def read(self):
+            return b"{not json"
+
+    monkeypatch.setattr("hrs_ai.core.jira.urllib.request.urlopen", lambda request, timeout: BadResponse())
+
+    result = fetch_issue(tmp_path, "HR-12345")
+
+    assert result.error_type == "invalid_response"
+
+
+def test_jira_success_path_marks_real_source(tmp_path, monkeypatch):
+    _set_jira_env(monkeypatch)
+
+    class GoodResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def read(self):
+            return json.dumps(
+                {
+                    "key": "HR-12345",
+                    "fields": {
+                        "summary": "Real Jira summary",
+                        "description": "Real description",
+                        "issuetype": {"name": "Bug"},
+                        "status": {"name": "Open"},
+                        "priority": {"name": "High"},
+                        "comment": {"comments": []},
+                    },
+                }
+            ).encode("utf-8")
+
+    monkeypatch.setattr("hrs_ai.core.jira.urllib.request.urlopen", lambda request, timeout: GoodResponse())
+
+    result = fetch_issue(tmp_path, "HR-12345")
+
+    assert result.source == "jira"
+    assert result.error_type is None
+    assert result.data["source"] == "jira"
+    assert result.data["mock"] is False
