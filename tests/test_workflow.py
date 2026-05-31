@@ -8,11 +8,12 @@ from subprocess import CompletedProcess
 
 import pytest
 
+from hrs_ai.core import workflow
 from hrs_ai.cli import main
 from hrs_ai.core.context import _code_search_summary
 from hrs_ai.core.git_ops import branch_name
-from hrs_ai.core.jira import JiraFetchError, fetch_issue
-from hrs_ai.core.jira import jira_summary_markdown
+from hrs_ai.core.jira import JiraFetchError, classify_attachment, fetch_issue
+from hrs_ai.core.jira import jira_summary_markdown, parse_issue, parsed_markdown
 from hrs_ai.core.jira_adf import adf_to_markdown
 from hrs_ai.core.keywords import extract_keywords
 from hrs_ai.core.memory import build_memory_entry, search_memory
@@ -1085,6 +1086,9 @@ def test_missing_env_default_allow_mock_marks_fallback(tmp_path, monkeypatch, ca
     assert jira["source"] == "mock"
     assert jira["mock"] is True
     assert jira["fallback_error_type"] == "missing_env"
+    assert "hrs_ai_normalized" in jira
+    assert "comments" in jira["hrs_ai_normalized"]
+    assert "attachments" in jira["hrs_ai_normalized"]
     assert "## Data Source\n\nmock/demo fallback" in summary
     assert "Jira environment variables are missing" in summary
     assert "[WARN] Jira fetch failed: missing_env" in log_text
@@ -1455,3 +1459,187 @@ def test_jira_summary_uses_converted_adf_comments():
     assert "Created: 2026-05-30T12:00:00.000+0000" in summary
     assert "Please check **EmployeeSearch**" in summary
     assert '"content"' not in summary
+
+
+def test_jira_comments_with_adf_body_include_author_and_created():
+    issue = _jira_issue(
+        comments=[
+            _jira_comment("Dev One", "2026-05-30T10:00:00.000+0000", _adf_text("First **ignored literal**")),
+            _jira_comment("Dev Two", "2026-05-30T11:00:00.000+0000", _adf_marked_text("Regression", "strong")),
+        ]
+    )
+
+    summary = jira_summary_markdown(issue, "Fetched Jira data from configured Jira instance.")
+
+    assert "### Comment 1" in summary
+    assert "Author: Dev One" in summary
+    assert "Created: 2026-05-30T10:00:00.000+0000" in summary
+    assert "Author: Dev Two" in summary
+    assert "**Regression**" in summary
+
+
+def test_jira_comment_limit_renders_latest_ten():
+    comments = [
+        _jira_comment(f"Dev {index}", f"2026-05-{index:02d}T10:00:00.000+0000", _adf_text(f"Body {index:02d}"))
+        for index in range(1, 13)
+    ]
+    issue = _jira_issue(comments=comments)
+
+    summary = jira_summary_markdown(issue, "Fetched Jira data from configured Jira instance.")
+
+    assert "Showing latest 10 of 12 comments." in summary
+    assert "Body 01" not in summary
+    assert "Body 02" not in summary
+    assert "Body 03" in summary
+    assert "Body 12" in summary
+
+
+def test_jira_empty_comments_are_clear():
+    summary = jira_summary_markdown(_jira_issue(comments=[]), "Fetched Jira data from configured Jira instance.")
+
+    assert "## Comments" in summary
+    assert "No comments found." in summary
+
+
+def test_single_jira_comment_does_not_show_latest_note():
+    issue = _jira_issue(comments=[_jira_comment("Dev", "2026-05-30T10:00:00.000+0000", _adf_text("Only comment"))])
+
+    summary = jira_summary_markdown(issue, "Fetched Jira data from configured Jira instance.")
+
+    assert "Only comment" in summary
+    assert "Showing latest" not in summary
+
+
+def test_attachment_metadata_is_rendered_without_download():
+    issue = _jira_issue(
+        attachments=[
+            _jira_attachment("screenshot.png", "image/png", 2048, "QA"),
+            _jira_attachment("crash.log", "text/plain", 12345, "Dev"),
+            _jira_attachment("repro.zip", "application/zip", 4096, "User"),
+        ]
+    )
+
+    summary = jira_summary_markdown(issue, "Fetched Jira data from configured Jira instance.")
+
+    assert "Attachment content is not downloaded by hrs-ai." in summary
+    assert "| screenshot.png | screenshot | 2 KB" in summary
+    assert "| crash.log | log | 12 KB" in summary
+    assert "| repro.zip | repro_project | 4 KB" in summary
+    assert "https://jira.example.test/secure/attachment/" not in summary
+
+
+def test_attachment_kind_classification():
+    assert classify_attachment("screenshot.png", "image/png") == "screenshot"
+    assert classify_attachment("debug.log", "text/plain") == "log"
+    assert classify_attachment("crash.mdmp", "application/octet-stream") == "crash_dump"
+    assert classify_attachment("repro.zip", "application/zip") == "repro_project"
+    assert classify_attachment("notes.pdf", "application/pdf") == "document"
+    assert classify_attachment("data.bin", "application/octet-stream") == "unknown"
+
+
+def test_jira_parsed_comment_signals():
+    issue = _jira_issue(comments=[_jira_comment("Dev", "2026-05-30T10:00:00.000+0000", _adf_text("Stack trace shows regression"))])
+    parsed = parse_issue(issue)
+
+    markdown = parsed_markdown(parsed)
+
+    assert "## Comment Signals" in markdown
+    assert "- Number of comments: 1" in markdown
+    assert "stack trace" in markdown
+    assert "regression" in markdown
+
+
+def test_jira_parsed_attachment_signals():
+    issue = _jira_issue(
+        attachments=[
+            _jira_attachment("screenshot.jpg", "image/jpeg", 1024, "QA"),
+            _jira_attachment("error.log", "text/plain", 1024, "QA"),
+        ]
+    )
+    parsed = parse_issue(issue)
+
+    markdown = parsed_markdown(parsed)
+
+    assert "## Attachment Signals" in markdown
+    assert "- Number of attachments: 2" in markdown
+    assert "log" in markdown
+    assert "screenshot" in markdown
+
+
+def test_bug_context_includes_comment_and_attachment_signals(tmp_path):
+    issue = _jira_issue(
+        comments=[_jira_comment("Dev", "2026-05-30T10:00:00.000+0000", _adf_text("Regression in stack trace"))],
+        attachments=[_jira_attachment("crash.log", "text/plain", 4096, "Dev")],
+    )
+    issue_dir = tmp_path / ".ai" / "HR-12345"
+    issue_dir.mkdir(parents=True)
+    (issue_dir / "jira.json").write_text(json.dumps(issue), encoding="utf-8")
+
+    workflow.parse_step(tmp_path, "HR-12345")
+    workflow.keywords_step(tmp_path, "HR-12345")
+    workflow.memory_search_step(tmp_path, "HR-12345")
+    workflow.code_search_step(tmp_path, "HR-12345")
+    workflow.git_context_step(tmp_path, "HR-12345")
+    workflow.context_step(tmp_path, "HR-12345")
+
+    context = (issue_dir / "bug_context.md").read_text(encoding="utf-8")
+    assert "## Comment Signals" in context
+    assert "## Attachment Signals" in context
+    assert "Use Jira comments as additional context" in context
+    assert "Do not assume attachment content was read" in context
+
+
+def test_copilot_task_includes_comment_attachment_guidance(tmp_path):
+    run_bug_workflow(tmp_path, "HR-12345")
+    task = (tmp_path / ".ai" / "HR-12345" / "copilot_task.md").read_text(encoding="utf-8")
+
+    assert "Read Jira comments in `bug_context.md`" in task
+    assert "comments in `bug_context.md` as potentially newer than the original description" in task
+    assert "Review Jira attachment metadata" in task
+    assert "Do not claim to have inspected attachment contents unless the content is present" in task
+
+
+def _jira_issue(comments=None, attachments=None):
+    return {
+        "key": "HR-12345",
+        "source": "jira",
+        "mock": False,
+        "fields": {
+            "summary": "Real Jira summary",
+            "description": _adf_text("Real description"),
+            "issuetype": {"name": "Bug"},
+            "status": {"name": "Open"},
+            "priority": {"name": "High"},
+            "comment": {"comments": comments or []},
+            "attachment": attachments or [],
+        },
+    }
+
+
+def _jira_comment(author, created, body, updated=""):
+    return {
+        "author": {"displayName": author, "accountId": f"{author.lower().replace(' ', '-')}-id"},
+        "created": created,
+        "updated": updated,
+        "body": body,
+    }
+
+
+def _jira_attachment(filename, mime_type, size, author):
+    return {
+        "filename": filename,
+        "mimeType": mime_type,
+        "size": size,
+        "created": "2026-05-30T12:00:00.000+0000",
+        "author": {"displayName": author},
+        "content": f"https://jira.example.test/secure/attachment/{filename}?token=secret",
+        "thumbnail": f"https://jira.example.test/secure/thumbnail/{filename}?token=secret",
+    }
+
+
+def _adf_text(text):
+    return {"type": "doc", "content": [{"type": "paragraph", "content": [{"type": "text", "text": text}]}]}
+
+
+def _adf_marked_text(text, mark):
+    return {"type": "doc", "content": [{"type": "paragraph", "content": [{"type": "text", "text": text, "marks": [{"type": mark}]}]}]}

@@ -38,7 +38,7 @@ Generated files: `.ai/<issue>/jira.json`, `.ai/<issue>/jira_summary.md`.
 Read-only: Writes generated artifacts only.
 Modifies source code: No.
 
-Jira Cloud ADF descriptions and comments are converted into readable Markdown in `jira_summary.md`. Raw fetched Jira data remains in `jira.json`.
+Jira Cloud ADF descriptions and comments are converted into readable Markdown in `jira_summary.md`. Attachment metadata is listed when available, but attachment content is not downloaded. Raw fetched Jira data remains in `jira.json`.
 
 Mock fallback is allowed by default for demos. Generated files clearly state `Data Source: mock/demo fallback` when fallback is used.
 

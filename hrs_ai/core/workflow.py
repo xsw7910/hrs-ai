@@ -12,7 +12,7 @@ from .config import WORKFLOW_STEPS, issue_dir
 from .context import build_context
 from .doctor import collect_doctor_report
 from .git_ops import current_branch, generate_git_context, inside_git_repo, run_command, working_tree_status
-from .jira import JiraFetchError, JiraFetchResult, fetch_issue, jira_summary_markdown, parse_issue, parsed_markdown
+from .jira import JiraFetchError, JiraFetchResult, enrich_issue, fetch_issue, jira_summary_markdown, parse_issue, parsed_markdown
 from .keywords import extract_keywords, keywords_json
 from .logging_utils import log
 from .memory import ISSUE_KEY_RE, add_memory_entry, build_memory_entry, search_memory
@@ -135,6 +135,7 @@ def fetch_step(repo_root: Path, issue_key: str, allow_mock: bool = True) -> Jira
     try:
         result = fetch_issue(repo_root, issue_key, allow_mock=allow_mock)
         issue = result.data
+        enrich_issue(issue)
         message = _fetch_message(result)
         (target / "jira.json").write_text(json.dumps(issue, indent=2, sort_keys=True) + "\n", encoding="utf-8")
         (target / "jira_summary.md").write_text(jira_summary_markdown(issue, message), encoding="utf-8")

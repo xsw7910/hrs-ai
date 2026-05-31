@@ -7,6 +7,7 @@ hrs-ai is designed as a prepare-only and planning tool. The developer remains in
 - hrs-ai does not update Jira.
 - hrs-ai Jira access is read-only.
 - hrs-ai does not comment on, assign, close, or transition Jira issues.
+- hrs-ai does not download Jira attachments; it records attachment metadata only.
 - hrs-ai does not create pull requests.
 - hrs-ai does not merge.
 - hrs-ai does not run `git add`.
