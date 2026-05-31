@@ -17,7 +17,7 @@ AI-assisted bug work often starts with scattered context and ends with useful in
 Jira issue -> code search -> memory search -> bug_context.md -> Copilot CLI task -> result summary -> memory update -> delivery plan
 ```
 
-hrs-ai prepares files under `.ai/<issue>/` and shared memory under `.ai_memory/bugs/<issue>.md`. Code search includes a confidence assessment so low-confidence false positives are visible before Copilot edits anything. Copilot CLI remains a manual handoff step, with reusable team instructions for legacy C++/Qt work.
+hrs-ai prepares files under `.ai/<issue>/` and shared memory under `.ai_memory/bugs/<issue>.md`. Jira Cloud ADF descriptions and comments are converted into readable Markdown for the issue package. Code search includes a confidence assessment so low-confidence false positives are visible before Copilot edits anything. Copilot CLI remains a manual handoff step, with reusable team instructions for legacy C++/Qt work.
 
 ## Installation
 ```powershell
@@ -112,7 +112,7 @@ hrs-ai push-plan HR-12345
 - hrs-ai does not automatically modify product source code.
 - hrs-ai does not automatically invoke Copilot CLI.
 - hrs-ai does not update Jira.
-- Jira integration is read-only; hrs-ai does not comment, assign, close, or transition Jira issues.
+- Jira integration is read-only; hrs-ai converts fetched Jira content to Markdown but does not comment, assign, close, or transition Jira issues.
 - hrs-ai does not create pull requests.
 - hrs-ai does not merge.
 - hrs-ai does not run `git add`, `git commit`, or `git push`.

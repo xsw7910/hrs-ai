@@ -40,7 +40,7 @@ delivery-check / commit-plan / push-plan
 The workflow starts from a Jira issue key such as `HR-12345`. If Jira is not configured or fetch fails, the prototype can continue with clearly marked mock/demo data.
 
 ### Fetch, Parse, Keywords
-hrs-ai collects Jira content, writes summary files, and extracts high-value and normal keywords for search.
+hrs-ai collects Jira content, converts Jira Cloud ADF descriptions/comments into readable Markdown, writes summary files, and extracts high-value and normal keywords for search. Jira integration remains read-only.
 
 ### Code Search, Memory Search, Git Context
 The tool searches source files with ripgrep, ranks related files, assesses search confidence, searches prior issue memory under `.ai_memory`, and captures branch/status/history information with read-only git commands.

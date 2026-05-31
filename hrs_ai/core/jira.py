@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from .config import load_config
+from .jira_adf import adf_to_markdown
 
 
 @dataclass
@@ -100,17 +101,24 @@ def fetch_issue(repo_root: Path, issue_key: str, allow_mock: bool = True) -> Jir
 
 def parse_issue(issue: dict) -> dict[str, object]:
     fields = issue.get("fields", {})
-    description = fields.get("description")
-    if isinstance(description, dict):
-        description_text = json.dumps(description, indent=2)
-    else:
-        description_text = str(description or "")
+    description_text = adf_to_markdown(fields.get("description"))
 
     comments = []
-    comment_data = fields.get("comment", {}).get("comments", [])
+    comment_details = []
+    raw_comment = fields.get("comment")
+    comment_field = raw_comment if isinstance(raw_comment, dict) else {}
+    comment_data = comment_field.get("comments", []) or []
     for comment in comment_data:
-        body = comment.get("body", "")
-        comments.append(json.dumps(body) if isinstance(body, dict) else str(body))
+        body = adf_to_markdown(comment.get("body", ""))
+        comments.append(body)
+        author = comment.get("author", {}) if isinstance(comment.get("author"), dict) else {}
+        comment_details.append(
+            {
+                "body": body,
+                "author": author.get("displayName") or author.get("accountId") or "",
+                "created": comment.get("created", ""),
+            }
+        )
 
     text = "\n".join(
         [
@@ -123,11 +131,14 @@ def parse_issue(issue: dict) -> dict[str, object]:
     return {
         "issue_key": issue.get("key"),
         "summary": fields.get("summary", ""),
-        "issue_type": fields.get("issuetype", {}).get("name", ""),
-        "status": fields.get("status", {}).get("name", ""),
-        "priority": fields.get("priority", {}).get("name", ""),
+        "issue_type": _field_name(fields.get("issuetype")),
+        "status": _field_name(fields.get("status")),
+        "priority": _field_name(fields.get("priority")),
+        "labels": fields.get("labels", []) or [],
+        "components": [component.get("name", "") for component in (fields.get("components", []) or []) if isinstance(component, dict)],
         "description": description_text,
         "comments": comments,
+        "comment_details": comment_details,
         "combined_text": text,
         "is_mock": bool(issue.get("mock") or issue.get("hrs_ai_fetch", {}).get("mock")),
     }
@@ -138,18 +149,35 @@ def jira_summary_markdown(issue: dict, fetch_message: str) -> str:
     is_mock = bool(parsed["is_mock"])
     data_source = "mock/demo fallback" if is_mock else "jira"
     reason = issue.get("fallback_reason") or fetch_message
+    labels = ", ".join(map(str, parsed.get("labels", []))) or "_None_"
+    components = ", ".join(map(str, parsed.get("components", []))) or "_None_"
+    comments = parsed.get("comment_details", [])
+    comments_text = _comments_markdown(comments if isinstance(comments, list) else [])
     return (
-        f"# Jira Summary: {parsed['issue_key']}\n\n"
-        f"Data Source: {data_source}\n\n"
-        f"Reason:\n{reason}\n\n"
+        "# Jira Summary\n\n"
+        "## Issue\n\n"
+        f"{parsed['issue_key']}\n\n"
+        "## Data Source\n\n"
+        f"{data_source}\n\n"
+        "## Fetch Note\n\n"
+        f"{reason}\n\n"
         f"**Mock/demo Jira data:** {'yes' if is_mock else 'no'}\n\n"
-        f"- Fetch result: {fetch_message}\n"
-        f"- Summary: {parsed['summary']}\n"
-        f"- Type: {parsed['issue_type']}\n"
-        f"- Status: {parsed['status']}\n"
-        f"- Priority: {parsed['priority']}\n\n"
+        "## Summary\n\n"
+        f"{parsed['summary'] or '_No summary available._'}\n\n"
+        "## Status\n\n"
+        f"{parsed['status'] or '_Unknown_'}\n\n"
+        "## Priority\n\n"
+        f"{parsed['priority'] or '_Unknown_'}\n\n"
+        "## Type\n\n"
+        f"{parsed['issue_type'] or '_Unknown_'}\n\n"
+        "## Labels\n\n"
+        f"{labels}\n\n"
+        "## Components\n\n"
+        f"{components}\n\n"
         "## Description\n\n"
-        f"{parsed['description'] or '_No description available._'}\n"
+        f"{parsed['description'] or '_No description available._'}\n\n"
+        "## Comments\n\n"
+        f"{comments_text}\n"
     )
 
 
@@ -166,8 +194,45 @@ def parsed_markdown(parsed: dict[str, object]) -> str:
         "## Reproduction And Signals\n\n"
         f"{parsed['description'] or '_No reproduction details available yet._'}\n\n"
         "## Comments\n\n"
-        f"{comments_text}\n"
+        f"{comments_text}\n\n"
+        "## Missing Information Checklist\n\n"
+        f"- Description present: {'yes' if parsed.get('description') else 'no'}\n"
+        f"- Comments present: {'yes' if comments else 'no'}\n"
+        "- Reproduction steps identified: review description/comments above\n"
+        "- Expected vs actual behavior identified: review description/comments above\n"
     )
+
+
+def _comments_markdown(comments: list[object]) -> str:
+    if not comments:
+        return "No comments found."
+    sections = []
+    for index, comment in enumerate(comments, start=1):
+        if not isinstance(comment, dict):
+            body = str(comment).strip()
+            author = ""
+            created = ""
+        else:
+            body = str(comment.get("body", "")).strip()
+            author = str(comment.get("author", "")).strip()
+            created = str(comment.get("created", "")).strip()
+        meta = []
+        if author:
+            meta.append(f"Author: {author}")
+        if created:
+            meta.append(f"Created: {created}")
+        sections.append(
+            f"### Comment {index}\n\n"
+            + ("\n".join(meta) + "\n\n" if meta else "")
+            + (body or "_No comment body available._")
+        )
+    return "\n\n".join(sections)
+
+
+def _field_name(value: object) -> str:
+    if isinstance(value, dict):
+        return str(value.get("name", "") or "")
+    return ""
 
 
 def _failure(issue_key: str, error_type: str) -> JiraFetchResult:

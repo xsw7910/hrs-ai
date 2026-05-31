@@ -12,6 +12,8 @@ from hrs_ai.cli import main
 from hrs_ai.core.context import _code_search_summary
 from hrs_ai.core.git_ops import branch_name
 from hrs_ai.core.jira import JiraFetchError, fetch_issue
+from hrs_ai.core.jira import jira_summary_markdown
+from hrs_ai.core.jira_adf import adf_to_markdown
 from hrs_ai.core.keywords import extract_keywords
 from hrs_ai.core.memory import build_memory_entry, search_memory
 from hrs_ai.core.search import INCLUDE_GLOBS, _noise_flags, run_code_search
@@ -1083,7 +1085,7 @@ def test_missing_env_default_allow_mock_marks_fallback(tmp_path, monkeypatch, ca
     assert jira["source"] == "mock"
     assert jira["mock"] is True
     assert jira["fallback_error_type"] == "missing_env"
-    assert "Data Source: mock/demo fallback" in summary
+    assert "## Data Source\n\nmock/demo fallback" in summary
     assert "Jira environment variables are missing" in summary
     assert "[WARN] Jira fetch failed: missing_env" in log_text
 
@@ -1267,3 +1269,189 @@ def test_jira_success_path_marks_real_source(tmp_path, monkeypatch):
     assert result.error_type is None
     assert result.data["source"] == "jira"
     assert result.data["mock"] is False
+
+
+def test_adf_none_input_returns_empty_string():
+    assert adf_to_markdown(None) == ""
+
+
+def test_adf_plain_string_passthrough():
+    assert adf_to_markdown("hello") == "hello"
+
+
+def test_adf_simple_paragraph():
+    adf = {"type": "doc", "content": [{"type": "paragraph", "content": [{"type": "text", "text": "hello world"}]}]}
+
+    assert adf_to_markdown(adf) == "hello world"
+
+
+def test_adf_text_marks():
+    adf = {
+        "type": "paragraph",
+        "content": [
+            {"type": "text", "text": "bold", "marks": [{"type": "strong"}]},
+            {"type": "text", "text": " "},
+            {"type": "text", "text": "italic", "marks": [{"type": "em"}]},
+            {"type": "text", "text": " "},
+            {"type": "text", "text": "value", "marks": [{"type": "code"}]},
+        ],
+    }
+
+    assert adf_to_markdown(adf) == "**bold** *italic* `value`"
+
+
+def test_adf_strike_mark():
+    adf = {"type": "text", "text": "text", "marks": [{"type": "strike"}]}
+
+    assert adf_to_markdown(adf) == "~~text~~"
+
+
+def test_adf_null_text_renders_empty_string():
+    adf = {"type": "text", "text": None, "marks": [{"type": "strong"}]}
+
+    assert adf_to_markdown(adf) == ""
+
+
+def test_adf_link_mark():
+    adf = {
+        "type": "paragraph",
+        "content": [
+            {
+                "type": "text",
+                "text": "OpenAI",
+                "marks": [{"type": "link", "attrs": {"href": "https://example.com"}}],
+            }
+        ],
+    }
+
+    assert adf_to_markdown(adf) == "[OpenAI](https://example.com)"
+
+
+def test_adf_bullet_list():
+    adf = {
+        "type": "bulletList",
+        "content": [
+            {"type": "listItem", "content": [{"type": "paragraph", "content": [{"type": "text", "text": "first"}]}]},
+            {"type": "listItem", "content": [{"type": "paragraph", "content": [{"type": "text", "text": "second"}]}]},
+        ],
+    }
+
+    assert adf_to_markdown(adf) == "- first\n- second"
+
+
+def test_adf_ordered_list():
+    adf = {
+        "type": "orderedList",
+        "content": [
+            {"type": "listItem", "content": [{"type": "paragraph", "content": [{"type": "text", "text": "first"}]}]},
+            {"type": "listItem", "content": [{"type": "paragraph", "content": [{"type": "text", "text": "second"}]}]},
+        ],
+    }
+
+    assert adf_to_markdown(adf) == "1. first\n2. second"
+
+
+def test_adf_code_block_with_language():
+    adf = {
+        "type": "codeBlock",
+        "attrs": {"language": "python"},
+        "content": [{"type": "text", "text": "print('hello')\n"}],
+    }
+
+    markdown = adf_to_markdown(adf)
+    assert markdown.startswith("```python")
+    assert "print('hello')" in markdown
+    assert markdown.endswith("```")
+
+
+def test_adf_heading_level_two():
+    adf = {"type": "heading", "attrs": {"level": 2}, "content": [{"type": "text", "text": "Heading"}]}
+
+    assert adf_to_markdown(adf) == "## Heading"
+
+
+def test_adf_blockquote():
+    adf = {"type": "blockquote", "content": [{"type": "paragraph", "content": [{"type": "text", "text": "quoted"}]}]}
+
+    assert adf_to_markdown(adf) == "> quoted"
+
+
+def test_adf_unknown_node_with_text_child():
+    adf = {"type": "mystery", "content": [{"type": "paragraph", "content": [{"type": "text", "text": "readable"}]}]}
+
+    assert adf_to_markdown(adf) == "readable"
+
+
+def test_adf_media_nodes_do_not_crash():
+    assert adf_to_markdown({"type": "mediaSingle", "content": [{"type": "media"}]}) == "[media omitted]"
+
+
+def test_jira_summary_uses_converted_adf_description():
+    issue = {
+        "key": "HR-12345",
+        "fields": {
+            "summary": "ADF issue",
+            "description": {
+                "type": "doc",
+                "content": [
+                    {"type": "heading", "attrs": {"level": 2}, "content": [{"type": "text", "text": "Steps"}]},
+                    {"type": "paragraph", "content": [{"type": "text", "text": "Open search and filter."}]},
+                ],
+            },
+            "issuetype": {"name": "Bug"},
+            "status": {"name": "Open"},
+            "priority": {"name": "High"},
+            "labels": ["adf"],
+            "components": [{"name": "Search"}],
+            "comment": {"comments": []},
+        },
+    }
+
+    summary = jira_summary_markdown(issue, "Fetched Jira data from configured Jira instance.")
+
+    assert "## Steps" in summary
+    assert "Open search and filter." in summary
+    assert '"type": "doc"' not in summary
+    assert "adf" in summary
+    assert "Search" in summary
+
+
+def test_jira_summary_uses_converted_adf_comments():
+    issue = {
+        "key": "HR-12345",
+        "fields": {
+            "summary": "ADF comments",
+            "description": "Plain description",
+            "issuetype": {"name": "Bug"},
+            "status": {"name": "Open"},
+            "priority": {"name": "High"},
+            "comment": {
+                "comments": [
+                    {
+                        "author": {"displayName": "Dev User"},
+                        "created": "2026-05-30T12:00:00.000+0000",
+                        "body": {
+                            "type": "doc",
+                            "content": [
+                                {
+                                    "type": "paragraph",
+                                    "content": [
+                                        {"type": "text", "text": "Please check "},
+                                        {"type": "text", "text": "EmployeeSearch", "marks": [{"type": "strong"}]},
+                                    ],
+                                }
+                            ],
+                        },
+                    }
+                ]
+            },
+        },
+    }
+
+    summary = jira_summary_markdown(issue, "Fetched Jira data from configured Jira instance.")
+
+    assert "### Comment 1" in summary
+    assert "Author: Dev User" in summary
+    assert "Created: 2026-05-30T12:00:00.000+0000" in summary
+    assert "Please check **EmployeeSearch**" in summary
+    assert '"content"' not in summary
