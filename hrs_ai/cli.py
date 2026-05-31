@@ -23,7 +23,7 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers.add_parser("doctor", help="Check local environment readiness.")
     subparsers.add_parser("copilot-check", help="Check Copilot CLI readiness.")
 
-    for name in ("parse", "keywords", "search", "git-context", "context", "prompt", "status", "copilot-task", "summarize-results", "review-package", "delivery-check", "commit-plan", "push-plan"):
+    for name in ("parse", "keywords", "search", "git-context", "context", "prompt", "status", "copilot-task", "copilot-instructions", "summarize-results", "review-package", "delivery-check", "commit-plan", "push-plan"):
         command = subparsers.add_parser(name, help=f"Run the {name} step.")
         command.add_argument("issue_key")
 
@@ -152,6 +152,11 @@ def main(argv: list[str] | None = None) -> int:
             print(f"Run: hrs-ai bug {args.issue_key}", file=sys.stderr)
             return 1
         print(f"Regenerated Copilot task files for {args.issue_key}.")
+        return 0
+
+    if args.command == "copilot-instructions":
+        path = workflow.copilot_instructions_step(repo_root, args.issue_key)
+        print(f"Generated Copilot team instructions: {path}")
         return 0
 
     if args.command == "check-results":

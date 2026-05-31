@@ -13,7 +13,7 @@ Code Search + Memory Search + Git Context
 bug_context.md
   |
   v
-copilot_task.md + copilot_handoff.md
+copilot_task.md + copilot_handoff.md + copilot_team_instructions.md
   |
   v
 Copilot CLI manual handoff
@@ -49,7 +49,7 @@ The tool searches source files with ripgrep, ranks related files, assesses searc
 `bug_context.md` combines Jira details, keywords, related files, search quality, snippets, historical issues, and git context into one file for AI-assisted investigation.
 
 ### Copilot Task And Handoff
-`copilot_task.md` gives Copilot CLI strict instructions, required inputs, search-confidence cautions, safety rules, and expected output files. `copilot_handoff.md` is the short instruction a developer can paste into Copilot CLI.
+`copilot_task.md` gives Copilot CLI strict instructions, required inputs, search-confidence cautions, safety rules, and expected output files. `copilot_team_instructions.md` gives stable team rules for legacy C++/Qt work. `copilot_handoff.md` is the short instruction a developer can paste into Copilot CLI.
 
 ### Copilot CLI Manual Handoff
 The developer runs Copilot CLI manually from the target repo root. hrs-ai does not invoke Copilot automatically.

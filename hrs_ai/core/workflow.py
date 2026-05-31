@@ -16,7 +16,7 @@ from .jira import JiraFetchError, JiraFetchResult, fetch_issue, jira_summary_mar
 from .keywords import extract_keywords, keywords_json
 from .logging_utils import log
 from .memory import ISSUE_KEY_RE, add_memory_entry, build_memory_entry, search_memory
-from .prompts import generate_copilot_task_files, generate_prompts
+from .prompts import copilot_team_instructions, generate_copilot_task_files, generate_prompts
 from .search import related_files_json, run_code_search, search_quality_json
 
 
@@ -274,6 +274,22 @@ def copilot_task_step(repo_root: Path, issue_key: str) -> None:
         log(target, "[END] copilot_task: pass")
     except Exception as exc:
         log(target, f"[ERROR] copilot_task: {exc}")
+        raise
+
+
+def copilot_instructions_step(repo_root: Path, issue_key: str) -> Path:
+    target = _prepare_issue_dir(repo_root, issue_key)
+    log(target, "[START] copilot_instructions")
+    try:
+        path = target / "copilot_team_instructions.md"
+        path.write_text(copilot_team_instructions(), encoding="utf-8")
+        _mark_step(repo_root, issue_key, "copilot_instructions", "pass")
+        log(target, f"[GENERATED] .ai/{issue_key}/copilot_team_instructions.md")
+        log(target, "[END] copilot_instructions: pass")
+        return path
+    except Exception as exc:
+        _mark_step(repo_root, issue_key, "copilot_instructions", "fail")
+        log(target, f"[ERROR] copilot_instructions: {exc}")
         raise
 
 

@@ -17,7 +17,7 @@ AI-assisted bug work often starts with scattered context and ends with useful in
 Jira issue -> code search -> memory search -> bug_context.md -> Copilot CLI task -> result summary -> memory update -> delivery plan
 ```
 
-hrs-ai prepares files under `.ai/<issue>/` and shared memory under `.ai_memory/bugs/<issue>.md`. Code search includes a confidence assessment so low-confidence false positives are visible before Copilot edits anything. Copilot CLI remains a manual handoff step.
+hrs-ai prepares files under `.ai/<issue>/` and shared memory under `.ai_memory/bugs/<issue>.md`. Code search includes a confidence assessment so low-confidence false positives are visible before Copilot edits anything. Copilot CLI remains a manual handoff step, with reusable team instructions for legacy C++/Qt work.
 
 ## Installation
 ```powershell
@@ -91,6 +91,7 @@ hrs-ai push-plan HR-12345
 - `hrs-ai context <ISSUE>`: generate enriched `bug_context.md`.
 - `hrs-ai prompt <ISSUE>`: generate Copilot and review prompt files.
 - `hrs-ai copilot-task <ISSUE>`: regenerate Copilot task and handoff files from existing context.
+- `hrs-ai copilot-instructions <ISSUE>`: regenerate `.ai/<issue>/copilot_team_instructions.md` from the reusable team template.
 - `hrs-ai check-results <ISSUE>`: check whether Copilot result files exist.
 - `hrs-ai check-results <ISSUE> --strict`: return nonzero if required result files are missing.
 - `hrs-ai summarize-results <ISSUE>`: generate result summary and manual validation files.
@@ -132,6 +133,7 @@ Key search artifacts include:
 .ai/<issue>/code_search.md
 .ai/<issue>/related_files.json
 .ai/<issue>/search_quality.json
+.ai/<issue>/copilot_team_instructions.md
 ```
 
 Shared memory entry:
@@ -140,6 +142,13 @@ Shared memory entry:
 ```
 
 These folders belong to the target repository where the command is run.
+
+Reusable team instructions live at:
+```text
+docs/copilot_team_instructions.md
+```
+
+Each issue package gets a copy so Copilot CLI can read stable team rules together with the issue-specific task.
 
 ## Prototype Status
 - Phase 1: prepare-only workflow skeleton.

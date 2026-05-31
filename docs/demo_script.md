@@ -54,6 +54,7 @@ This prevents accidental mock/demo fallback.
 .ai/HR-12345/bug_context.md
 .ai/HR-12345/search_quality.json
 .ai/HR-12345/copilot_task.md
+.ai/HR-12345/copilot_team_instructions.md
 .ai/HR-12345/copilot_handoff.md
 ```
 
@@ -86,6 +87,7 @@ Show how the memory entry preserves Jira context, code search context, related f
 ## Demo Talking Points
 - hrs-ai is a deterministic context builder.
 - Search confidence makes noisy matches and false positives explicit.
+- Team instructions give Copilot stable legacy C++/Qt engineering rules.
 - Copilot does the AI coding work through a manual handoff.
 - Safety gates keep the developer in control.
 - Shared AI memory keeps investigation history reusable.

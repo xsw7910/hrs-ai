@@ -110,9 +110,17 @@ Modifies source code: No.
 
 ### `hrs-ai copilot-task <ISSUE>`
 Purpose: Regenerate Copilot task and handoff files from existing bug context.
-Generated files: `.ai/<issue>/copilot_task.md`, `.ai/<issue>/copilot_handoff.md`, `.ai/<issue>/copilot_fix_prompt.md`, `.ai/<issue>/review_prompt.md`.
+Generated files: `.ai/<issue>/copilot_task.md`, `.ai/<issue>/copilot_handoff.md`, `.ai/<issue>/copilot_team_instructions.md`, `.ai/<issue>/copilot_fix_prompt.md`, `.ai/<issue>/review_prompt.md`.
 Read-only: Writes generated artifacts only.
 Modifies source code: No.
+
+### `hrs-ai copilot-instructions <ISSUE>`
+Purpose: Generate or refresh per-issue Copilot team instructions.
+Generated files: `.ai/<issue>/copilot_team_instructions.md`.
+Read-only: Writes generated artifacts only.
+Modifies source code: No.
+
+This does not fetch Jira, rerun code search, or modify product source. It copies the reusable `docs/copilot_team_instructions.md` template, or uses a built-in fallback if the docs file is unavailable.
 
 ### `hrs-ai check-results <ISSUE>`
 Purpose: Check whether Copilot result files exist.
@@ -187,6 +195,8 @@ Modifies source code: No.
 This command fetches or prepares Jira data, parses it, extracts keywords, runs code search, searches memory, captures git context, builds `bug_context.md`, generates Copilot task and handoff files, creates test and review artifacts, and writes the memory entry.
 
 `bug_context.md` includes Code Search Quality. If search confidence is low, the Copilot task tells the coding agent to verify the feature exists before editing and to write a no-op analysis when no real implementation is found.
+
+The workflow also generates `.ai/<issue>/copilot_team_instructions.md`, a per-issue copy of stable team rules for legacy C++/Qt codebases.
 
 It does not modify source code, commit, push, merge, create PRs, update Jira, or automatically invoke Copilot.
 

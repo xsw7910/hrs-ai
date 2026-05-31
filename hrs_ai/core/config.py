@@ -17,6 +17,7 @@ WORKFLOW_STEPS = [
     "git_context",
     "context",
     "prompt",
+    "copilot_instructions",
     "memory_add",
     "copilot_fix",
     "result_summary",

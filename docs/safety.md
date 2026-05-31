@@ -34,7 +34,7 @@ These paths are relative to the current working directory, which should be the t
 Clean and fresh-run commands validate issue keys and are scoped to those generated artifact paths. They do not delete product source code.
 
 ## Manual Handoff
-Copilot CLI should be run from the target product repository root. The generated `copilot_task.md` instructs Copilot to avoid destructive git commands, avoid unrelated refactoring, and generate result files before delivery planning.
+Copilot CLI should be run from the target product repository root. The generated `copilot_task.md` and `copilot_team_instructions.md` instruct Copilot to avoid destructive git commands, avoid unrelated refactoring, preserve legacy C++/Qt patterns, and generate result files before delivery planning.
 
 ## Jira Mock Fallback
 When mock fallback is used, generated Jira artifacts are clearly marked as mock/demo fallback. For real Jira-only usage, run:
