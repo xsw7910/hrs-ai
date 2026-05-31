@@ -13,7 +13,7 @@ from hrs_ai.core.git_ops import branch_name
 from hrs_ai.core.jira import JiraFetchError, fetch_issue
 from hrs_ai.core.keywords import extract_keywords
 from hrs_ai.core.memory import build_memory_entry, search_memory
-from hrs_ai.core.search import INCLUDE_GLOBS, run_code_search
+from hrs_ai.core.search import INCLUDE_GLOBS, _noise_flags, run_code_search
 from hrs_ai.core.workflow import git_context_step, run_bug_workflow
 
 
@@ -67,6 +67,7 @@ def test_workflow_status_json_generation(tmp_path):
     assert ".ai/HR-12345/copilot_handoff.md" in status["generated_files"]
     assert ".ai/HR-12345/code_search.md" in status["generated_files"]
     assert ".ai/HR-12345/related_files.json" in status["generated_files"]
+    assert ".ai/HR-12345/search_quality.json" in status["generated_files"]
     assert ".ai/HR-12345/memory_search.md" in status["generated_files"]
     assert ".ai/HR-12345/git_context.md" in status["generated_files"]
     assert ".ai_memory/bugs/HR-12345.md" in status["generated_files"]
@@ -115,6 +116,7 @@ def test_execution_log_contains_prepare_only_lifecycle(tmp_path, monkeypatch):
     assert "[SKIP] copilot_fix: prepare-only mode" in log_text
     assert "[GENERATED] .ai/HR-12345/code_search.md" in log_text
     assert "[GENERATED] .ai/HR-12345/related_files.json" in log_text
+    assert "[GENERATED] .ai/HR-12345/search_quality.json" in log_text
     assert "[GENERATED] .ai/HR-12345/memory_search.md" in log_text
     assert "[GENERATED] .ai/HR-12345/git_context.md" in log_text
     assert "[GENERATED] .ai/HR-12345/copilot_task.md" in log_text
@@ -136,9 +138,13 @@ def test_copilot_task_references_code_search(tmp_path):
     assert ".ai/HR-12345/bug_context.md" in task
     assert ".ai/HR-12345/code_search.md" in task
     assert ".ai/HR-12345/related_files.json" in task
+    assert ".ai/HR-12345/search_quality.json" in task
     assert ".ai/HR-12345/memory_search.md" in task
     assert ".ai/HR-12345/git_context.md" in task
     assert "Do not edit code until after reviewing context and related files" in task
+    assert "If search confidence is Low" in task
+    assert "do not assume the matched files are the correct implementation" in task
+    assert "write a no-op analysis" in task
     assert "matched line numbers" in task
     assert ".ai/HR-12345/bug_analysis.md" in task
     assert ".ai/HR-12345/fix_summary.md" in task
@@ -182,17 +188,21 @@ def test_search_command_generates_code_search_and_related_files(tmp_path, monkey
     assert (issue_dir / "code_search.md").is_file()
     assert related[0]["file"] == "employee_search.py"
     assert related[0]["score"] >= 3
+    assert "confidence" in related[0]
+    assert "reasons" in related[0]
+    assert "noise_flags" in related[0]
 
 
 def test_rg_unavailable_fallback_generates_empty_results(tmp_path, monkeypatch):
     monkeypatch.setenv("PATH", "")
-    markdown, related = run_code_search(
+    markdown, related, quality = run_code_search(
         tmp_path,
         "HR-12345",
         {"high_value_keywords": ["EmployeeSearch"], "normal_keywords": [], "dropped_keywords": []},
     )
 
     assert related == []
+    assert quality["confidence"] == "low"
     assert "rg is unavailable" in markdown
 
 
@@ -225,6 +235,7 @@ def test_bug_workflow_generates_phase_2_files_and_enriched_context(tmp_path):
 
     assert (issue_dir / "code_search.md").is_file()
     assert (issue_dir / "related_files.json").is_file()
+    assert (issue_dir / "search_quality.json").is_file()
     assert (issue_dir / "memory_search.md").is_file()
     assert (issue_dir / "git_context.md").is_file()
     assert "## Code Search Summary" in context
@@ -243,7 +254,7 @@ def test_rg_subprocess_uses_utf8_replace_and_include_globs(tmp_path, monkeypatch
     monkeypatch.setattr("hrs_ai.core.search.command_available", lambda command: command == "rg")
     monkeypatch.setattr("hrs_ai.core.search.subprocess.run", fake_run)
 
-    markdown, related = run_code_search(
+    markdown, related, quality = run_code_search(
         tmp_path,
         "HR-12345",
         {"high_value_keywords": ["EmployeeSearch"], "normal_keywords": [], "dropped_keywords": []},
@@ -256,7 +267,200 @@ def test_rg_subprocess_uses_utf8_replace_and_include_globs(tmp_path, monkeypatch
     for glob in INCLUDE_GLOBS:
         assert ["-g", glob] in [args[index : index + 2] for index in range(len(args) - 1)]
     assert related[0]["file"] == "employee_search.py"
+    assert "confidence" in related[0]
     assert "EmployeeSearch cache" in markdown
+
+
+def test_noisy_paths_reduce_search_confidence(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "ci").mkdir()
+    (tmp_path / "ci" / "build_script.py").write_text("stale result update\n", encoding="utf-8")
+    (tmp_path / "docs").mkdir()
+    (tmp_path / "docs" / "search.md").write_text("stale result change\n", encoding="utf-8")
+    issue_dir = tmp_path / ".ai" / "HR-12345"
+    issue_dir.mkdir(parents=True)
+    (issue_dir / "extracted_keywords.json").write_text(
+        json.dumps({"high_value_keywords": ["stale"], "normal_keywords": ["result"], "dropped_keywords": []})
+    )
+
+    assert main(["search", "HR-12345"]) == 0
+    related = json.loads((issue_dir / "related_files.json").read_text(encoding="utf-8"))
+    quality = json.loads((issue_dir / "search_quality.json").read_text(encoding="utf-8"))
+    code_search = (issue_dir / "code_search.md").read_text(encoding="utf-8")
+
+    assert quality["confidence"] == "low"
+    assert "Confidence: Low" in code_search
+    assert any(item["noise_flags"] for item in related)
+    assert all(item["confidence"] == "low" for item in related)
+
+
+def test_noise_flags_use_exact_path_segments_not_filename_substrings(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    files = {
+        "src/external_service.py": "class EmployeeSearch: pass\n",
+        "src/results_builder.py": "class EmployeeSearch: pass\n",
+        "src/license_validator.py": "class EmployeeSearch: pass\n",
+        "src/sample_handler.py": "class EmployeeSearch: pass\n",
+        "external/service.py": "class EmployeeSearch: pass\n",
+        "vendor/invoice.py": "class EmployeeSearch: pass\n",
+        "license/sdk_header.h": "class EmployeeSearch {};\n",
+        "docs/sample.py": "class EmployeeSearch: pass\n",
+    }
+    for file_name, content in files.items():
+        path = tmp_path / file_name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content, encoding="utf-8")
+    issue_dir = tmp_path / ".ai" / "HR-12345"
+    issue_dir.mkdir(parents=True)
+    (issue_dir / "extracted_keywords.json").write_text(
+        json.dumps({"high_value_keywords": ["EmployeeSearch"], "normal_keywords": [], "dropped_keywords": []})
+    )
+
+    assert main(["search", "HR-12345"]) == 0
+    related = {
+        item["file"]: item
+        for item in json.loads((issue_dir / "related_files.json").read_text(encoding="utf-8"))
+    }
+
+    for file_name in [
+        "src/external_service.py",
+        "src/results_builder.py",
+        "src/license_validator.py",
+        "src/sample_handler.py",
+    ]:
+        assert related[file_name]["noise_flags"] == []
+        assert related[file_name]["confidence"] == "high"
+
+    assert "vendor_or_external_path" in _noise_flags("external/service.py")
+    assert "vendor_or_external_path" in _noise_flags("vendor/invoice.py")
+    assert "license_or_sdk_path" in _noise_flags("license/sdk_header.h")
+    assert "docs_or_examples_path" in _noise_flags("docs/sample.py")
+
+
+def test_application_source_path_increases_search_confidence(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    source_dir = tmp_path / "src"
+    source_dir.mkdir()
+    (source_dir / "EmployeeSearch.cpp").write_text("class EmployeeSearch { void refresh(); };\n", encoding="utf-8")
+    issue_dir = tmp_path / ".ai" / "HR-12345"
+    issue_dir.mkdir(parents=True)
+    (issue_dir / "extracted_keywords.json").write_text(
+        json.dumps({"high_value_keywords": ["EmployeeSearch"], "normal_keywords": [], "dropped_keywords": []})
+    )
+
+    assert main(["search", "HR-12345"]) == 0
+    related = json.loads((issue_dir / "related_files.json").read_text(encoding="utf-8"))
+    quality = json.loads((issue_dir / "search_quality.json").read_text(encoding="utf-8"))
+
+    assert related[0]["file"] == "src/EmployeeSearch.cpp"
+    assert related[0]["confidence"] == "high"
+    assert quality["confidence"] == "high"
+
+
+def test_search_quality_json_has_full_field_structure(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    source_dir = tmp_path / "src"
+    source_dir.mkdir()
+    (source_dir / "EmployeeSearch.cpp").write_text("class EmployeeSearch {};\n", encoding="utf-8")
+    issue_dir = tmp_path / ".ai" / "HR-12345"
+    issue_dir.mkdir(parents=True)
+    (issue_dir / "extracted_keywords.json").write_text(
+        json.dumps({"high_value_keywords": ["EmployeeSearch"], "normal_keywords": [], "dropped_keywords": []})
+    )
+
+    assert main(["search", "HR-12345"]) == 0
+    quality = json.loads((issue_dir / "search_quality.json").read_text(encoding="utf-8"))
+
+    assert set(quality) == {
+        "confidence",
+        "reasons",
+        "high_confidence_files",
+        "medium_confidence_files",
+        "low_confidence_files",
+        "noise_indicators",
+    }
+
+
+def test_mixed_confidence_scenario_populates_multiple_buckets(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    files = {
+        "src/EmployeeSearch.cpp": "class EmployeeSearch { void filter(); };\n",
+        "docs/search.md": "search result update\n",
+    }
+    for file_name, content in files.items():
+        path = tmp_path / file_name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content, encoding="utf-8")
+    issue_dir = tmp_path / ".ai" / "HR-12345"
+    issue_dir.mkdir(parents=True)
+    (issue_dir / "extracted_keywords.json").write_text(
+        json.dumps({"high_value_keywords": ["EmployeeSearch"], "normal_keywords": ["search"], "dropped_keywords": []})
+    )
+
+    assert main(["search", "HR-12345"]) == 0
+    quality = json.loads((issue_dir / "search_quality.json").read_text(encoding="utf-8"))
+
+    assert "src/EmployeeSearch.cpp" in quality["high_confidence_files"]
+    assert "docs/search.md" in quality["low_confidence_files"]
+
+
+def test_code_search_markdown_contains_quality_section_headers(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    source_dir = tmp_path / "src"
+    source_dir.mkdir()
+    (source_dir / "EmployeeSearch.cpp").write_text("class EmployeeSearch {};\n", encoding="utf-8")
+    issue_dir = tmp_path / ".ai" / "HR-12345"
+    issue_dir.mkdir(parents=True)
+    (issue_dir / "extracted_keywords.json").write_text(
+        json.dumps({"high_value_keywords": ["EmployeeSearch"], "normal_keywords": [], "dropped_keywords": []})
+    )
+
+    assert main(["search", "HR-12345"]) == 0
+    code_search = (issue_dir / "code_search.md").read_text(encoding="utf-8")
+
+    for heading in [
+        "## Search Quality",
+        "## High-Confidence Matches",
+        "## Low-Confidence / Possible False Positives",
+        "## Top Related Files",
+        "## Matched Lines",
+    ]:
+        assert heading in code_search
+
+
+def test_case_insensitive_high_value_keyword_bonus(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    source_dir = tmp_path / "src"
+    source_dir.mkdir()
+    (source_dir / "EmployeeSearch.cpp").write_text("void employeesearch_refresh();\n", encoding="utf-8")
+    issue_dir = tmp_path / ".ai" / "HR-12345"
+    issue_dir.mkdir(parents=True)
+    (issue_dir / "extracted_keywords.json").write_text(
+        json.dumps({"high_value_keywords": ["EmployeeSearch"], "normal_keywords": [], "dropped_keywords": []})
+    )
+
+    assert main(["search", "HR-12345"]) == 0
+    related = json.loads((issue_dir / "related_files.json").read_text(encoding="utf-8"))
+
+    assert related[0]["file"] == "src/EmployeeSearch.cpp"
+    assert related[0]["confidence"] == "high"
+    assert related[0]["score"] >= 14
+
+
+def test_bug_context_includes_code_search_quality(tmp_path):
+    run_bug_workflow(tmp_path, "HR-12345")
+    context = (tmp_path / ".ai" / "HR-12345" / "bug_context.md").read_text(encoding="utf-8")
+
+    assert "## Code Search Quality" in context
+    assert "Confidence:" in context
+    assert "If search confidence is Low" in context
+
+
+def test_workflow_generated_files_include_search_quality(tmp_path):
+    run_bug_workflow(tmp_path, "HR-12345")
+    status = json.loads((tmp_path / ".ai" / "HR-12345" / "workflow_status.json").read_text(encoding="utf-8"))
+
+    assert ".ai/HR-12345/search_quality.json" in status["generated_files"]
 
 
 def test_git_run_command_uses_utf8_replace(monkeypatch, tmp_path):

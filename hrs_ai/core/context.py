@@ -9,6 +9,7 @@ from pathlib import Path
 def build_context(repo_root: Path, issue_key: str, parsed: dict[str, object], keywords: dict[str, object]) -> str:
     target = repo_root / ".ai" / issue_key
     related_files = _read_json(target / "related_files.json", [])
+    search_quality = _read_json(target / "search_quality.json", {})
     code_search = _read_text(target / "code_search.md")
     memory_search = _read_text(target / "memory_search.md")
     git_context = _read_text(target / "git_context.md")
@@ -45,6 +46,10 @@ def build_context(repo_root: Path, issue_key: str, parsed: dict[str, object], ke
         "## Code Search Summary\n\n"
         f"See `.ai/{issue_key}/code_search.md` for full matched lines and snippets.\n\n"
         f"{_code_search_summary(code_search)}\n\n"
+        "## Code Search Quality\n\n"
+        f"{_search_quality_markdown(search_quality)}\n\n"
+        "Copilot instruction: If search confidence is Low, do not assume the matched files are the correct implementation. "
+        "Treat them as candidates only and first verify whether the feature exists in the codebase.\n\n"
         "## Top Related Files\n\n"
         f"{_related_files_markdown(related_files)}\n\n"
         "## Relevant Snippets\n\n"
@@ -93,10 +98,23 @@ def _related_files_markdown(related_files: object) -> str:
         if not isinstance(item, dict):
             continue
         lines.append(
-            f"- `{item.get('file')}` score={item.get('score')} "
+            f"- `{item.get('file')}` confidence={item.get('confidence', 'unknown')} score={item.get('score')} "
             f"matches={item.get('match_count')} keywords={', '.join(item.get('matched_keywords', []))}"
         )
     return "\n".join(lines) or "_No related files found._"
+
+
+def _search_quality_markdown(search_quality: object) -> str:
+    if not isinstance(search_quality, dict) or not search_quality:
+        return "_Search quality has not been generated yet._"
+    confidence = str(search_quality.get("confidence", "low")).title()
+    reasons = search_quality.get("reasons", [])
+    lines = [f"Confidence: {confidence}", "", "Reasons:"]
+    if isinstance(reasons, list) and reasons:
+        lines.extend(f"- {reason}" for reason in reasons)
+    else:
+        lines.append("- No search quality reasons available.")
+    return "\n".join(lines)
 
 
 def _matched_lines_excerpt(code_search: str) -> str:

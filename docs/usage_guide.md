@@ -65,10 +65,12 @@ Read-only: Writes generated artifacts only.
 Modifies source code: No.
 
 ### `hrs-ai search <ISSUE>`
-Purpose: Run ripgrep-based code search and rank related files.
-Generated files: `.ai/<issue>/code_search.md`, `.ai/<issue>/related_files.json`.
+Purpose: Run ripgrep-based code search, rank related files, and assess search confidence.
+Generated files: `.ai/<issue>/code_search.md`, `.ai/<issue>/related_files.json`, `.ai/<issue>/search_quality.json`.
 Read-only: Writes generated artifacts only.
 Modifies source code: No.
+
+`search_quality.json` reports `high`, `medium`, or `low` confidence, reasons, likely high-confidence files, low-confidence false positives, and noise indicators such as CI/build/license/vendor/docs/generated paths.
 
 ### `hrs-ai memory search <ISSUE or query>`
 Purpose: Search shared markdown memory by issue keywords or free-text query.
@@ -183,6 +185,8 @@ Read-only: Writes generated artifacts only.
 Modifies source code: No.
 
 This command fetches or prepares Jira data, parses it, extracts keywords, runs code search, searches memory, captures git context, builds `bug_context.md`, generates Copilot task and handoff files, creates test and review artifacts, and writes the memory entry.
+
+`bug_context.md` includes Code Search Quality. If search confidence is low, the Copilot task tells the coding agent to verify the feature exists before editing and to write a no-op analysis when no real implementation is found.
 
 It does not modify source code, commit, push, merge, create PRs, update Jira, or automatically invoke Copilot.
 

@@ -17,7 +17,7 @@ AI-assisted bug work often starts with scattered context and ends with useful in
 Jira issue -> code search -> memory search -> bug_context.md -> Copilot CLI task -> result summary -> memory update -> delivery plan
 ```
 
-hrs-ai prepares files under `.ai/<issue>/` and shared memory under `.ai_memory/bugs/<issue>.md`. Copilot CLI remains a manual handoff step.
+hrs-ai prepares files under `.ai/<issue>/` and shared memory under `.ai_memory/bugs/<issue>.md`. Code search includes a confidence assessment so low-confidence false positives are visible before Copilot edits anything. Copilot CLI remains a manual handoff step.
 
 ## Installation
 ```powershell
@@ -125,6 +125,13 @@ hrs-ai push-plan HR-12345
 Primary issue package:
 ```text
 .ai/<issue>/
+```
+
+Key search artifacts include:
+```text
+.ai/<issue>/code_search.md
+.ai/<issue>/related_files.json
+.ai/<issue>/search_quality.json
 ```
 
 Shared memory entry:

@@ -43,13 +43,13 @@ The workflow starts from a Jira issue key such as `HR-12345`. If Jira is not con
 hrs-ai collects Jira content, writes summary files, and extracts high-value and normal keywords for search.
 
 ### Code Search, Memory Search, Git Context
-The tool searches source files with ripgrep, searches prior issue memory under `.ai_memory`, and captures branch/status/history information with read-only git commands.
+The tool searches source files with ripgrep, ranks related files, assesses search confidence, searches prior issue memory under `.ai_memory`, and captures branch/status/history information with read-only git commands.
 
 ### Bug Context
-`bug_context.md` combines Jira details, keywords, related files, snippets, historical issues, and git context into one file for AI-assisted investigation.
+`bug_context.md` combines Jira details, keywords, related files, search quality, snippets, historical issues, and git context into one file for AI-assisted investigation.
 
 ### Copilot Task And Handoff
-`copilot_task.md` gives Copilot CLI strict instructions, required inputs, safety rules, and expected output files. `copilot_handoff.md` is the short instruction a developer can paste into Copilot CLI.
+`copilot_task.md` gives Copilot CLI strict instructions, required inputs, search-confidence cautions, safety rules, and expected output files. `copilot_handoff.md` is the short instruction a developer can paste into Copilot CLI.
 
 ### Copilot CLI Manual Handoff
 The developer runs Copilot CLI manually from the target repo root. hrs-ai does not invoke Copilot automatically.

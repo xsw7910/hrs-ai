@@ -17,7 +17,7 @@ from .keywords import extract_keywords, keywords_json
 from .logging_utils import log
 from .memory import ISSUE_KEY_RE, add_memory_entry, build_memory_entry, search_memory
 from .prompts import generate_copilot_task_files, generate_prompts
-from .search import related_files_json, run_code_search
+from .search import related_files_json, run_code_search, search_quality_json
 
 
 @dataclass
@@ -206,9 +206,10 @@ def code_search_step(repo_root: Path, issue_key: str) -> None:
     log(target, "[START] code_search")
     try:
         keywords = _read_json(target / "extracted_keywords.json")
-        markdown, related_files = run_code_search(repo_root, issue_key, keywords)
+        markdown, related_files, search_quality = run_code_search(repo_root, issue_key, keywords)
         (target / "code_search.md").write_text(markdown, encoding="utf-8")
         (target / "related_files.json").write_text(related_files_json(related_files), encoding="utf-8")
+        (target / "search_quality.json").write_text(search_quality_json(search_quality), encoding="utf-8")
         _mark_step(repo_root, issue_key, "code_search", "pass")
         log(target, "[END] code_search: pass")
     except Exception as exc:
