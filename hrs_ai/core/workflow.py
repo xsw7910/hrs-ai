@@ -12,7 +12,7 @@ from .config import WORKFLOW_STEPS, issue_dir
 from .context import build_context
 from .doctor import collect_doctor_report
 from .git_ops import current_branch, generate_git_context, inside_git_repo, run_command, working_tree_status
-from .jira import JiraFetchError, JiraFetchResult, enrich_issue, fetch_issue, jira_field_report_markdown, jira_summary_markdown, parse_issue, parsed_markdown
+from .jira import JiraFetchError, JiraFetchResult, enrich_issue, fetch_issue, jira_field_report_markdown, jira_summary_markdown, parse_issue, parsed_markdown, sanitize_comment_text
 from .keywords import extract_keywords, keywords_json
 from .logging_utils import log
 from .memory import ISSUE_KEY_RE, add_memory_entry, build_memory_entry, search_memory
@@ -511,10 +511,162 @@ def memory_add_step(repo_root: Path, issue_key: str) -> None:
         raise
 
 
+def jira_comment_draft_step(repo_root: Path, issue_key: str, strict: bool = False) -> Path:
+    target = issue_dir(repo_root, issue_key)
+    if not target.exists():
+        raise FileNotFoundError(f"No workflow package found for {issue_key}. Run: hrs-ai bug {issue_key}")
+    if not (target / "bug_context.md").exists() and not (target / "jira_parsed.md").exists():
+        raise FileNotFoundError(f"No core context found for {issue_key}. Run: hrs-ai bug {issue_key}")
+
+    log(target, "[START] jira_comment_draft")
+    missing = check_result_files(repo_root, issue_key)
+    if strict and missing:
+        for file_name in missing:
+            log(target, f"[ERROR] jira_comment_draft missing required result file: {file_name}")
+        _mark_step(repo_root, issue_key, "jira_comment_draft", "fail")
+        log(target, "[END] jira_comment_draft: fail")
+        raise ValueError("Missing required Copilot result files: " + ", ".join(missing))
+
+    draft = _build_jira_comment_draft(repo_root, issue_key, missing)
+    path = target / "jira_comment_draft.md"
+    path.write_text(draft, encoding="utf-8")
+    _mark_step(repo_root, issue_key, "jira_comment_draft", "pass")
+    log(target, f"[GENERATED] .ai/{issue_key}/jira_comment_draft.md")
+    log(target, "[END] jira_comment_draft: pass")
+    return path
+
+
 def _prepare_issue_dir(repo_root: Path, issue_key: str) -> Path:
     target = issue_dir(repo_root, issue_key)
     target.mkdir(parents=True, exist_ok=True)
     return target
+
+
+def _build_jira_comment_draft(repo_root: Path, issue_key: str, missing_results: list[str]) -> str:
+    target = issue_dir(repo_root, issue_key)
+    status = _draft_status(target, missing_results)
+    summary = _draft_summary(target)
+    root_cause = _artifact_or_missing(target, "bug_analysis.md", "No root cause analysis artifact found.")
+    fix = _artifact_or_missing(target, "fix_summary.md", "No fix summary artifact found.")
+    validation = _artifact_or_missing(target, "test_result.md", "No test result artifact found. Validation is pending.")
+    diff = _artifact_or_missing(target, "diff_summary.md", "No diff summary artifact found.")
+    search_quality = _search_quality_draft(target / "search_quality.json")
+    missing_info = _missing_information_draft(target / "jira_parsed.md")
+    missing_results_text = _missing_results_markdown(missing_results)
+    draft = (
+        "# hrs-ai Analysis Summary\n\n"
+        f"Issue: {issue_key}\n\n"
+        "## Status\n\n"
+        f"{status}\n\n"
+        "## Summary\n\n"
+        f"{summary}\n\n"
+        "## Root Cause / Investigation\n\n"
+        f"{root_cause}\n\n"
+        "## Fix Summary\n\n"
+        f"{fix}\n\n"
+        "## Validation\n\n"
+        f"{validation}\n\n"
+        "## Changed Files / Diff Summary\n\n"
+        f"{diff}\n\n"
+        "## Search Confidence\n\n"
+        f"{search_quality}\n\n"
+        "## Missing Information\n\n"
+        f"{missing_info}\n\n"
+        "## Missing Local Artifacts\n\n"
+        f"{missing_results_text}\n\n"
+        "## Attachment Note\n\n"
+        "hrs-ai did not download or inspect Jira attachment contents. Attachment metadata may have been included if available.\n\n"
+        "## Safety Note\n\n"
+        "This comment was generated from local hrs-ai artifacts and should be reviewed by a developer before posting to Jira.\n"
+    )
+    return _cap_text(sanitize_comment_text(draft), 12000)
+
+
+def _draft_status(target: Path, missing_results: list[str]) -> str:
+    bug_analysis = _read_artifact(target, "bug_analysis.md")
+    fix_summary = _read_artifact(target, "fix_summary.md")
+    diff_summary = _read_artifact(target, "diff_summary.md")
+    review_notes = _read_artifact(target, "review_notes.md")
+    jira_parsed = _read_artifact(target, "jira_parsed.md")
+    combined = "\n".join([bug_analysis, review_notes]).lower()
+    if "no-op" in combined or "no code change" in combined or "no source change" in combined:
+        return "No code change applied"
+    if fix_summary and _diff_indicates_changes(diff_summary):
+        return "Fix prepared"
+    if "missing information" in jira_parsed.lower() and not fix_summary:
+        return "Needs more information"
+    if bug_analysis:
+        return "Analysis completed"
+    if any(path.endswith("test_result.md") for path in missing_results):
+        return "Validation pending"
+    return "Analysis completed"
+
+
+def _draft_summary(target: Path) -> str:
+    for file_name in ["result_summary.md", "fix_summary.md", "bug_analysis.md", "jira_parsed.md"]:
+        text = _read_artifact(target, file_name)
+        if text:
+            return _cap_artifact(text)
+    return "No summary artifact found."
+
+
+def _artifact_or_missing(target: Path, file_name: str, missing_message: str) -> str:
+    text = _read_artifact(target, file_name)
+    return _cap_artifact(text) if text else missing_message
+
+
+def _read_artifact(target: Path, file_name: str) -> str:
+    path = target / file_name
+    if not path.exists():
+        return ""
+    return path.read_text(encoding="utf-8", errors="replace").strip()
+
+
+def _cap_artifact(text: str) -> str:
+    return _cap_text(text.strip(), 2000)
+
+
+def _cap_text(text: str, limit: int) -> str:
+    if len(text) <= limit:
+        return text
+    return text[:limit].rstrip() + "\n\n[truncated by hrs-ai]"
+
+
+def _diff_indicates_changes(diff_summary: str) -> bool:
+    if not diff_summary:
+        return False
+    lowered = diff_summary.lower()
+    no_change_markers = ["no diff", "no changes", "no code change", "no source change"]
+    return not any(marker in lowered for marker in no_change_markers)
+
+
+def _search_quality_draft(path: Path) -> str:
+    quality = _read_json_default(path, {})
+    if not isinstance(quality, dict) or not quality:
+        return "No search quality artifact found."
+    confidence = str(quality.get("confidence", "unknown"))
+    reasons = quality.get("reasons", [])
+    lines = [f"Confidence: {confidence}"]
+    if isinstance(reasons, list) and reasons:
+        lines.append("Reasons:")
+        lines.extend(f"- {reason}" for reason in reasons[:5])
+    if confidence.lower() == "low":
+        lines.append("Implementation location may need manual verification because search confidence is Low.")
+    return "\n".join(lines)
+
+
+def _missing_information_draft(path: Path) -> str:
+    text = _read_artifact(path.parent, path.name)
+    if not text:
+        return "No missing information checklist found."
+    section = _section(text, "## Missing Information Checklist")
+    return _cap_artifact(section) if section and section != "TBD" else "No missing information checklist found."
+
+
+def _missing_results_markdown(missing_results: list[str]) -> str:
+    if not missing_results:
+        return "All expected Copilot result artifacts are present."
+    return "\n".join(f"- Missing: {path}" for path in missing_results)
 
 
 def _read_json(path: Path) -> dict:

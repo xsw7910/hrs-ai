@@ -158,6 +158,24 @@ Generated files: `.ai/<issue>/final_review_prompt.md`.
 Read-only: Writes generated artifacts only.
 Modifies source code: No.
 
+### `hrs-ai jira-comment-draft <ISSUE>`
+Purpose: Generate a local, reviewable Jira comment draft from existing hrs-ai artifacts.
+Generated files: `.ai/<issue>/jira_comment_draft.md`.
+Read-only: Writes generated artifacts only.
+Modifies source code: No.
+
+This does not fetch Jira, post to Jira, run code search, invoke Copilot, or modify product source code. It summarizes existing context and result artifacts into a conservative draft that a developer can review before manually posting anywhere.
+
+If Copilot result files are missing, the default command still generates a draft with clear missing-artifact notes for manual/demo friendliness.
+
+### `hrs-ai jira-comment-draft <ISSUE> --strict`
+Purpose: Generate a local Jira comment draft only when all required Copilot result files exist.
+Generated files: `.ai/<issue>/jira_comment_draft.md` when validation passes.
+Read-only: Writes generated artifacts/status only.
+Modifies source code: No.
+
+Strict mode returns nonzero if any required Copilot result file is missing: `bug_analysis.md`, `fix_summary.md`, `test_result.md`, `diff_summary.md`, or `review_notes.md`.
+
 ### `hrs-ai delivery-check <ISSUE>`
 Purpose: Check whether the issue package looks ready for manual delivery.
 Generated files: Updates workflow status and execution log when present.

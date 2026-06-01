@@ -648,10 +648,14 @@ def _redact_kv(text: str) -> str:
 
 def _safe_preview(value: object, max_len: int = 80) -> str:
     """Return a sanitized, length-capped preview of a custom field value."""
-    text = str(value).replace("\n", " ").replace("\r", " ")
-    text = _redact_query_params(text)
-    text = _redact_kv(text)
+    text = sanitize_comment_text(str(value).replace("\n", " ").replace("\r", " "))
     return text[:max_len]
+
+
+def sanitize_comment_text(text: str) -> str:
+    """Redact secret-like values before generated text is shared outside hrs-ai."""
+    text = _redact_query_params(str(text))
+    return _redact_kv(text)
 
 
 def _failure(issue_key: str, error_type: str) -> JiraFetchResult:

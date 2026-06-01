@@ -31,6 +31,9 @@ memory update
 review-package
   |
   v
+jira-comment-draft
+  |
+  v
 delivery-check / commit-plan / push-plan
 ```
 
@@ -65,6 +68,9 @@ After Copilot completes the work, it should write `bug_analysis.md`, `fix_summar
 
 ### Review Package
 `review-package` creates a final review prompt for an AI or human reviewer to inspect the current git diff and result package.
+
+### Jira Comment Draft
+`jira-comment-draft` creates a local markdown draft for a Jira update from existing hrs-ai artifacts. It is reviewable text only and does not post to Jira.
 
 ### Delivery Planning
 `delivery-check`, `commit-plan`, and `push-plan` help prepare manual delivery. They do not commit, push, merge, or create PRs.

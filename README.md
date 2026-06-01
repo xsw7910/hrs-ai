@@ -76,6 +76,7 @@ hrs-ai check-results HR-12345
 hrs-ai summarize-results HR-12345
 hrs-ai memory update HR-12345
 hrs-ai review-package HR-12345
+hrs-ai jira-comment-draft HR-12345
 hrs-ai delivery-check HR-12345
 hrs-ai commit-plan HR-12345
 hrs-ai push-plan HR-12345
@@ -102,6 +103,8 @@ hrs-ai push-plan HR-12345
 - `hrs-ai check-results <ISSUE> --strict`: return nonzero if required result files are missing.
 - `hrs-ai summarize-results <ISSUE>`: generate result summary and manual validation files.
 - `hrs-ai review-package <ISSUE>`: generate final review prompt.
+- `hrs-ai jira-comment-draft <ISSUE>`: generate a local, reviewable Jira comment draft from existing hrs-ai artifacts.
+- `hrs-ai jira-comment-draft <ISSUE> --strict`: require Copilot result files before generating the local draft.
 - `hrs-ai delivery-check <ISSUE>`: check readiness for manual delivery.
 - `hrs-ai commit-plan <ISSUE>`: generate a manual commit plan.
 - `hrs-ai push-plan <ISSUE>`: generate a manual push plan.
@@ -129,6 +132,7 @@ hrs-ai jira-validate REAL-ISSUE
 - hrs-ai does not automatically invoke Copilot CLI.
 - hrs-ai does not update Jira.
 - Jira integration is read-only; hrs-ai converts fetched Jira content to Markdown but does not comment, assign, close, or transition Jira issues.
+- `jira-comment-draft` writes a local markdown draft only; it does not post comments to Jira.
 - hrs-ai does not create pull requests.
 - hrs-ai does not merge.
 - hrs-ai does not run `git add`, `git commit`, or `git push`.
@@ -150,6 +154,7 @@ Key search artifacts include:
 .ai/<issue>/related_files.json
 .ai/<issue>/search_quality.json
 .ai/<issue>/copilot_team_instructions.md
+.ai/<issue>/jira_comment_draft.md
 ```
 
 Shared memory entry:

@@ -36,6 +36,10 @@ def build_parser() -> argparse.ArgumentParser:
     jira_validate_parser = subparsers.add_parser("jira-validate", help="Validate Jira issue fetch and field mapping (requires real Jira credentials).")
     jira_validate_parser.add_argument("issue_key")
 
+    jira_comment_parser = subparsers.add_parser("jira-comment-draft", help="Generate a local Jira comment draft from existing hrs-ai artifacts.")
+    jira_comment_parser.add_argument("issue_key")
+    jira_comment_parser.add_argument("--strict", action="store_true", help="Fail if Copilot result artifacts are missing.")
+
     clean_parser = subparsers.add_parser("clean", help="Remove generated workflow artifacts for an issue.")
     clean_parser.add_argument("issue_key")
     clean_parser.add_argument("--include-memory", action="store_true", help="Also remove that issue's memory entry.")
@@ -122,6 +126,18 @@ def main(argv: list[str] | None = None) -> int:
             print(f"ERROR: {exc}", file=sys.stderr)
             return 1
         _print_jira_validate_summary(args.issue_key, summary)
+        return 0
+
+    if args.command == "jira-comment-draft":
+        try:
+            path = workflow.jira_comment_draft_step(repo_root, args.issue_key, strict=args.strict)
+        except FileNotFoundError as exc:
+            print(str(exc), file=sys.stderr)
+            return 1
+        except ValueError as exc:
+            print(f"ERROR: {exc}", file=sys.stderr)
+            return 1
+        print(f"Generated Jira comment draft: {path}")
         return 0
 
     if args.command == "fetch":

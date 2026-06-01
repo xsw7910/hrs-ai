@@ -7,6 +7,8 @@ hrs-ai is designed as a prepare-only and planning tool. The developer remains in
 - hrs-ai does not update Jira.
 - hrs-ai Jira access is read-only.
 - hrs-ai does not comment on, assign, close, or transition Jira issues.
+- `jira-comment-draft` generates a local markdown draft only; it does not post to Jira.
+- Any future Jira write-back must require an explicit `--execute` flag.
 - hrs-ai does not download Jira attachments; it records attachment metadata only.
 - hrs-ai does not create pull requests.
 - hrs-ai does not merge.

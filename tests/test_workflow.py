@@ -68,6 +68,7 @@ def test_workflow_status_json_generation(tmp_path):
         "delivery_check": "skipped",
         "commit_plan": "skipped",
         "push_plan": "skipped",
+        "jira_comment_draft": "skipped",
     }
     assert ".ai/HR-12345/copilot_task.md" in status["generated_files"]
     assert ".ai/HR-12345/copilot_handoff.md" in status["generated_files"]
@@ -2347,3 +2348,175 @@ def test_field_report_does_not_redact_innocent_key_words():
     assert "keyboard" in report
     assert "monkey" in report
     assert "<redacted>" not in report
+
+
+# ---------------------------------------------------------------------------
+# Phase 9.1 — Jira comment draft
+# ---------------------------------------------------------------------------
+
+
+def _write_comment_draft_package(tmp_path: Path, include_results: bool = True) -> Path:
+    issue_dir = tmp_path / ".ai" / "HR-12345"
+    issue_dir.mkdir(parents=True)
+    (issue_dir / "bug_context.md").write_text("# Bug Context\n\nContext body", encoding="utf-8")
+    (issue_dir / "jira_parsed.md").write_text(
+        "# Jira Parsed Details\n\n"
+        "## Missing Information Checklist\n\n"
+        "- Environment/version information is missing.\n",
+        encoding="utf-8",
+    )
+    if include_results:
+        (issue_dir / "result_summary.md").write_text("Root cause and fix are summarized.", encoding="utf-8")
+        (issue_dir / "bug_analysis.md").write_text("Cache invalidation failed.", encoding="utf-8")
+        (issue_dir / "fix_summary.md").write_text("Updated cache invalidation.", encoding="utf-8")
+        (issue_dir / "test_result.md").write_text("Focused tests passed.", encoding="utf-8")
+        (issue_dir / "diff_summary.md").write_text("Changed src/search.cpp.", encoding="utf-8")
+        (issue_dir / "review_notes.md").write_text("No blocking issues.", encoding="utf-8")
+    return issue_dir
+
+
+def test_jira_comment_draft_creates_draft_with_result_artifacts(tmp_path, monkeypatch):
+    issue_dir = _write_comment_draft_package(tmp_path)
+    monkeypatch.chdir(tmp_path)
+
+    assert main(["jira-comment-draft", "HR-12345"]) == 0
+    draft = (issue_dir / "jira_comment_draft.md").read_text(encoding="utf-8")
+
+    for heading in [
+        "# hrs-ai Analysis Summary",
+        "## Status",
+        "## Summary",
+        "## Root Cause / Investigation",
+        "## Fix Summary",
+        "## Validation",
+        "## Changed Files / Diff Summary",
+        "## Search Confidence",
+        "## Missing Information",
+        "## Attachment Note",
+        "## Safety Note",
+    ]:
+        assert heading in draft
+    assert "Fix prepared" in draft
+    assert "Cache invalidation failed." in draft
+
+
+def test_jira_comment_draft_works_with_missing_copilot_results(tmp_path, monkeypatch):
+    issue_dir = _write_comment_draft_package(tmp_path, include_results=False)
+    monkeypatch.chdir(tmp_path)
+
+    assert main(["jira-comment-draft", "HR-12345"]) == 0
+    draft = (issue_dir / "jira_comment_draft.md").read_text(encoding="utf-8")
+
+    assert "No root cause analysis artifact found." in draft
+    assert "No fix summary artifact found." in draft
+    assert "No test result artifact found. Validation is pending." in draft
+    assert "Missing: .ai/HR-12345/bug_analysis.md" in draft
+
+
+def test_jira_comment_draft_strict_fails_when_results_missing(tmp_path, monkeypatch, capsys):
+    _write_comment_draft_package(tmp_path, include_results=False)
+    monkeypatch.chdir(tmp_path)
+
+    assert main(["jira-comment-draft", "HR-12345", "--strict"]) == 1
+    err = capsys.readouterr().err
+
+    assert "Missing required Copilot result files" in err
+    assert not (tmp_path / ".ai" / "HR-12345" / "jira_comment_draft.md").exists()
+
+
+def test_jira_comment_draft_strict_passes_when_results_exist(tmp_path, monkeypatch):
+    issue_dir = _write_comment_draft_package(tmp_path)
+    monkeypatch.chdir(tmp_path)
+
+    assert main(["jira-comment-draft", "HR-12345", "--strict"]) == 0
+
+    assert (issue_dir / "jira_comment_draft.md").is_file()
+
+
+def test_jira_comment_draft_requires_workflow_package(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+
+    assert main(["jira-comment-draft", "HR-12345"]) == 1
+    err = capsys.readouterr().err
+
+    assert "No workflow package found for HR-12345. Run: hrs-ai bug HR-12345" in err
+
+
+def test_jira_comment_draft_does_not_include_raw_jira_json(tmp_path, monkeypatch):
+    issue_dir = _write_comment_draft_package(tmp_path, include_results=False)
+    (issue_dir / "jira.json").write_text('{"raw_secret":"token=secret"}', encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+
+    assert main(["jira-comment-draft", "HR-12345"]) == 0
+    draft = (issue_dir / "jira_comment_draft.md").read_text(encoding="utf-8")
+
+    assert "raw_secret" not in draft
+    assert "token=secret" not in draft
+
+
+def test_jira_comment_draft_redacts_sensitive_values(tmp_path, monkeypatch):
+    issue_dir = _write_comment_draft_package(tmp_path)
+    (issue_dir / "bug_analysis.md").write_text(
+        "token=secret password=abc123 api_key=xyz key=hidden", encoding="utf-8"
+    )
+    monkeypatch.chdir(tmp_path)
+
+    assert main(["jira-comment-draft", "HR-12345"]) == 0
+    draft = (issue_dir / "jira_comment_draft.md").read_text(encoding="utf-8")
+
+    assert "secret" not in draft
+    assert "abc123" not in draft
+    assert "xyz" not in draft
+    assert "hidden" not in draft
+    assert "<redacted>" in draft
+
+
+def test_jira_comment_draft_includes_search_quality(tmp_path, monkeypatch):
+    issue_dir = _write_comment_draft_package(tmp_path)
+    (issue_dir / "search_quality.json").write_text(
+        json.dumps({"confidence": "low", "reasons": ["Only documentation matched"]}),
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(tmp_path)
+
+    assert main(["jira-comment-draft", "HR-12345"]) == 0
+    draft = (issue_dir / "jira_comment_draft.md").read_text(encoding="utf-8")
+
+    assert "Confidence: low" in draft
+    assert "Only documentation matched" in draft
+    assert "manual verification" in draft
+
+
+def test_jira_comment_draft_includes_missing_information_checklist(tmp_path, monkeypatch):
+    issue_dir = _write_comment_draft_package(tmp_path, include_results=False)
+    monkeypatch.chdir(tmp_path)
+
+    assert main(["jira-comment-draft", "HR-12345"]) == 0
+    draft = (issue_dir / "jira_comment_draft.md").read_text(encoding="utf-8")
+
+    assert "Environment/version information is missing." in draft
+
+
+def test_jira_comment_draft_always_includes_attachment_note(tmp_path, monkeypatch):
+    issue_dir = _write_comment_draft_package(tmp_path)
+    monkeypatch.chdir(tmp_path)
+
+    assert main(["jira-comment-draft", "HR-12345"]) == 0
+    draft = (issue_dir / "jira_comment_draft.md").read_text(encoding="utf-8")
+
+    assert "hrs-ai did not download or inspect Jira attachment contents" in draft
+
+
+def test_jira_comment_draft_updates_status_and_log(tmp_path, monkeypatch):
+    issue_dir = _write_comment_draft_package(tmp_path)
+    monkeypatch.chdir(tmp_path)
+
+    assert main(["jira-comment-draft", "HR-12345"]) == 0
+    status = json.loads((issue_dir / "workflow_status.json").read_text(encoding="utf-8"))
+    log_text = (issue_dir / "execution.log").read_text(encoding="utf-8")
+
+    assert status["steps"]["jira_comment_draft"] == "pass"
+    assert ".ai/HR-12345/jira_comment_draft.md" in status["generated_files"]
+    assert "[START] jira_comment_draft" in log_text
+    assert "[GENERATED] .ai/HR-12345/jira_comment_draft.md" in log_text
+    assert "[END] jira_comment_draft: pass" in log_text
