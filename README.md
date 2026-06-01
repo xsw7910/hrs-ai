@@ -33,16 +33,22 @@ $env:JIRA_EMAIL="you@example.com"
 $env:JIRA_TOKEN="your_jira_api_token"
 ```
 
-Demo mode allows mock fallback by default:
+The normal workflow uses real Jira only and does not fall back to mock data:
+
+```powershell
+hrs-ai bug HR-12345
+```
+
+Equivalent explicit form:
+
+```powershell
+hrs-ai bug HR-12345 --fresh --no-mock
+```
+
+Demo/testing fallback must be requested explicitly:
 
 ```powershell
 hrs-ai bug HR-12345 --allow-mock
-```
-
-Real Jira mode can disable mock fallback:
-
-```powershell
-hrs-ai bug HR-12345 --no-mock
 ```
 
 When mock fallback is used, `jira_summary.md`, `jira.json`, and `execution.log` clearly mark the data as mock/demo fallback.
@@ -64,7 +70,7 @@ hrs-ai doctor
 hrs-ai bug HR-12345
 hrs-ai status HR-12345
 hrs-ai clean HR-12345
-hrs-ai bug HR-12345 --fresh
+hrs-ai bug HR-12345 --resume
 hrs-ai copilot-task HR-12345
 hrs-ai check-results HR-12345
 hrs-ai summarize-results HR-12345
@@ -78,9 +84,9 @@ hrs-ai push-plan HR-12345
 ## Main Commands
 - `hrs-ai doctor`: report environment, git, ripgrep, Jira env vars, and Copilot CLI availability.
 - `hrs-ai copilot-check`: check Copilot and GitHub CLI availability without invoking Copilot.
-- `hrs-ai fetch <ISSUE>`: fetch Jira data or create clearly marked mock/demo data.
+- `hrs-ai fetch <ISSUE>`: fetch real Jira data and fail clearly if Jira is unavailable.
 - `hrs-ai fetch <ISSUE> --allow-mock`: allow clearly marked mock/demo fallback when Jira fetch fails.
-- `hrs-ai fetch <ISSUE> --no-mock`: fail instead of generating mock/demo Jira data.
+- `hrs-ai fetch <ISSUE> --no-mock`: require real Jira data. This is the default.
 - `hrs-ai parse <ISSUE>`: parse Jira data into a markdown summary.
 - `hrs-ai keywords <ISSUE>`: extract high-value, normal, and dropped keywords.
 - `hrs-ai search <ISSUE>`: run ripgrep-based code search and related file ranking.
@@ -102,18 +108,21 @@ hrs-ai push-plan HR-12345
 - `hrs-ai clean <ISSUE>`: remove generated `.ai/<issue>/` workflow artifacts while preserving memory.
 - `hrs-ai clean <ISSUE> --include-memory`: also remove `.ai_memory/bugs/<issue>.md` for that issue only.
 - `hrs-ai status <ISSUE>`: show workflow status and generated files.
-- `hrs-ai bug <ISSUE>`: run the prepare-only workflow end to end.
-- `hrs-ai bug <ISSUE> --fresh`: clean `.ai/<issue>/` first, then run a fresh prepare-only workflow.
-- `hrs-ai bug <ISSUE> --fresh --include-memory`: clean `.ai/<issue>/` and that issue's memory entry first, then rerun.
+- `hrs-ai bug <ISSUE>`: run a fresh prepare-only workflow end to end with real Jira required and mock fallback disabled.
+- `hrs-ai bug <ISSUE> --fresh`: same as the default; kept for compatibility.
+- `hrs-ai bug <ISSUE> --resume`: preserve existing `.ai/<issue>/` artifacts and continue an existing workflow.
+- `hrs-ai bug <ISSUE> --include-memory`: clean `.ai/<issue>/` and that issue's memory entry first, then rerun.
 - `hrs-ai bug <ISSUE> --allow-mock`: explicitly allow mock/demo Jira fallback.
-- `hrs-ai bug <ISSUE> --no-mock`: require real Jira data and stop if Jira fetch fails.
+- `hrs-ai bug <ISSUE> --no-mock`: require real Jira data and stop if Jira fetch fails. This is the default.
 - `hrs-ai jira-validate <ISSUE>`: validate Jira field mapping for a real issue (no code search, no Copilot task). Generates `jira_summary.md`, `jira_parsed.md`, and `jira_field_report.md`.
 
 ## Recommended Real Jira Workflow
 ```powershell
-hrs-ai bug REAL-ISSUE --fresh --no-mock
+hrs-ai bug REAL-ISSUE
 hrs-ai jira-validate REAL-ISSUE
 ```
+
+`hrs-ai bug REAL-ISSUE` defaults to a fresh run, preserves memory, requires real Jira, and does not use mock fallback. Use `--resume` to preserve old `.ai/<issue>/` artifacts, and use `--allow-mock` only for demo/testing fallback.
 
 ## Safety Rules
 - hrs-ai does not automatically modify product source code.

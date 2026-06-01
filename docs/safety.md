@@ -18,9 +18,11 @@ hrs-ai is designed as a prepare-only and planning tool. The developer remains in
 - The developer reviews context, runs Copilot CLI manually, validates changes, and performs delivery actions manually.
 - `hrs-ai clean <ISSUE>` deletes only `.ai/<issue>/`.
 - `hrs-ai clean <ISSUE> --include-memory` also deletes only `.ai_memory/bugs/<issue>.md`.
-- `hrs-ai bug <ISSUE> --fresh` performs the same scoped cleanup before rerunning the prepare-only workflow.
-- Mock/demo Jira fallback is allowed by default for demos.
-- `--no-mock` disables mock/demo fallback and stops if Jira fetch fails.
+- `hrs-ai bug <ISSUE>` performs the same scoped cleanup before running the prepare-only workflow.
+- `hrs-ai bug <ISSUE> --resume` preserves existing `.ai/<issue>/` artifacts.
+- Mock/demo Jira fallback is disabled by default.
+- `--allow-mock` explicitly enables mock/demo fallback for demos and testing.
+- `--no-mock` is accepted for compatibility and matches the default real Jira-only behavior.
 
 ## Generated Artifact Scope
 hrs-ai writes generated workflow files to:
@@ -41,5 +43,11 @@ Copilot CLI should be run from the target product repository root. The generated
 When mock fallback is used, generated Jira artifacts are clearly marked as mock/demo fallback. For real Jira-only usage, run:
 
 ```powershell
-hrs-ai bug HR-12345 --no-mock
+hrs-ai bug HR-12345
+```
+
+For demo/testing fallback, run:
+
+```powershell
+hrs-ai bug HR-12345 --allow-mock
 ```

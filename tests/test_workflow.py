@@ -31,7 +31,7 @@ def clear_jira_env(monkeypatch):
 
 def test_output_directory_creation(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
-    run_bug_workflow(tmp_path, "HR-12345")
+    run_bug_workflow(tmp_path, "HR-12345", allow_mock=True)
 
     assert (tmp_path / ".ai" / "HR-12345").is_dir()
     assert (tmp_path / ".ai_memory" / "bugs" / "HR-12345.md").is_file()
@@ -43,7 +43,7 @@ def test_branch_name_generation():
 
 
 def test_workflow_status_json_generation(tmp_path):
-    run_bug_workflow(tmp_path, "HR-12345")
+    run_bug_workflow(tmp_path, "HR-12345", allow_mock=True)
     status = json.loads((tmp_path / ".ai" / "HR-12345" / "workflow_status.json").read_text())
 
     assert status["issue_key"] == "HR-12345"
@@ -81,6 +81,11 @@ def test_workflow_status_json_generation(tmp_path):
 
 
 def test_bug_command_runs_in_temporary_directory(tmp_path, monkeypatch):
+    _set_jira_env(monkeypatch)
+    monkeypatch.setattr(
+        "hrs_ai.core.jira.urllib.request.urlopen",
+        lambda request, timeout: _good_jira_response()(),
+    )
     monkeypatch.chdir(tmp_path)
     exit_code = main(["bug", "HR-12345"])
 
@@ -94,7 +99,7 @@ def test_execution_log_contains_prepare_only_lifecycle(tmp_path, monkeypatch):
     monkeypatch.delenv("JIRA_EMAIL", raising=False)
     monkeypatch.delenv("JIRA_TOKEN", raising=False)
 
-    run_bug_workflow(tmp_path, "HR-12345")
+    run_bug_workflow(tmp_path, "HR-12345", allow_mock=True)
     log_text = (tmp_path / ".ai" / "HR-12345" / "execution.log").read_text()
 
     assert "[START] command: hrs-ai bug HR-12345" in log_text
@@ -134,7 +139,7 @@ def test_execution_log_contains_prepare_only_lifecycle(tmp_path, monkeypatch):
 
 
 def test_copilot_task_references_code_search(tmp_path):
-    run_bug_workflow(tmp_path, "HR-12345")
+    run_bug_workflow(tmp_path, "HR-12345", allow_mock=True)
     task = (tmp_path / ".ai" / "HR-12345" / "copilot_task.md").read_text()
 
     assert "Run Copilot CLI from the target repo root" in task
@@ -240,7 +245,7 @@ def test_git_context_outside_git_repo_does_not_crash(tmp_path):
 
 
 def test_bug_workflow_generates_phase_2_files_and_enriched_context(tmp_path):
-    run_bug_workflow(tmp_path, "HR-12345")
+    run_bug_workflow(tmp_path, "HR-12345", allow_mock=True)
     issue_dir = tmp_path / ".ai" / "HR-12345"
     context = (issue_dir / "bug_context.md").read_text()
 
@@ -459,7 +464,7 @@ def test_case_insensitive_high_value_keyword_bonus(tmp_path, monkeypatch):
 
 
 def test_bug_context_includes_code_search_quality(tmp_path):
-    run_bug_workflow(tmp_path, "HR-12345")
+    run_bug_workflow(tmp_path, "HR-12345", allow_mock=True)
     context = (tmp_path / ".ai" / "HR-12345" / "bug_context.md").read_text(encoding="utf-8")
 
     assert "## Code Search Quality" in context
@@ -468,7 +473,7 @@ def test_bug_context_includes_code_search_quality(tmp_path):
 
 
 def test_workflow_generated_files_include_search_quality(tmp_path):
-    run_bug_workflow(tmp_path, "HR-12345")
+    run_bug_workflow(tmp_path, "HR-12345", allow_mock=True)
     status = json.loads((tmp_path / ".ai" / "HR-12345" / "workflow_status.json").read_text(encoding="utf-8"))
 
     assert ".ai/HR-12345/search_quality.json" in status["generated_files"]
@@ -535,7 +540,7 @@ def test_context_code_search_summary_prefers_related_files_over_warnings():
 
 
 def test_copilot_handoff_is_generated(tmp_path):
-    run_bug_workflow(tmp_path, "HR-12345")
+    run_bug_workflow(tmp_path, "HR-12345", allow_mock=True)
     handoff = (tmp_path / ".ai" / "HR-12345" / "copilot_handoff.md").read_text()
 
     assert "Read `.ai/HR-12345/copilot_task.md` and complete the workflow." in handoff
@@ -667,7 +672,7 @@ def test_check_results_strict_passes_when_all_files_exist(tmp_path, monkeypatch,
 def test_bug_copilot_fix_remains_manual_and_safe(tmp_path, monkeypatch, capsys):
     monkeypatch.chdir(tmp_path)
 
-    assert main(["bug", "HR-12345", "--copilot-fix"]) == 0
+    assert main(["bug", "HR-12345", "--copilot-fix", "--allow-mock"]) == 0
     output = capsys.readouterr().out
     log_text = (tmp_path / ".ai" / "HR-12345" / "execution.log").read_text()
     status = json.loads((tmp_path / ".ai" / "HR-12345" / "workflow_status.json").read_text())
@@ -1014,7 +1019,7 @@ def test_bug_fresh_removes_old_later_phase_artifacts(tmp_path, monkeypatch):
     (issue_dir / "commit_plan.md").write_text("old commit", encoding="utf-8")
     monkeypatch.chdir(tmp_path)
 
-    assert main(["bug", "HR-12345", "--fresh"]) == 0
+    assert main(["bug", "HR-12345", "--fresh", "--allow-mock"]) == 0
 
     assert not (issue_dir / "result_summary.md").exists()
     assert not (issue_dir / "commit_plan.md").exists()
@@ -1025,13 +1030,49 @@ def test_bug_fresh_removes_old_later_phase_artifacts(tmp_path, monkeypatch):
     assert "[INFO] memory entry preserved" in log_text
 
 
+def test_bug_default_is_fresh_and_removes_old_artifacts(tmp_path, monkeypatch):
+    _set_jira_env(monkeypatch)
+    monkeypatch.setattr(
+        "hrs_ai.core.jira.urllib.request.urlopen",
+        lambda request, timeout: _good_jira_response()(),
+    )
+    issue_dir = tmp_path / ".ai" / "HR-12345"
+    issue_dir.mkdir(parents=True)
+    (issue_dir / "old_artifact.md").write_text("old", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+
+    assert main(["bug", "HR-12345"]) == 0
+
+    assert not (issue_dir / "old_artifact.md").exists()
+    assert (issue_dir / "bug_context.md").is_file()
+    status = json.loads((issue_dir / "workflow_status.json").read_text(encoding="utf-8"))
+    log_text = (issue_dir / "execution.log").read_text(encoding="utf-8")
+    assert status["fresh"] is True
+    assert status["allow_mock"] is False
+    assert "[INFO] effective mode: fresh=true, allow_mock=false" in log_text
+
+
+def test_bug_resume_preserves_old_artifacts(tmp_path, monkeypatch):
+    issue_dir = tmp_path / ".ai" / "HR-12345"
+    issue_dir.mkdir(parents=True)
+    (issue_dir / "old_artifact.md").write_text("old", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+
+    assert main(["bug", "HR-12345", "--resume", "--allow-mock"]) == 0
+
+    assert (issue_dir / "old_artifact.md").exists()
+    log_text = (issue_dir / "execution.log").read_text(encoding="utf-8")
+    assert "[INFO] effective mode: fresh=false, allow_mock=true" in log_text
+    assert "[INFO] previous workflow artifacts were preserved" in log_text
+
+
 def test_bug_fresh_preserves_memory_by_default(tmp_path, monkeypatch):
     memory_file = tmp_path / ".ai_memory" / "bugs" / "HR-12345.md"
     memory_file.parent.mkdir(parents=True)
     memory_file.write_text("old memory", encoding="utf-8")
     monkeypatch.chdir(tmp_path)
 
-    assert main(["bug", "HR-12345", "--fresh"]) == 0
+    assert main(["bug", "HR-12345", "--fresh", "--allow-mock"]) == 0
 
     assert memory_file.exists()
 
@@ -1042,7 +1083,20 @@ def test_bug_fresh_include_memory_removes_old_memory_then_recreates(tmp_path, mo
     memory_file.write_text("UNIQUE OLD MEMORY", encoding="utf-8")
     monkeypatch.chdir(tmp_path)
 
-    assert main(["bug", "HR-12345", "--fresh", "--include-memory"]) == 0
+    assert main(["bug", "HR-12345", "--fresh", "--include-memory", "--allow-mock"]) == 0
+
+    memory = memory_file.read_text(encoding="utf-8")
+    assert "UNIQUE OLD MEMORY" not in memory
+    assert "Prototype prepare-only workflow" in memory
+
+
+def test_bug_default_include_memory_removes_old_memory_then_recreates(tmp_path, monkeypatch):
+    memory_file = tmp_path / ".ai_memory" / "bugs" / "HR-12345.md"
+    memory_file.parent.mkdir(parents=True)
+    memory_file.write_text("UNIQUE OLD MEMORY", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+
+    assert main(["bug", "HR-12345", "--include-memory", "--allow-mock"]) == 0
 
     memory = memory_file.read_text(encoding="utf-8")
     assert "UNIQUE OLD MEMORY" not in memory
@@ -1062,21 +1116,62 @@ def test_clean_does_not_affect_product_files(tmp_path, monkeypatch):
     assert product_file.read_text(encoding="utf-8") == "source"
 
 
-def test_bug_include_memory_requires_fresh(tmp_path, monkeypatch, capsys):
+def test_bug_resume_include_memory_conflicts(tmp_path, monkeypatch, capsys):
     monkeypatch.chdir(tmp_path)
 
-    assert main(["bug", "HR-12345", "--include-memory"]) == 1
+    assert main(["bug", "HR-12345", "--resume", "--include-memory"]) == 1
 
-    assert "--include-memory can only be used with --fresh" in capsys.readouterr().err
+    assert "--include-memory requires fresh mode and cannot be used with --resume" in capsys.readouterr().err
 
 
-def test_missing_env_default_allow_mock_marks_fallback(tmp_path, monkeypatch, capsys):
+def test_bug_fresh_and_resume_conflict():
+    with pytest.raises(SystemExit) as exc_info:
+        main(["bug", "HR-12345", "--fresh", "--resume"])
+
+    assert exc_info.value.code == 2
+
+
+def test_bug_allow_mock_and_no_mock_conflict():
+    with pytest.raises(SystemExit) as exc_info:
+        main(["bug", "HR-12345", "--allow-mock", "--no-mock"])
+
+    assert exc_info.value.code == 2
+
+
+def test_fetch_allow_mock_and_no_mock_conflict():
+    with pytest.raises(SystemExit) as exc_info:
+        main(["fetch", "HR-12345", "--allow-mock", "--no-mock"])
+
+    assert exc_info.value.code == 2
+
+
+def test_missing_env_default_no_mock_fails_without_mock_artifacts(tmp_path, monkeypatch, capsys):
     monkeypatch.delenv("JIRA_BASE_URL", raising=False)
     monkeypatch.delenv("JIRA_EMAIL", raising=False)
     monkeypatch.delenv("JIRA_TOKEN", raising=False)
     monkeypatch.chdir(tmp_path)
 
-    assert main(["bug", "HR-12345"]) == 0
+    assert main(["bug", "HR-12345"]) == 1
+    error = capsys.readouterr().err
+    issue_dir = tmp_path / ".ai" / "HR-12345"
+
+    assert "ERROR: Jira environment variables are missing." in error
+    assert "Mock fallback is disabled by default." in error
+    assert "Use --allow-mock only for demo/testing fallback." in error
+    assert not (issue_dir / "jira.json").exists()
+    assert not (issue_dir / "jira_summary.md").exists()
+    status = json.loads((issue_dir / "workflow_status.json").read_text(encoding="utf-8"))
+    assert status["fresh"] is True
+    assert status["allow_mock"] is False
+
+
+def test_missing_env_allow_mock_marks_fallback(tmp_path, monkeypatch, capsys):
+    monkeypatch.delenv("JIRA_BASE_URL", raising=False)
+    monkeypatch.delenv("JIRA_EMAIL", raising=False)
+    monkeypatch.delenv("JIRA_TOKEN", raising=False)
+    monkeypatch.chdir(tmp_path)
+
+    assert main(["bug", "HR-12345", "--allow-mock"]) == 0
     output = capsys.readouterr().out
     issue_dir = tmp_path / ".ai" / "HR-12345"
     jira = json.loads((issue_dir / "jira.json").read_text(encoding="utf-8"))
@@ -1108,7 +1203,7 @@ def test_missing_env_no_mock_fails_without_mock_artifacts(tmp_path, monkeypatch,
     log_text = (issue_dir / "execution.log").read_text(encoding="utf-8")
 
     assert "ERROR: Jira environment variables are missing." in error
-    assert "Mock fallback is disabled by --no-mock." in error
+    assert "Mock fallback is disabled by default." in error
     assert not (issue_dir / "jira_summary.md").exists()
     assert not (issue_dir / "jira.json").exists()
     assert status["steps"]["fetch"] == "fail"
@@ -1116,13 +1211,28 @@ def test_missing_env_no_mock_fails_without_mock_artifacts(tmp_path, monkeypatch,
     assert "[ERROR] Jira fetch failed: missing_env" in log_text
 
 
-def test_fetch_default_allow_mock_generates_mock_files(tmp_path, monkeypatch, capsys):
+def test_fetch_default_no_mock_fails_without_mock_fallback(tmp_path, monkeypatch, capsys):
     monkeypatch.delenv("JIRA_BASE_URL", raising=False)
     monkeypatch.delenv("JIRA_EMAIL", raising=False)
     monkeypatch.delenv("JIRA_TOKEN", raising=False)
     monkeypatch.chdir(tmp_path)
 
-    assert main(["fetch", "HR-12345"]) == 0
+    assert main(["fetch", "HR-12345"]) == 1
+    error = capsys.readouterr().err
+    issue_dir = tmp_path / ".ai" / "HR-12345"
+
+    assert "Mock fallback is disabled by default." in error
+    assert not (issue_dir / "jira.json").exists()
+    assert not (issue_dir / "jira_summary.md").exists()
+
+
+def test_fetch_allow_mock_generates_mock_files(tmp_path, monkeypatch, capsys):
+    monkeypatch.delenv("JIRA_BASE_URL", raising=False)
+    monkeypatch.delenv("JIRA_EMAIL", raising=False)
+    monkeypatch.delenv("JIRA_TOKEN", raising=False)
+    monkeypatch.chdir(tmp_path)
+
+    assert main(["fetch", "HR-12345", "--allow-mock"]) == 0
     output = capsys.readouterr().out
     jira = json.loads((tmp_path / ".ai" / "HR-12345" / "jira.json").read_text(encoding="utf-8"))
 
@@ -1141,7 +1251,7 @@ def test_fetch_no_mock_fails_without_mock_fallback(tmp_path, monkeypatch, capsys
     error = capsys.readouterr().err
     issue_dir = tmp_path / ".ai" / "HR-12345"
 
-    assert "Mock fallback is disabled by --no-mock." in error
+    assert "Mock fallback is disabled by default." in error
     assert not (issue_dir / "jira.json").exists()
     assert not (issue_dir / "jira_summary.md").exists()
     status = json.loads((issue_dir / "workflow_status.json").read_text(encoding="utf-8"))
@@ -1591,7 +1701,7 @@ def test_bug_context_includes_comment_and_attachment_signals(tmp_path):
 
 
 def test_copilot_task_includes_comment_attachment_guidance(tmp_path):
-    run_bug_workflow(tmp_path, "HR-12345")
+    run_bug_workflow(tmp_path, "HR-12345", allow_mock=True)
     task = (tmp_path / ".ai" / "HR-12345" / "copilot_task.md").read_text(encoding="utf-8")
 
     assert "Read Jira comments in `bug_context.md`" in task
@@ -1852,7 +1962,7 @@ def test_bug_context_includes_reproduction_and_missing_info(tmp_path):
 
 
 def test_copilot_task_includes_jira_parsed_guidance(tmp_path):
-    run_bug_workflow(tmp_path, "HR-12345")
+    run_bug_workflow(tmp_path, "HR-12345", allow_mock=True)
     task = (tmp_path / ".ai" / "HR-12345" / "copilot_task.md").read_text(encoding="utf-8")
 
     assert "jira_parsed.md" in task

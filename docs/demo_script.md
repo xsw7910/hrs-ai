@@ -30,23 +30,23 @@ hrs-ai bug HR-12345
 ```
 
 Explain that this is prepare-only. It builds context, prompts, memory, git context, and handoff files without modifying source code.
-The default demo mode allows clearly marked mock/demo Jira fallback when Jira credentials are not configured.
+The default workflow requires real Jira, disables mock fallback, and starts fresh by cleaning old `.ai/HR-12345/` artifacts while preserving memory.
 
-For a fresh demo reset, run:
-
-```powershell
-hrs-ai bug HR-12345 --fresh
-```
-
-This removes old `.ai/HR-12345/` workflow artifacts first while preserving memory by default.
-
-For a real Jira demo with credentials configured, run:
+For demo/testing without Jira credentials, request mock fallback explicitly:
 
 ```powershell
-hrs-ai bug HR-12345 --no-mock
+hrs-ai bug HR-12345 --allow-mock
 ```
 
-This prevents accidental mock/demo fallback.
+When fallback is used, Jira artifacts are clearly marked as mock/demo data.
+
+To continue an existing workflow package without cleaning old artifacts, run:
+
+```powershell
+hrs-ai bug HR-12345 --resume
+```
+
+`--fresh` and `--no-mock` are still accepted for compatibility, but they are no longer required for the normal real Jira workflow.
 
 3. Show generated files:
 

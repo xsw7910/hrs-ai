@@ -26,6 +26,9 @@ class WorkflowResult:
     issue_dir: Path
     generated_files: list[str]
     jira_result: JiraFetchResult | None = None
+    clean_result: object | None = None
+    fresh: bool = False
+    allow_mock: bool = False
 
 
 REQUIRED_COPILOT_RESULT_FILES = [
@@ -45,9 +48,9 @@ def run_bug_workflow(
     repo_root: Path,
     issue_key: str,
     copilot_fix: bool = False,
-    fresh: bool = False,
+    fresh: bool = True,
     include_memory: bool = False,
-    allow_mock: bool = True,
+    allow_mock: bool = False,
 ) -> WorkflowResult:
     clean_result = None
     if fresh:
@@ -56,15 +59,21 @@ def run_bug_workflow(
 
     target = _prepare_issue_dir(repo_root, issue_key)
     command = f"hrs-ai bug {issue_key}"
-    if fresh:
-        command += " --fresh"
+    if not fresh:
+        command += " --resume"
     if include_memory:
         command += " --include-memory"
-    if not allow_mock:
-        command += " --no-mock"
+    if allow_mock:
+        command += " --allow-mock"
     log(target, f"[START] command: {command}")
+    log(target, f"[INFO] effective mode: fresh={str(fresh).lower()}, allow_mock={str(allow_mock).lower()}")
+    if allow_mock:
+        log(target, "[INFO] mock/demo Jira fallback enabled by --allow-mock")
+    else:
+        log(target, "[INFO] real Jira required")
+        log(target, "[INFO] mock fallback disabled")
     if fresh:
-        log(target, "[INFO] fresh run requested")
+        log(target, "[INFO] fresh run requested/defaulted")
         log(target, "[INFO] previous workflow artifacts were removed before this run")
         if include_memory:
             log(target, "[INFO] memory entry removed due to --include-memory")
@@ -77,6 +86,9 @@ def run_bug_workflow(
                 log(target, f"[INFO] fresh preserved: {path}")
             for path in clean_result.missing_paths:
                 log(target, f"[INFO] fresh missing: {path}")
+    else:
+        log(target, "[INFO] resume requested")
+        log(target, "[INFO] previous workflow artifacts were preserved")
 
     try:
         log(target, "[START] doctor")
@@ -96,7 +108,14 @@ def run_bug_workflow(
         memory_add_step(repo_root, issue_key)
     except Exception as exc:
         log(target, f"[ERROR] workflow: {exc}")
-        _write_status(repo_root, issue_key, _read_step_status(repo_root, issue_key), _generated_files(repo_root, issue_key))
+        _write_status(
+            repo_root,
+            issue_key,
+            _read_step_status(repo_root, issue_key),
+            _generated_files(repo_root, issue_key),
+            fresh=fresh,
+            allow_mock=allow_mock,
+        )
         raise
 
     _mark_step(repo_root, issue_key, "copilot_fix", "skipped")
@@ -125,13 +144,28 @@ def run_bug_workflow(
             "copilot_fix": "skipped",
         },
         generated,
+        fresh=fresh,
+        allow_mock=allow_mock,
     )
-    return WorkflowResult(issue_key=issue_key, issue_dir=target, generated_files=generated, jira_result=jira_result)
+    return WorkflowResult(
+        issue_key=issue_key,
+        issue_dir=target,
+        generated_files=generated,
+        jira_result=jira_result,
+        clean_result=clean_result,
+        fresh=fresh,
+        allow_mock=allow_mock,
+    )
 
 
-def fetch_step(repo_root: Path, issue_key: str, allow_mock: bool = True) -> JiraFetchResult:
+def fetch_step(repo_root: Path, issue_key: str, allow_mock: bool = False) -> JiraFetchResult:
     target = _prepare_issue_dir(repo_root, issue_key)
     log(target, "[START] fetch")
+    if allow_mock:
+        log(target, "[INFO] mock/demo Jira fallback enabled by --allow-mock")
+    else:
+        log(target, "[INFO] real Jira required")
+        log(target, "[INFO] mock fallback disabled")
     try:
         result = fetch_issue(repo_root, issue_key, allow_mock=allow_mock)
         issue = result.data
@@ -150,7 +184,7 @@ def fetch_step(repo_root: Path, issue_key: str, allow_mock: bool = True) -> Jira
     except JiraFetchError as exc:
         _mark_step(repo_root, issue_key, "fetch", "fail")
         log(target, f"[ERROR] Jira fetch failed: {exc.result.error_type} - {exc.result.error_message}")
-        log(target, "[ERROR] Mock fallback disabled by --no-mock")
+        log(target, "[ERROR] Mock fallback disabled")
         log(target, "[END] fetch: fail")
         raise
     except Exception as exc:
@@ -506,7 +540,14 @@ def _generated_files(repo_root: Path, issue_key: str) -> list[str]:
     return sorted(generated)
 
 
-def _write_status(repo_root: Path, issue_key: str, step_status: dict[str, str], generated: list[str]) -> None:
+def _write_status(
+    repo_root: Path,
+    issue_key: str,
+    step_status: dict[str, str],
+    generated: list[str],
+    fresh: bool | None = None,
+    allow_mock: bool | None = None,
+) -> None:
     target = _prepare_issue_dir(repo_root, issue_key)
     status = {
         "issue_key": issue_key,
@@ -514,6 +555,10 @@ def _write_status(repo_root: Path, issue_key: str, step_status: dict[str, str], 
         "steps": {step: step_status.get(step, "skipped") for step in WORKFLOW_STEPS},
         "generated_files": sorted(generated),
     }
+    if fresh is not None:
+        status["fresh"] = fresh
+    if allow_mock is not None:
+        status["allow_mock"] = allow_mock
     (target / "workflow_status.json").write_text(json.dumps(status, indent=2) + "\n", encoding="utf-8")
 
 
