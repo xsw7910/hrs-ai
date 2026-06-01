@@ -176,6 +176,22 @@ Modifies source code: No.
 
 Strict mode returns nonzero if any required Copilot result file is missing: `bug_analysis.md`, `fix_summary.md`, `test_result.md`, `diff_summary.md`, or `review_notes.md`.
 
+### `hrs-ai jira-comment <ISSUE>`
+Purpose: Preview the local Jira comment draft without posting to Jira.
+Generated files: Updates workflow status and execution log when present.
+Read-only: Writes generated status/log artifacts only.
+Modifies source code: No.
+
+This reads `.ai/<issue>/jira_comment_draft.md`, prints a concise preview, and exits without calling Jira. Jira credentials are not required for preview mode.
+
+### `hrs-ai jira-comment <ISSUE> --execute`
+Purpose: Post exactly one Jira comment from the local draft.
+Generated files: `.ai/<issue>/jira_comment_post_result.json`, `.ai/<issue>/jira_comment_post_summary.md`.
+Read-only: No; adds one Jira comment only.
+Modifies source code: No.
+
+Requires `JIRA_BASE_URL`, `JIRA_EMAIL`, and `JIRA_TOKEN`. Before posting, hrs-ai sanitizes and length-caps the draft again. This command does not update Jira fields, transition status, assign the issue, upload or download attachments, call Copilot, create PRs, or run git commit/push/merge.
+
 ### `hrs-ai delivery-check <ISSUE>`
 Purpose: Check whether the issue package looks ready for manual delivery.
 Generated files: Updates workflow status and execution log when present.

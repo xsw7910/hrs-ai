@@ -69,6 +69,7 @@ def test_workflow_status_json_generation(tmp_path):
         "commit_plan": "skipped",
         "push_plan": "skipped",
         "jira_comment_draft": "skipped",
+        "jira_comment": "skipped",
     }
     assert ".ai/HR-12345/copilot_task.md" in status["generated_files"]
     assert ".ai/HR-12345/copilot_handoff.md" in status["generated_files"]
@@ -1262,7 +1263,7 @@ def test_fetch_no_mock_fails_without_mock_fallback(tmp_path, monkeypatch, capsys
 def _set_jira_env(monkeypatch):
     monkeypatch.setenv("JIRA_BASE_URL", "https://jira.example.test")
     monkeypatch.setenv("JIRA_EMAIL", "dev@example.test")
-    monkeypatch.setenv("JIRA_TOKEN", "token")
+    monkeypatch.setenv("JIRA_TOKEN", "token-value")
 
 
 def _http_error(status_code: int) -> urllib.error.HTTPError:
@@ -2520,3 +2521,191 @@ def test_jira_comment_draft_updates_status_and_log(tmp_path, monkeypatch):
     assert "[START] jira_comment_draft" in log_text
     assert "[GENERATED] .ai/HR-12345/jira_comment_draft.md" in log_text
     assert "[END] jira_comment_draft: pass" in log_text
+
+
+# ---------------------------------------------------------------------------
+# Phase 9.2 — Jira comment write-back
+# ---------------------------------------------------------------------------
+
+
+def _write_jira_comment_draft(tmp_path: Path, text: str = "# hrs-ai Analysis Summary\n\nIssue: HR-12345\n\nReady to post.") -> Path:
+    issue_dir = tmp_path / ".ai" / "HR-12345"
+    issue_dir.mkdir(parents=True, exist_ok=True)
+    (issue_dir / "jira_comment_draft.md").write_text(text, encoding="utf-8")
+    return issue_dir
+
+
+class _JiraPostResponse:
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        return False
+
+    def read(self):
+        return json.dumps(
+            {
+                "id": "10001",
+                "created": "2026-06-01T10:00:00.000+0000",
+                "updated": "2026-06-01T10:00:00.000+0000",
+                "self": "https://jira.example.test/rest/api/3/issue/HR-12345/comment/10001?token=secret",
+            }
+        ).encode("utf-8")
+
+
+def test_jira_comment_preview_does_not_call_jira(tmp_path, monkeypatch, capsys):
+    _write_jira_comment_draft(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    called = {"value": False}
+
+    def fake_urlopen(request, timeout):
+        called["value"] = True
+        return _JiraPostResponse()
+
+    monkeypatch.setattr("hrs_ai.core.jira.urllib.request.urlopen", fake_urlopen)
+
+    assert main(["jira-comment", "HR-12345"]) == 0
+    out = capsys.readouterr().out
+
+    assert called["value"] is False
+    assert "Preview Jira comment for HR-12345." in out
+    assert "Use --execute" in out
+
+
+def test_jira_comment_execute_posts_comment_and_writes_artifacts(tmp_path, monkeypatch, capsys):
+    issue_dir = _write_jira_comment_draft(tmp_path)
+    _set_jira_env(monkeypatch)
+    monkeypatch.chdir(tmp_path)
+    requests = []
+
+    def fake_urlopen(request, timeout):
+        requests.append(request)
+        return _JiraPostResponse()
+
+    monkeypatch.setattr("hrs_ai.core.jira.urllib.request.urlopen", fake_urlopen)
+
+    assert main(["jira-comment", "HR-12345", "--execute"]) == 0
+    out = capsys.readouterr().out
+    result = json.loads((issue_dir / "jira_comment_post_result.json").read_text(encoding="utf-8"))
+    summary = (issue_dir / "jira_comment_post_summary.md").read_text(encoding="utf-8")
+
+    assert len(requests) == 1
+    assert requests[0].full_url == "https://jira.example.test/rest/api/3/issue/HR-12345/comment"
+    assert requests[0].get_method() == "POST"
+    assert "Posted Jira comment for HR-12345." in out
+    assert result["posted"] is True
+    assert result["comment_id"] == "10001"
+    assert "token-value" not in json.dumps(result)
+    assert "Only a Jira comment was added." in summary
+
+
+def test_jira_comment_execute_missing_draft_fails(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+
+    assert main(["jira-comment", "HR-12345", "--execute"]) == 1
+    err = capsys.readouterr().err
+
+    assert "Missing .ai/HR-12345/jira_comment_draft.md" in err or "No workflow package found" in err
+
+
+def test_jira_comment_execute_missing_env_fails_without_post(tmp_path, monkeypatch, capsys):
+    _write_jira_comment_draft(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    called = {"value": False}
+
+    def fake_urlopen(request, timeout):
+        called["value"] = True
+        return _JiraPostResponse()
+
+    monkeypatch.setattr("hrs_ai.core.jira.urllib.request.urlopen", fake_urlopen)
+
+    assert main(["jira-comment", "HR-12345", "--execute"]) == 1
+    err = capsys.readouterr().err
+
+    assert called["value"] is False
+    assert "Jira environment variables are missing" in err
+
+
+def test_jira_comment_preview_does_not_require_env(tmp_path, monkeypatch):
+    _write_jira_comment_draft(tmp_path)
+    monkeypatch.chdir(tmp_path)
+
+    assert main(["jira-comment", "HR-12345"]) == 0
+
+
+def test_jira_comment_execute_redacts_before_post(tmp_path, monkeypatch):
+    _write_jira_comment_draft(
+        tmp_path,
+        "# hrs-ai Analysis Summary\n\nIssue: HR-12345\n\ntoken=secret password=abc123 key=hidden",
+    )
+    _set_jira_env(monkeypatch)
+    monkeypatch.chdir(tmp_path)
+    posted = {}
+
+    def fake_urlopen(request, timeout):
+        posted["body"] = request.data.decode("utf-8")
+        return _JiraPostResponse()
+
+    monkeypatch.setattr("hrs_ai.core.jira.urllib.request.urlopen", fake_urlopen)
+
+    assert main(["jira-comment", "HR-12345", "--execute"]) == 0
+
+    assert "secret" not in posted["body"]
+    assert "abc123" not in posted["body"]
+    assert "hidden" not in posted["body"]
+    assert "<redacted>" in posted["body"]
+
+
+def test_jira_comment_execute_empty_draft_fails(tmp_path, monkeypatch, capsys):
+    _write_jira_comment_draft(tmp_path, "   \n")
+    _set_jira_env(monkeypatch)
+    monkeypatch.chdir(tmp_path)
+
+    assert main(["jira-comment", "HR-12345", "--execute"]) == 1
+    err = capsys.readouterr().err
+
+    assert "empty" in err.lower()
+
+
+@pytest.mark.parametrize(
+    ("status_code", "expected"),
+    [
+        (401, "authentication or permission"),
+        (403, "authentication or permission"),
+        (404, "not found"),
+        (429, "rate limit"),
+        (500, "unexpected jira error"),
+    ],
+)
+def test_jira_comment_execute_http_errors_are_clear(tmp_path, monkeypatch, capsys, status_code, expected):
+    _write_jira_comment_draft(tmp_path)
+    _set_jira_env(monkeypatch)
+    monkeypatch.chdir(tmp_path)
+
+    def fake_urlopen(request, timeout):
+        raise _http_error(status_code)
+
+    monkeypatch.setattr("hrs_ai.core.jira.urllib.request.urlopen", fake_urlopen)
+
+    assert main(["jira-comment", "HR-12345", "--execute"]) == 1
+    err = capsys.readouterr().err.lower()
+
+    assert expected in err
+
+
+def test_jira_comment_execute_status_includes_generated_files(tmp_path, monkeypatch):
+    issue_dir = _write_jira_comment_draft(tmp_path)
+    _set_jira_env(monkeypatch)
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("hrs_ai.core.jira.urllib.request.urlopen", lambda request, timeout: _JiraPostResponse())
+
+    assert main(["jira-comment", "HR-12345", "--execute"]) == 0
+    status = json.loads((issue_dir / "workflow_status.json").read_text(encoding="utf-8"))
+    log_text = (issue_dir / "execution.log").read_text(encoding="utf-8")
+
+    assert status["steps"]["jira_comment"] == "pass"
+    assert ".ai/HR-12345/jira_comment_post_result.json" in status["generated_files"]
+    assert ".ai/HR-12345/jira_comment_post_summary.md" in status["generated_files"]
+    assert "[START] jira_comment execute" in log_text
+    assert "[GENERATED] .ai/HR-12345/jira_comment_post_result.json" in log_text
+    assert "[END] jira_comment: pass" in log_text

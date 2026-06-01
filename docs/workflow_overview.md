@@ -34,6 +34,9 @@ review-package
 jira-comment-draft
   |
   v
+jira-comment preview / optional --execute comment
+  |
+  v
 delivery-check / commit-plan / push-plan
 ```
 
@@ -71,6 +74,9 @@ After Copilot completes the work, it should write `bug_analysis.md`, `fix_summar
 
 ### Jira Comment Draft
 `jira-comment-draft` creates a local markdown draft for a Jira update from existing hrs-ai artifacts. It is reviewable text only and does not post to Jira.
+
+### Jira Comment
+`jira-comment` previews the local draft by default. `jira-comment --execute` posts exactly one Jira comment when Jira credentials are configured; it does not update Jira fields, transition status, assign the issue, upload or download attachments, call Copilot, or run git commands.
 
 ### Delivery Planning
 `delivery-check`, `commit-plan`, and `push-plan` help prepare manual delivery. They do not commit, push, merge, or create PRs.

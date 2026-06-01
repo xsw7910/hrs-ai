@@ -10,7 +10,7 @@ from pathlib import Path
 from hrs_ai.core import copilot, doctor, workflow
 from hrs_ai.core.cleanup import clean_issue_artifacts
 from hrs_ai.core.context import build_context
-from hrs_ai.core.jira import JiraFetchError, fetch_issue, parse_issue
+from hrs_ai.core.jira import JiraCommentPostError, JiraFetchError, fetch_issue, parse_issue
 from hrs_ai.core.keywords import extract_keywords
 from hrs_ai.core.memory import add_memory_entry, search_memory
 from hrs_ai.core.prompts import generate_prompts
@@ -39,6 +39,10 @@ def build_parser() -> argparse.ArgumentParser:
     jira_comment_parser = subparsers.add_parser("jira-comment-draft", help="Generate a local Jira comment draft from existing hrs-ai artifacts.")
     jira_comment_parser.add_argument("issue_key")
     jira_comment_parser.add_argument("--strict", action="store_true", help="Fail if Copilot result artifacts are missing.")
+
+    jira_post_parser = subparsers.add_parser("jira-comment", help="Preview or explicitly post a Jira comment draft.")
+    jira_post_parser.add_argument("issue_key")
+    jira_post_parser.add_argument("--execute", action="store_true", help="Post the local Jira comment draft to Jira.")
 
     clean_parser = subparsers.add_parser("clean", help="Remove generated workflow artifacts for an issue.")
     clean_parser.add_argument("issue_key")
@@ -138,6 +142,32 @@ def main(argv: list[str] | None = None) -> int:
             print(f"ERROR: {exc}", file=sys.stderr)
             return 1
         print(f"Generated Jira comment draft: {path}")
+        return 0
+
+    if args.command == "jira-comment":
+        try:
+            result = workflow.jira_comment_step(repo_root, args.issue_key, execute=args.execute)
+        except FileNotFoundError as exc:
+            print(str(exc), file=sys.stderr)
+            return 1
+        except JiraCommentPostError as exc:
+            print(f"ERROR: {exc.message}", file=sys.stderr)
+            return 1
+        except ValueError as exc:
+            print(f"ERROR: {exc}", file=sys.stderr)
+            return 1
+        if args.execute:
+            print(f"Posted Jira comment for {args.issue_key}.")
+            print(f"Comment ID: {result.get('comment_id') or '(not returned)'}")
+            print(f"Generated: .ai/{args.issue_key}/jira_comment_post_result.json")
+            print(f"Generated: .ai/{args.issue_key}/jira_comment_post_summary.md")
+        else:
+            print(f"Preview Jira comment for {args.issue_key}.")
+            print(f"Draft: .ai/{args.issue_key}/jira_comment_draft.md")
+            print(f"Length: {result.get('length', 0)} characters")
+            print("No Jira comment was posted. Use --execute to post exactly one Jira comment.")
+            print()
+            print(str(result.get("preview", "")))
         return 0
 
     if args.command == "fetch":

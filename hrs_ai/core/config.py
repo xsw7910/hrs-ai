@@ -28,6 +28,7 @@ WORKFLOW_STEPS = [
     "commit_plan",
     "push_plan",
     "jira_comment_draft",
+    "jira_comment",
 ]
 
 

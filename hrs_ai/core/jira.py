@@ -35,10 +35,28 @@ class JiraFetchResult:
     data: dict
 
 
+@dataclass
+class JiraCommentPostResult:
+    issue_key: str
+    posted: bool
+    comment_id: str
+    created: str
+    updated: str
+    self_url: str
+    timestamp: str
+
+
 class JiraFetchError(Exception):
     def __init__(self, result: JiraFetchResult):
         super().__init__(result.error_message or "Unexpected Jira error.")
         self.result = result
+
+
+class JiraCommentPostError(Exception):
+    def __init__(self, error_type: str, message: str):
+        super().__init__(message)
+        self.error_type = error_type
+        self.message = message
 
 
 ERROR_MESSAGES = {
@@ -55,6 +73,7 @@ ERROR_MESSAGES = {
 
 COMMENT_RENDER_LIMIT = 10
 COMMENT_SIGNAL_TERMS = ["crash", "error", "exception", "stack trace", "repro", "regression", "screenshot", "log"]
+MAX_JIRA_COMMENT_LENGTH = 12000
 
 
 def fetch_issue(repo_root: Path, issue_key: str, allow_mock: bool = True) -> JiraFetchResult:
@@ -112,6 +131,81 @@ def fetch_issue(repo_root: Path, issue_key: str, allow_mock: bool = True) -> Jir
     except Exception:
         failure = _failure(issue_key, "unknown_error")
         return _fallback_or_raise(failure, allow_mock)
+
+
+def post_jira_comment(repo_root: Path, issue_key: str, comment_text: str) -> JiraCommentPostResult:
+    config = load_config(repo_root)
+    if not config.has_jira_credentials:
+        raise JiraCommentPostError("missing_env", ERROR_MESSAGES["missing_env"])
+
+    prepared = prepare_jira_comment_text(comment_text)
+    if not prepared:
+        raise JiraCommentPostError("empty_comment", "Jira comment draft is empty.")
+
+    url = f"{config.jira_base_url.rstrip('/')}/rest/api/3/issue/{issue_key}/comment"
+    token = base64.b64encode(f"{config.jira_email}:{config.jira_token}".encode()).decode()
+    body = json.dumps({"body": _plain_text_adf(prepared)}).encode("utf-8")
+    request = urllib.request.Request(
+        url,
+        data=body,
+        headers={
+            "Authorization": f"Basic {token}",
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+            "User-Agent": "hrs-ai-prototype/0.1",
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=30) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        error_type = _http_error_type(exc.code)
+        raise JiraCommentPostError(error_type, ERROR_MESSAGES.get(error_type, ERROR_MESSAGES["unknown_error"])) from exc
+    except TimeoutError as exc:
+        raise JiraCommentPostError("timeout", ERROR_MESSAGES["timeout"]) from exc
+    except socket.timeout as exc:
+        raise JiraCommentPostError("timeout", ERROR_MESSAGES["timeout"]) from exc
+    except urllib.error.URLError as exc:
+        if isinstance(exc.reason, (TimeoutError, socket.timeout)):
+            raise JiraCommentPostError("timeout", ERROR_MESSAGES["timeout"]) from exc
+        raise JiraCommentPostError("network_error", ERROR_MESSAGES["network_error"]) from exc
+    except json.JSONDecodeError as exc:
+        raise JiraCommentPostError("invalid_response", ERROR_MESSAGES["invalid_response"]) from exc
+
+    if not isinstance(payload, dict):
+        raise JiraCommentPostError("invalid_response", ERROR_MESSAGES["invalid_response"])
+    return JiraCommentPostResult(
+        issue_key=issue_key,
+        posted=True,
+        comment_id=str(payload.get("id", "") or ""),
+        created=str(payload.get("created", "") or ""),
+        updated=str(payload.get("updated", "") or ""),
+        self_url=_safe_url(payload.get("self")),
+        timestamp=datetime.now(timezone.utc).isoformat(),
+    )
+
+
+def prepare_jira_comment_text(comment_text: str) -> str:
+    text = sanitize_comment_text(str(comment_text)).strip()
+    if len(text) > MAX_JIRA_COMMENT_LENGTH:
+        return text[:MAX_JIRA_COMMENT_LENGTH].rstrip() + "\n\n[truncated by hrs-ai]"
+    return text
+
+
+def _plain_text_adf(text: str) -> dict:
+    paragraphs = []
+    for paragraph in text.splitlines():
+        if paragraph.strip():
+            paragraphs.append(
+                {
+                    "type": "paragraph",
+                    "content": [{"type": "text", "text": paragraph}],
+                }
+            )
+    if not paragraphs:
+        paragraphs.append({"type": "paragraph", "content": [{"type": "text", "text": text}]})
+    return {"type": "doc", "version": 1, "content": paragraphs}
 
 
 def parse_issue(issue: dict) -> dict[str, object]:

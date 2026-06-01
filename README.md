@@ -77,6 +77,7 @@ hrs-ai summarize-results HR-12345
 hrs-ai memory update HR-12345
 hrs-ai review-package HR-12345
 hrs-ai jira-comment-draft HR-12345
+hrs-ai jira-comment HR-12345
 hrs-ai delivery-check HR-12345
 hrs-ai commit-plan HR-12345
 hrs-ai push-plan HR-12345
@@ -105,6 +106,8 @@ hrs-ai push-plan HR-12345
 - `hrs-ai review-package <ISSUE>`: generate final review prompt.
 - `hrs-ai jira-comment-draft <ISSUE>`: generate a local, reviewable Jira comment draft from existing hrs-ai artifacts.
 - `hrs-ai jira-comment-draft <ISSUE> --strict`: require Copilot result files before generating the local draft.
+- `hrs-ai jira-comment <ISSUE>`: preview the local Jira comment draft without posting to Jira.
+- `hrs-ai jira-comment <ISSUE> --execute`: post exactly one Jira comment from the local draft.
 - `hrs-ai delivery-check <ISSUE>`: check readiness for manual delivery.
 - `hrs-ai commit-plan <ISSUE>`: generate a manual commit plan.
 - `hrs-ai push-plan <ISSUE>`: generate a manual push plan.
@@ -133,6 +136,7 @@ hrs-ai jira-validate REAL-ISSUE
 - hrs-ai does not update Jira.
 - Jira integration is read-only; hrs-ai converts fetched Jira content to Markdown but does not comment, assign, close, or transition Jira issues.
 - `jira-comment-draft` writes a local markdown draft only; it does not post comments to Jira.
+- `jira-comment` previews by default; `jira-comment --execute` only adds a Jira comment and does not change status, fields, assignee, attachments, source code, git state, or PRs.
 - hrs-ai does not create pull requests.
 - hrs-ai does not merge.
 - hrs-ai does not run `git add`, `git commit`, or `git push`.

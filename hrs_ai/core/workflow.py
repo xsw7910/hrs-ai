@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -12,7 +13,7 @@ from .config import WORKFLOW_STEPS, issue_dir
 from .context import build_context
 from .doctor import collect_doctor_report
 from .git_ops import current_branch, generate_git_context, inside_git_repo, run_command, working_tree_status
-from .jira import JiraFetchError, JiraFetchResult, enrich_issue, fetch_issue, jira_field_report_markdown, jira_summary_markdown, parse_issue, parsed_markdown, sanitize_comment_text
+from .jira import JiraCommentPostError, JiraCommentPostResult, JiraFetchError, JiraFetchResult, enrich_issue, fetch_issue, jira_field_report_markdown, jira_summary_markdown, parse_issue, parsed_markdown, post_jira_comment, prepare_jira_comment_text, sanitize_comment_text
 from .keywords import extract_keywords, keywords_json
 from .logging_utils import log
 from .memory import ISSUE_KEY_RE, add_memory_entry, build_memory_entry, search_memory
@@ -536,6 +537,53 @@ def jira_comment_draft_step(repo_root: Path, issue_key: str, strict: bool = Fals
     return path
 
 
+def jira_comment_step(repo_root: Path, issue_key: str, execute: bool = False) -> dict[str, object]:
+    target = issue_dir(repo_root, issue_key)
+    if not target.exists():
+        raise FileNotFoundError(f"No workflow package found for {issue_key}. Run: hrs-ai bug {issue_key}")
+    draft_path = target / "jira_comment_draft.md"
+    if not draft_path.exists():
+        raise FileNotFoundError(f"Missing .ai/{issue_key}/jira_comment_draft.md. Run: hrs-ai jira-comment-draft {issue_key}")
+
+    mode = "execute" if execute else "preview"
+    log(target, f"[START] jira_comment {mode}")
+    try:
+        comment_text = _prepared_jira_comment_text(draft_path, issue_key)
+        if not execute:
+            _mark_step(repo_root, issue_key, "jira_comment", "skipped")
+            log(target, "[INFO] jira_comment preview only; no Jira POST was made")
+            log(target, "[END] jira_comment: skipped")
+            return {
+                "issue_key": issue_key,
+                "execute": False,
+                "posted": False,
+                "path": draft_path,
+                "preview": _comment_preview(comment_text),
+                "length": len(comment_text),
+            }
+
+        result = post_jira_comment(repo_root, issue_key, comment_text)
+        result_json = _jira_comment_result_json(result)
+        (target / "jira_comment_post_result.json").write_text(json.dumps(result_json, indent=2) + "\n", encoding="utf-8")
+        (target / "jira_comment_post_summary.md").write_text(_jira_comment_post_summary(result), encoding="utf-8")
+        _mark_step(repo_root, issue_key, "jira_comment", "pass")
+        log(target, f"[GENERATED] .ai/{issue_key}/jira_comment_post_result.json")
+        log(target, f"[GENERATED] .ai/{issue_key}/jira_comment_post_summary.md")
+        log(target, "[END] jira_comment: pass")
+        return {
+            "issue_key": issue_key,
+            "execute": True,
+            "posted": True,
+            "comment_id": result.comment_id,
+            "timestamp": result.timestamp,
+        }
+    except Exception as exc:
+        _mark_step(repo_root, issue_key, "jira_comment", "fail")
+        log(target, f"[ERROR] jira_comment: {exc}")
+        log(target, "[END] jira_comment: fail")
+        raise
+
+
 def _prepare_issue_dir(repo_root: Path, issue_key: str) -> Path:
     target = issue_dir(repo_root, issue_key)
     target.mkdir(parents=True, exist_ok=True)
@@ -580,6 +628,56 @@ def _build_jira_comment_draft(repo_root: Path, issue_key: str, missing_results: 
         "This comment was generated from local hrs-ai artifacts and should be reviewed by a developer before posting to Jira.\n"
     )
     return _cap_text(sanitize_comment_text(draft), 12000)
+
+
+def _prepared_jira_comment_text(draft_path: Path, issue_key: str) -> str:
+    raw = draft_path.read_text(encoding="utf-8", errors="replace")
+    _validate_comment_issue_key(raw, issue_key)
+    prepared = prepare_jira_comment_text(raw)
+    if not prepared:
+        raise ValueError("Jira comment draft is empty.")
+    return prepared
+
+
+def _validate_comment_issue_key(comment_text: str, issue_key: str) -> None:
+    match = re.search(r"(?im)^Issue:\s*(\S+)\s*$", comment_text)
+    if match and match.group(1) != issue_key:
+        raise ValueError(f"Jira comment draft issue key mismatch: found {match.group(1)}, expected {issue_key}.")
+
+
+def _comment_preview(comment_text: str, limit: int = 800) -> str:
+    compact = comment_text.strip()
+    if len(compact) <= limit:
+        return compact
+    return compact[:limit].rstrip() + "\n\n[preview truncated by hrs-ai]"
+
+
+def _jira_comment_result_json(result: JiraCommentPostResult) -> dict[str, object]:
+    return {
+        "issue_key": result.issue_key,
+        "posted": result.posted,
+        "comment_id": result.comment_id,
+        "created": result.created,
+        "updated": result.updated,
+        "self": result.self_url,
+        "timestamp": result.timestamp,
+    }
+
+
+def _jira_comment_post_summary(result: JiraCommentPostResult) -> str:
+    return (
+        "# Jira Comment Post Summary\n\n"
+        "## Issue\n\n"
+        f"{result.issue_key}\n\n"
+        "## Posted\n\n"
+        f"{'yes' if result.posted else 'no'}\n\n"
+        "## Comment ID\n\n"
+        f"{result.comment_id or 'Not returned.'}\n\n"
+        "## Timestamp\n\n"
+        f"{result.timestamp}\n\n"
+        "## Safety Note\n\n"
+        "Only a Jira comment was added. hrs-ai did not update Jira fields, transition status, assign the issue, upload attachments, download attachments, modify source code, commit, push, merge, create a PR, or invoke Copilot.\n"
+    )
 
 
 def _draft_status(target: Path, missing_results: list[str]) -> str:
