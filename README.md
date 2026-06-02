@@ -122,13 +122,17 @@ hrs-ai push-plan HR-12345
 - `hrs-ai bug <ISSUE> --no-mock`: require real Jira data and stop if Jira fetch fails. This is the default.
 - `hrs-ai jira-validate <ISSUE>`: validate Jira field mapping for a real issue (no code search, no Copilot task). Generates `jira_summary.md`, `jira_parsed.md`, and `jira_field_report.md`.
 
-## Recommended Real Jira Workflow
+## Recommended Real Workflow
 ```powershell
-hrs-ai bug REAL-ISSUE
-hrs-ai jira-validate REAL-ISSUE
+hrs-ai doctor
+hrs-ai jira-validate HR-26307
+hrs-ai bug HR-26307
+hrs-ai jira-comment-draft HR-26307
+hrs-ai jira-comment HR-26307
+hrs-ai jira-comment HR-26307 --execute
 ```
 
-`hrs-ai bug REAL-ISSUE` defaults to a fresh run, preserves memory, requires real Jira, and does not use mock fallback. Use `--resume` to preserve old `.ai/<issue>/` artifacts, and use `--allow-mock` only for demo/testing fallback.
+Run these from the target product repo root. Real Jira is the default, and mock fallback requires `--allow-mock`. `hrs-ai bug <ISSUE>` is fresh by default; use `--resume` only when continuing existing artifacts. `hrs-ai jira-comment <ISSUE>` previews without writing Jira, and `--execute` is required for Jira comment write-back.
 
 ## Safety Rules
 - hrs-ai does not automatically modify product source code.

@@ -27,6 +27,15 @@ hrs-ai is designed as a prepare-only and planning tool. The developer remains in
 - `--allow-mock` explicitly enables mock/demo fallback for demos and testing.
 - `--no-mock` is accepted for compatibility and matches the default real Jira-only behavior.
 
+## Final Safety Summary
+
+- Only `hrs-ai jira-comment <ISSUE> --execute` writes to Jira.
+- That command only adds one Jira comment from the reviewed local draft.
+- No other hrs-ai command writes Jira.
+- No command transitions Jira issues, assigns issues, updates fields, uploads attachments, or downloads attachments.
+- No command automatically invokes Copilot.
+- No command runs `git add`, `git commit`, `git push`, merge, or PR creation.
+
 ## Generated Artifact Scope
 hrs-ai writes generated workflow files to:
 

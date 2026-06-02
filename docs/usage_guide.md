@@ -2,6 +2,19 @@
 
 Run commands from the target repository root. Generated files are written under `.ai/<issue>/` and `.ai_memory/bugs/`.
 
+## Recommended Real Workflow
+
+```powershell
+hrs-ai doctor
+hrs-ai jira-validate HR-26307
+hrs-ai bug HR-26307
+hrs-ai jira-comment-draft HR-26307
+hrs-ai jira-comment HR-26307
+hrs-ai jira-comment HR-26307 --execute
+```
+
+Real Jira is the default for `fetch` and `bug`. Mock/demo fallback is disabled unless `--allow-mock` is explicitly provided. `hrs-ai bug <ISSUE>` runs fresh by default; use `--resume` only when you intentionally want to preserve existing `.ai/<issue>/` artifacts. `jira-comment` previews by default and writes Jira only with `--execute`.
+
 ## Command Reference
 
 ### `hrs-ai doctor`

@@ -4,7 +4,13 @@
 Jira Issue
   |
   v
-hrs-ai fetch / parse / keywords
+hrs-ai jira-validate
+  |
+  v
+hrs-ai bug
+  |
+  v
+fetch / parse / keywords
   |
   v
 Code Search + Memory Search + Git Context
@@ -22,7 +28,7 @@ Copilot CLI manual handoff
 bug_analysis.md / fix_summary.md / test_result.md / diff_summary.md / review_notes.md
   |
   v
-summarize-results
+check-results / summarize-results
   |
   v
 memory update
@@ -34,7 +40,10 @@ review-package
 jira-comment-draft
   |
   v
-jira-comment preview / optional --execute comment
+jira-comment preview
+  |
+  v
+jira-comment --execute
   |
   v
 delivery-check / commit-plan / push-plan
@@ -44,6 +53,12 @@ delivery-check / commit-plan / push-plan
 
 ### Jira Issue
 The workflow starts from a Jira issue key such as `HR-12345`. The default workflow requires real Jira and does not fall back to mock data. If Jira is not configured or fetch fails, the command stops clearly. Use `--allow-mock` only for demo/testing fallback with clearly marked mock/demo data.
+
+### Jira Validate
+`jira-validate` checks real Jira field mapping before the full workflow. It does not run code search, generate Copilot tasks, or write Jira.
+
+### Bug Workflow
+`bug` runs the main fresh prepare workflow by default. It fetches real Jira, parses context, searches code and memory, builds the Copilot package, and writes generated artifacts under `.ai/<issue>/`.
 
 ### Fetch, Parse, Keywords
 hrs-ai collects Jira content, converts Jira Cloud ADF descriptions/comments into readable Markdown, writes summary files, and extracts high-value and normal keywords for search. Jira integration remains read-only. The recommended real Jira path is `hrs-ai bug REAL-ISSUE`; the equivalent explicit form is `hrs-ai bug REAL-ISSUE --fresh --no-mock`. Use `hrs-ai jira-validate REAL-ISSUE` to validate Jira field mapping before running the full workflow; it writes `jira_summary.md`, `jira_parsed.md`, and `jira_field_report.md` without running code search or generating Copilot tasks.
@@ -63,8 +78,8 @@ The developer runs Copilot CLI manually from the target repo root. hrs-ai does n
 ### Result Files
 After Copilot completes the work, it should write `bug_analysis.md`, `fix_summary.md`, `test_result.md`, `diff_summary.md`, and `review_notes.md` under `.ai/<issue>/`.
 
-### Summarize Results
-`summarize-results` creates `result_summary.md` and `manual_validation.md` from the Copilot result files.
+### Check And Summarize Results
+`check-results` verifies the expected Copilot result files. `summarize-results` creates `result_summary.md` and `manual_validation.md` from those files.
 
 ### Memory Update
 `memory update` records the final result in `.ai_memory/bugs/<issue>.md` so future similar issues can reuse the investigation.
