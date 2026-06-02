@@ -11,6 +11,7 @@ from pathlib import Path
 from .cleanup import clean_issue_artifacts, validate_issue_key
 from .config import WORKFLOW_STEPS, issue_dir
 from .context import build_context
+from .delivery_instructions import delivery_instructions_block
 from .doctor import collect_doctor_report
 from .git_ops import current_branch, generate_git_context, inside_git_repo, run_command, working_tree_status
 from .jira import JiraCommentPostError, JiraCommentPostResult, JiraFetchError, JiraFetchResult, enrich_issue, fetch_issue, jira_field_report_markdown, jira_summary_markdown, parse_issue, parsed_markdown, post_jira_comment, prepare_jira_comment_text, sanitize_comment_text
@@ -700,8 +701,7 @@ def _user_feedback_template(issue_key: str) -> str:
         "## Required Next Attempt\n\n"
         "- ...\n\n"
         "## Do Not Do\n\n"
-        "- Do not commit.\n"
-        "- Do not push.\n"
+        "- Do not commit or push unless the developer explicitly approves after a delivery summary.\n"
         "- Do not update Jira.\n"
         "- Do not make broad unrelated refactors.\n"
         "- Do not claim tests passed unless they were run.\n"
@@ -745,11 +745,11 @@ def _build_retry_prompt(repo_root: Path, issue_key: str) -> str:
         "- If the previous change is wrong, explain whether to revert or adjust it.\n"
         "- Do not make broad refactors.\n"
         "- Do not modify unrelated files.\n"
-        "- Do not commit.\n"
-        "- Do not push.\n"
+        "- Do not commit or push automatically.\n"
         "- Do not update Jira.\n"
         "- Do not claim tests passed unless they were run.\n"
         "- Update the required result files.\n\n"
+        f"{delivery_instructions_block(issue_key, intro='After completing the retry and updating required result files')}"
         "## Required Output Files\n\n"
         f"- .ai/{issue_key}/bug_analysis.md\n"
         f"- .ai/{issue_key}/fix_summary.md\n"

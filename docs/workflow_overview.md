@@ -77,7 +77,7 @@ The tool searches source files with ripgrep, ranks related files, assesses searc
 `copilot_task.md` gives Copilot CLI strict instructions, required inputs, search-confidence cautions, safety rules, and expected output files. `copilot_team_instructions.md` gives stable team rules for legacy C++/Qt work. `copilot_handoff.md` is the short instruction a developer can paste into Copilot CLI.
 
 ### Copilot CLI Manual Handoff
-The developer runs Copilot CLI manually from the target repo root. hrs-ai does not invoke Copilot automatically.
+The developer runs Copilot CLI manually from the target repo root. hrs-ai does not invoke Copilot automatically. Generated Copilot instructions can optionally ask the developer whether to commit and push after the result files and delivery summary are complete; Copilot may do so only after explicit approval and must never push main/master, force push, commit `.ai/` or `.ai_memory/`, or update Jira.
 
 ### Result Files
 After Copilot completes the work, it should write `bug_analysis.md`, `fix_summary.md`, `test_result.md`, `diff_summary.md`, and `review_notes.md` under `.ai/<issue>/`.
@@ -101,4 +101,4 @@ If the first attempt is incomplete, `retry-prompt` creates `user_feedback.md` wh
 `jira-comment` previews the local draft by default. `jira-comment --execute` posts exactly one Jira comment when Jira credentials are configured; it does not update Jira fields, transition status, assign the issue, upload or download attachments, call Copilot, or run git commands.
 
 ### Delivery Planning
-`delivery-check`, `commit-plan`, and `push-plan` help prepare manual delivery. They do not commit, push, merge, or create PRs.
+`delivery-check`, `commit-plan`, and `push-plan` help prepare manual delivery. hrs-ai itself does not commit, push, merge, or create PRs.

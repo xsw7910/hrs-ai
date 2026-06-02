@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from .delivery_instructions import delivery_instructions_block
 from .git_ops import branch_name
 
 
@@ -100,17 +101,22 @@ def _copilot_task(issue_key: str, branch: str) -> str:
         f"- `.ai/{issue_key}/test_result.md`\n"
         f"- `.ai/{issue_key}/diff_summary.md`\n"
         f"- `.ai/{issue_key}/review_notes.md`\n\n"
+        f"{delivery_instructions_block(issue_key, branch)}"
         "## Forbidden Actions\n\n"
         "- Do not run `git reset --hard`.\n"
         "- Do not run `git clean -fd`.\n"
         "- Do not delete source files.\n"
-        "- Do not push unless explicitly instructed.\n"
+        "- Do not push main/master.\n"
+        "- Do not force push.\n"
+        "- Do not use `--force` or `--force-with-lease`.\n"
         "- Do not merge.\n"
         "- Do not update Jira.\n"
+        "- Do not transition Jira.\n"
+        "- Do not assign Jira.\n"
+        "- Do not change Jira fields.\n"
         "- Do not create PRs.\n"
         "- Do not mass-format unrelated files.\n"
     )
-
 
 def _copilot_handoff(issue_key: str) -> str:
     return (
@@ -123,7 +129,8 @@ def _copilot_handoff(issue_key: str) -> str:
         "- Run Copilot CLI from the target repo root.\n"
         "- Do not run from the hrs-ai tool repo.\n"
         "- Do not work directly on main/master.\n"
-        "- Do not push or merge.\n"
+        "- Do not commit or push unless the developer explicitly approves after a delivery summary.\n"
+        "- Never push main/master, force push, merge, update Jira, or commit `.ai/` or `.ai_memory/`.\n"
         f"- Generate the required result files under `.ai/{issue_key}/`.\n"
     )
 
@@ -226,7 +233,14 @@ This document gives Copilot CLI stable team rules for working in a legacy C++/Qt
 - Do not run git clean -fd.
 - Do not delete files.
 - Do not merge.
-- Do not push unless explicitly instructed.
+- Do not commit or push automatically.
+- You may ask the developer whether they want you to commit and push after completing the workflow.
+- Only commit and push after explicit approval.
+- Never push main/master.
+- Never force push.
+- Never commit .ai/ or .ai_memory/.
+- Never update Jira.
+- Developer approval is required for any git commit or git push.
 - Always summarize changed files.
 
 ## Output Expectations

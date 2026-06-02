@@ -73,6 +73,14 @@ Copilot should generate:
 .ai/HR-26307/review_notes.md
 ```
 
+After completing the workflow, Copilot may show a delivery summary and ask:
+
+```text
+Do you want me to commit and push this branch to origin?
+```
+
+Only approve this if the branch is safe to deliver. Copilot must not push `main` or `master`, must not force push, must not commit `.ai/` or `.ai_memory/`, and must not update Jira.
+
 ## Step 7: Result Processing
 
 If Copilot needs another attempt, add feedback and generate a retry prompt:

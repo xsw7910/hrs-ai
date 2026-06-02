@@ -147,6 +147,8 @@ Run these from the target product repo root. Real Jira is the default, and mock 
 - `jira-comment-draft` writes a local markdown draft only; it does not post comments to Jira.
 - `jira-comment` previews by default; `jira-comment --execute` only adds a Jira comment and does not change status, fields, assignee, attachments, source code, git state, or PRs.
 - `retry-prompt` and `manual-result` generate local artifacts only; they do not call Copilot or Jira.
+- Generated Copilot instructions may ask whether you want Copilot to commit and push after completing the workflow, but commit/push is never automatic and requires explicit approval inside Copilot CLI.
+- Copilot must not push main/master, force push, commit `.ai/` or `.ai_memory/`, or update Jira.
 - hrs-ai does not create pull requests.
 - hrs-ai does not merge.
 - hrs-ai does not run `git add`, `git commit`, or `git push`.

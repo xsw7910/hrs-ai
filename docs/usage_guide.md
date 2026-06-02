@@ -147,6 +147,8 @@ Modifies source code: No.
 
 This does not fetch Jira, rerun code search, or modify product source. It copies the reusable `docs/copilot_team_instructions.md` template, or uses a built-in fallback if the docs file is unavailable.
 
+Generated Copilot task and retry prompts may ask the developer whether Copilot should commit and push after completing the workflow. This is optional assisted delivery only: Copilot must show a delivery summary first, then commit and push only after explicit approval. It must not push main/master, force push, commit `.ai/` or `.ai_memory/`, or update Jira.
+
 ### `hrs-ai check-results <ISSUE>`
 Purpose: Check whether Copilot result files exist.
 Generated files: None.

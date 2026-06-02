@@ -1216,7 +1216,7 @@ feature/HR-12345-<summary-slug>
 - Keep the fix minimal and targeted.
 - After editing, show git diff summary.
 - Do not merge.
-- Do not push unless explicitly instructed.
+- Do not commit or push automatically; only commit and push after explicit developer approval.
 
 ## Forbidden Actions
 
@@ -2064,4 +2064,5 @@ feature/HR-12345-<summary-slug>
 ```
 
 `--copilot-fix` remains experimental until Copilot CLI automatic invocation is validated in the company environment.
+
 

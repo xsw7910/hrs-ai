@@ -190,7 +190,12 @@ def test_copilot_task_references_code_search(tmp_path):
     assert ".ai/HR-12345/review_notes.md" in task
     assert "git reset --hard" in task
     assert "git clean -fd" in task
-    assert "Do not push unless explicitly instructed" in task
+    assert "Do you want me to commit and push this branch to origin?" in task
+    assert "Only if the developer explicitly answers yes" in task
+    assert "Do not push main/master" in task
+    assert "Do not force push" in task
+    assert "Do not add `.ai/`" in task
+    assert "Do not add `.ai_memory/`" in task
     assert "Do not update Jira" in task
 
 
@@ -611,7 +616,8 @@ def test_copilot_handoff_is_generated(tmp_path):
     assert ".ai/HR-12345/copilot_team_instructions.md" in handoff
     assert "Run Copilot CLI from the target repo root" in handoff
     assert "Do not work directly on main/master" in handoff
-    assert "Do not push or merge" in handoff
+    assert "Do not commit or push unless the developer explicitly approves" in handoff
+    assert "Never push main/master" in handoff
 
 
 def test_docs_copilot_team_instructions_exists():
@@ -631,6 +637,11 @@ def test_docs_copilot_team_instructions_exists():
         "## No-Op Fix Guidance",
     ]:
         assert heading in text
+    assert "Do not commit or push automatically" in text
+    assert "Only commit and push after explicit approval" in text
+    assert "Never push main/master" in text
+    assert "Never force push" in text
+    assert "Never commit .ai/ or .ai_memory/" in text
 
 
 def test_copilot_task_command_regenerates_task_files(tmp_path, monkeypatch):
@@ -2808,6 +2819,22 @@ def test_retry_prompt_includes_developer_feedback(tmp_path, monkeypatch):
     prompt = (issue_dir / "copilot_retry_prompt.md").read_text(encoding="utf-8")
 
     assert "The retry must inspect EmployeeSearchModel." in prompt
+
+
+def test_retry_prompt_includes_assisted_delivery_rules(tmp_path, monkeypatch):
+    issue_dir = _write_retry_package(tmp_path)
+    monkeypatch.chdir(tmp_path)
+
+    assert main(["retry-prompt", "HR-12345"]) == 0
+    prompt = (issue_dir / "copilot_retry_prompt.md").read_text(encoding="utf-8")
+
+    assert "Do you want me to commit and push this branch to origin?" in prompt
+    assert "Only if the developer explicitly answers yes" in prompt
+    assert "Do not push main/master" in prompt
+    assert "Do not force push" in prompt
+    assert "Do not add `.ai/`" in prompt
+    assert "Do not add `.ai_memory/`" in prompt
+    assert "Do not update Jira" in prompt
 
 
 def test_retry_prompt_lists_present_and_missing_previous_attempt_files(tmp_path, monkeypatch):

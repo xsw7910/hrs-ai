@@ -60,7 +60,14 @@ This document gives Copilot CLI stable team rules for working in a legacy C++/Qt
 - Do not run git clean -fd.
 - Do not delete files.
 - Do not merge.
-- Do not push unless explicitly instructed.
+- Do not commit or push automatically.
+- You may ask the developer whether they want you to commit and push after completing the workflow.
+- Only commit and push after explicit approval.
+- Never push main/master.
+- Never force push.
+- Never commit .ai/ or .ai_memory/.
+- Never update Jira.
+- Developer approval is required for any git commit or git push.
 - Always summarize changed files.
 
 ## Output Expectations

@@ -13,6 +13,8 @@ hrs-ai is designed as a prepare-only and planning tool. The developer remains in
 - `retry-prompt` and `manual-result` generate local markdown artifacts only.
 - `retry-prompt` does not call Copilot; the developer runs Copilot manually.
 - `manual-result` does not inspect or modify product source code.
+- Generated Copilot instructions may offer optional assisted delivery, but Copilot must ask for explicit approval before any commit or push.
+- Copilot must never push main/master, force push, commit `.ai/` or `.ai_memory/`, or update Jira.
 - hrs-ai does not download Jira attachments; it records attachment metadata only.
 - hrs-ai does not create pull requests.
 - hrs-ai does not merge.
@@ -37,7 +39,7 @@ hrs-ai is designed as a prepare-only and planning tool. The developer remains in
 - No other hrs-ai command writes Jira.
 - No command transitions Jira issues, assigns issues, updates fields, uploads attachments, or downloads attachments.
 - No command automatically invokes Copilot.
-- No command runs `git add`, `git commit`, `git push`, merge, or PR creation.
+- hrs-ai does not run `git add`, `git commit`, `git push`, merge, or PR creation.
 
 ## Generated Artifact Scope
 hrs-ai writes generated workflow files to:
