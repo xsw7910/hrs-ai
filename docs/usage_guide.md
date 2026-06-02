@@ -205,6 +205,30 @@ Modifies source code: No.
 
 Requires `JIRA_BASE_URL`, `JIRA_EMAIL`, and `JIRA_TOKEN`. Before posting, hrs-ai sanitizes and length-caps the draft again. This command does not update Jira fields, transition status, assign the issue, upload or download attachments, call Copilot, create PRs, or run git commit/push/merge.
 
+### `hrs-ai retry-prompt <ISSUE>`
+Purpose: Generate a focused second-attempt Copilot prompt using local artifacts and developer feedback.
+Generated files: `.ai/<issue>/copilot_retry_prompt.md`; creates `.ai/<issue>/user_feedback.md` if missing.
+Read-only: Writes generated artifacts/status only.
+Modifies source code: No.
+
+This does not fetch Jira, post Jira comments, run code search, call Copilot, or modify source code. Edit `user_feedback.md` with what failed, then run `retry-prompt` again to include that feedback in `copilot_retry_prompt.md`.
+
+### `hrs-ai manual-result <ISSUE>`
+Purpose: Create developer manual-fix result templates.
+Generated files: missing Copilot result files under `.ai/<issue>/`.
+Read-only: Writes generated artifacts/status only.
+Modifies source code: No.
+
+Creates missing `bug_analysis.md`, `fix_summary.md`, `test_result.md`, `diff_summary.md`, and `review_notes.md` templates with `Fix Source: Developer manual fix`. Existing files are preserved.
+
+### `hrs-ai manual-result <ISSUE> --overwrite`
+Purpose: Replace result files with fresh developer manual-fix templates.
+Generated files: result templates under `.ai/<issue>/`.
+Read-only: Writes generated artifacts/status only.
+Modifies source code: No.
+
+Use this only when you intentionally want to discard existing result artifact text.
+
 ### `hrs-ai delivery-check <ISSUE>`
 Purpose: Check whether the issue package looks ready for manual delivery.
 Generated files: Updates workflow status and execution log when present.

@@ -26,6 +26,13 @@ Use this checklist before and after a real end-to-end hrs-ai workflow.
 - [ ] `copilot_team_instructions.md` has been reviewed.
 - [ ] Search confidence is understood.
 
+## C2. Retry Or Manual Fix
+
+- [ ] If retrying Copilot, `user_feedback.md` describes what failed or needs correction.
+- [ ] If retrying Copilot, `copilot_retry_prompt.md` has been generated and reviewed.
+- [ ] If the developer fixed the issue manually, `manual-result` templates have been filled in.
+- [ ] Existing result files were not overwritten unless `--overwrite` was intentional.
+
 ## D. Before `jira-comment --execute`
 
 - [ ] `jira_comment_draft.md` has been reviewed.

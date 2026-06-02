@@ -584,6 +584,64 @@ def jira_comment_step(repo_root: Path, issue_key: str, execute: bool = False) ->
         raise
 
 
+def retry_prompt_step(repo_root: Path, issue_key: str) -> dict[str, Path]:
+    target = issue_dir(repo_root, issue_key)
+    if not target.exists():
+        raise FileNotFoundError(f"No workflow package found for {issue_key}. Run: hrs-ai bug {issue_key}")
+    log(target, "[START] retry_prompt")
+    try:
+        feedback_path = target / "user_feedback.md"
+        created_feedback = False
+        if not feedback_path.exists():
+            feedback_path.write_text(_user_feedback_template(issue_key), encoding="utf-8")
+            created_feedback = True
+            log(target, f"[GENERATED] .ai/{issue_key}/user_feedback.md")
+        prompt_path = target / "copilot_retry_prompt.md"
+        prompt_path.write_text(_build_retry_prompt(repo_root, issue_key), encoding="utf-8")
+        _mark_step(repo_root, issue_key, "retry_prompt", "pass")
+        log(target, f"[GENERATED] .ai/{issue_key}/copilot_retry_prompt.md")
+        log(target, "[END] retry_prompt: pass")
+        result = {"prompt": prompt_path}
+        if created_feedback:
+            result["user_feedback"] = feedback_path
+        return result
+    except Exception as exc:
+        _mark_step(repo_root, issue_key, "retry_prompt", "fail")
+        log(target, f"[ERROR] retry_prompt: {exc}")
+        log(target, "[END] retry_prompt: fail")
+        raise
+
+
+def manual_result_step(repo_root: Path, issue_key: str, overwrite: bool = False) -> dict[str, list[str]]:
+    target = issue_dir(repo_root, issue_key)
+    if not target.exists():
+        raise FileNotFoundError(f"No workflow package found for {issue_key}. Run: hrs-ai bug {issue_key}")
+    log(target, "[START] manual_result")
+    created: list[str] = []
+    preserved: list[str] = []
+    try:
+        for file_name, content in _manual_result_templates(issue_key).items():
+            path = target / file_name
+            rel = f".ai/{issue_key}/{file_name}"
+            if path.exists() and not overwrite:
+                preserved.append(rel)
+                log(target, f"[INFO] manual_result preserved existing file: {rel}")
+                continue
+            if path.exists() and overwrite:
+                log(target, f"[WARN] manual_result overwriting existing file: {rel}")
+            path.write_text(content, encoding="utf-8")
+            created.append(rel)
+            log(target, f"[GENERATED] {rel}")
+        _mark_step(repo_root, issue_key, "manual_result", "pass")
+        log(target, "[END] manual_result: pass")
+        return {"created": created, "preserved": preserved}
+    except Exception as exc:
+        _mark_step(repo_root, issue_key, "manual_result", "fail")
+        log(target, f"[ERROR] manual_result: {exc}")
+        log(target, "[END] manual_result: fail")
+        raise
+
+
 def _prepare_issue_dir(repo_root: Path, issue_key: str) -> Path:
     target = issue_dir(repo_root, issue_key)
     target.mkdir(parents=True, exist_ok=True)
@@ -628,6 +686,148 @@ def _build_jira_comment_draft(repo_root: Path, issue_key: str, missing_results: 
         "This comment was generated from local hrs-ai artifacts and should be reviewed by a developer before posting to Jira.\n"
     )
     return _cap_text(sanitize_comment_text(draft), 12000)
+
+
+def _user_feedback_template(issue_key: str) -> str:
+    return (
+        f"# User Feedback: {issue_key}\n\n"
+        "## Review of Previous Attempt\n\n"
+        "Describe what did not work.\n\n"
+        "## My Observations\n\n"
+        "- ...\n\n"
+        "## Required Next Attempt\n\n"
+        "- ...\n\n"
+        "## Do Not Do\n\n"
+        "- Do not commit.\n"
+        "- Do not push.\n"
+        "- Do not update Jira.\n"
+        "- Do not make broad unrelated refactors.\n"
+        "- Do not claim tests passed unless they were run.\n"
+    )
+
+
+def _build_retry_prompt(repo_root: Path, issue_key: str) -> str:
+    target = issue_dir(repo_root, issue_key)
+    reading_files = [
+        "bug_context.md",
+        "code_search.md",
+        "search_quality.json",
+        "related_files.json",
+        "git_context.md",
+        "review_notes.md",
+        "test_result.md",
+        "diff_summary.md",
+        "user_feedback.md",
+    ]
+    reading = [f"- .ai/{issue_key}/{name}" for name in reading_files if (target / name).exists()]
+    if f"- .ai/{issue_key}/user_feedback.md" not in reading:
+        reading.append(f"- .ai/{issue_key}/user_feedback.md")
+    reading.append("- current git diff")
+    feedback = _cap_text(_read_artifact(target, "user_feedback.md") or "No user feedback file found.", 3000)
+    previous = _previous_attempt_summary(target)
+    return (
+        f"# Copilot Retry Prompt: {issue_key}\n\n"
+        "## Purpose\n\n"
+        "The previous attempt did not fully resolve the issue, or the developer wants a second focused attempt.\n\n"
+        "## Required Reading\n\n"
+        f"{chr(10).join(reading)}\n\n"
+        "## Developer Feedback\n\n"
+        f"{feedback}\n\n"
+        "## Previous Attempt Summary\n\n"
+        f"{previous}\n\n"
+        "## Retry Instructions\n\n"
+        "- First explain why the previous attempt did not fully resolve the issue.\n"
+        "- Re-check the implementation location.\n"
+        "- Use user_feedback.md as the main correction for this retry.\n"
+        "- If current git diff exists, review it before editing.\n"
+        "- If the previous change is wrong, explain whether to revert or adjust it.\n"
+        "- Do not make broad refactors.\n"
+        "- Do not modify unrelated files.\n"
+        "- Do not commit.\n"
+        "- Do not push.\n"
+        "- Do not update Jira.\n"
+        "- Do not claim tests passed unless they were run.\n"
+        "- Update the required result files.\n\n"
+        "## Required Output Files\n\n"
+        f"- .ai/{issue_key}/bug_analysis.md\n"
+        f"- .ai/{issue_key}/fix_summary.md\n"
+        f"- .ai/{issue_key}/test_result.md\n"
+        f"- .ai/{issue_key}/diff_summary.md\n"
+        f"- .ai/{issue_key}/review_notes.md\n\n"
+        "## How to Run\n\n"
+        "Run Copilot manually from the target repo root and paste:\n\n"
+        f"Read .ai/{issue_key}/copilot_retry_prompt.md and continue the workflow.\n"
+    )
+
+
+def _previous_attempt_summary(target: Path) -> str:
+    lines = []
+    for file_name in REQUIRED_COPILOT_RESULT_FILES:
+        text = _read_artifact(target, file_name)
+        if text:
+            lines.append(f"### {file_name}\n\npresent\n\n{_cap_text(text, 800)}")
+        else:
+            lines.append(f"### {file_name}\n\nmissing")
+    return "\n\n".join(lines)
+
+
+def _manual_result_templates(issue_key: str) -> dict[str, str]:
+    return {
+        "bug_analysis.md": (
+            f"# Bug Analysis: {issue_key}\n\n"
+            "## Fix Source\n\n"
+            "Developer manual fix.\n\n"
+            "## Root Cause\n\n"
+            "TODO: Describe the root cause.\n\n"
+            "## Relevant Files\n\n"
+            "- TODO\n\n"
+            "## Notes\n\n"
+            "TODO\n"
+        ),
+        "fix_summary.md": (
+            f"# Fix Summary: {issue_key}\n\n"
+            "## Fix Source\n\n"
+            "Developer manual fix.\n\n"
+            "## Changes Made\n\n"
+            "- TODO\n\n"
+            "## Scope\n\n"
+            "Small targeted fix. No unrelated refactor.\n"
+        ),
+        "test_result.md": (
+            f"# Test Result: {issue_key}\n\n"
+            "## Fix Source\n\n"
+            "Developer manual fix.\n\n"
+            "## Commands Run\n\n"
+            "```text\n"
+            "TODO\n"
+            "```\n\n"
+            "## Result\n\n"
+            "TODO: PASS / FAIL / PARTIAL / NOT RUN\n\n"
+            "## Notes\n\n"
+            "TODO\n\n"
+            "Important: Do not claim tests passed unless they were run.\n"
+        ),
+        "diff_summary.md": (
+            f"# Diff Summary: {issue_key}\n\n"
+            "## Fix Source\n\n"
+            "Developer manual fix.\n\n"
+            "## Changed Files\n\n"
+            "- TODO\n\n"
+            "## Summary\n\n"
+            "- TODO\n\n"
+            "## Risk\n\n"
+            "- TODO\n"
+        ),
+        "review_notes.md": (
+            f"# Review Notes: {issue_key}\n\n"
+            "## Fix Source\n\n"
+            "Developer manual fix.\n\n"
+            "## Review Focus\n\n"
+            "- TODO\n\n"
+            "## Known Limitations\n\n"
+            "- TODO\n"
+        ),
+    }
 
 
 def _prepared_jira_comment_text(draft_path: Path, issue_key: str) -> str:

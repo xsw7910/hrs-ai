@@ -10,6 +10,9 @@ hrs-ai is designed as a prepare-only and planning tool. The developer remains in
 - `jira-comment-draft` generates a local markdown draft only; it does not post to Jira.
 - `jira-comment` previews by default and posts only when `--execute` is explicitly provided.
 - `jira-comment --execute` only adds one Jira comment; it does not update fields, transition status, assign issues, upload attachments, download attachments, call Copilot, or run git commands.
+- `retry-prompt` and `manual-result` generate local markdown artifacts only.
+- `retry-prompt` does not call Copilot; the developer runs Copilot manually.
+- `manual-result` does not inspect or modify product source code.
 - hrs-ai does not download Jira attachments; it records attachment metadata only.
 - hrs-ai does not create pull requests.
 - hrs-ai does not merge.

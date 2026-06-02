@@ -27,6 +27,10 @@ Copilot CLI manual handoff
   v
 bug_analysis.md / fix_summary.md / test_result.md / diff_summary.md / review_notes.md
   |
+  +-- optional retry-prompt + user_feedback.md
+  |
+  +-- optional manual-result templates
+  |
   v
 check-results / summarize-results
   |
@@ -77,6 +81,9 @@ The developer runs Copilot CLI manually from the target repo root. hrs-ai does n
 
 ### Result Files
 After Copilot completes the work, it should write `bug_analysis.md`, `fix_summary.md`, `test_result.md`, `diff_summary.md`, and `review_notes.md` under `.ai/<issue>/`.
+
+### Retry Or Manual Result
+If the first attempt is incomplete, `retry-prompt` creates `user_feedback.md` when needed and generates `copilot_retry_prompt.md` for a manual second Copilot attempt. If the developer fixes the bug manually, `manual-result` creates result templates so the same summary, memory, review, and Jira comment draft workflow can continue.
 
 ### Check And Summarize Results
 `check-results` verifies the expected Copilot result files. `summarize-results` creates `result_summary.md` and `manual_validation.md` from those files.

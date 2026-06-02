@@ -5,7 +5,7 @@ This workflow is for a real Jira-backed trial from the target product repository
 ## Step 1: Run From Target Product Repo Root
 
 ```powershell
-cd C:\sandbox\monorepo_qt6\monorepo
+cd C:\path\to\your\product\repo
 ```
 
 Generated `.ai` and `.ai_memory` files are written relative to this directory.
@@ -74,6 +74,32 @@ Copilot should generate:
 ```
 
 ## Step 7: Result Processing
+
+If Copilot needs another attempt, add feedback and generate a retry prompt:
+
+```powershell
+hrs-ai retry-prompt HR-26307
+```
+
+Edit:
+
+```text
+.ai/HR-26307/user_feedback.md
+```
+
+Then run Copilot manually from the target repo root and paste:
+
+```text
+Read .ai/HR-26307/copilot_retry_prompt.md and continue the workflow.
+```
+
+If the developer fixed the issue manually, generate result templates instead:
+
+```powershell
+hrs-ai manual-result HR-26307
+```
+
+Existing result files are preserved unless `--overwrite` is explicitly used.
 
 ```powershell
 hrs-ai check-results HR-26307

@@ -23,7 +23,7 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers.add_parser("doctor", help="Check local environment readiness.")
     subparsers.add_parser("copilot-check", help="Check Copilot CLI readiness.")
 
-    for name in ("parse", "keywords", "search", "git-context", "context", "prompt", "status", "copilot-task", "copilot-instructions", "summarize-results", "review-package", "delivery-check", "commit-plan", "push-plan"):
+    for name in ("parse", "keywords", "search", "git-context", "context", "prompt", "status", "copilot-task", "copilot-instructions", "summarize-results", "review-package", "delivery-check", "commit-plan", "push-plan", "retry-prompt"):
         command = subparsers.add_parser(name, help=f"Run the {name} step.")
         command.add_argument("issue_key")
 
@@ -59,6 +59,10 @@ def build_parser() -> argparse.ArgumentParser:
     check_parser = subparsers.add_parser("check-results", help="Check Copilot result files.")
     check_parser.add_argument("issue_key")
     check_parser.add_argument("--strict", action="store_true", help="Exit non-zero when result files are missing.")
+
+    manual_result_parser = subparsers.add_parser("manual-result", help="Generate developer manual-fix result templates.")
+    manual_result_parser.add_argument("issue_key")
+    manual_result_parser.add_argument("--overwrite", action="store_true", help="Overwrite existing result files with templates.")
 
     memory_parser = subparsers.add_parser("memory", help="Manage shared AI memory.")
     memory_subparsers = memory_parser.add_subparsers(dest="memory_command", required=True)
@@ -226,6 +230,18 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Generated Copilot team instructions: {path}")
         return 0
 
+    if args.command == "retry-prompt":
+        try:
+            result = workflow.retry_prompt_step(repo_root, args.issue_key)
+        except FileNotFoundError as exc:
+            print(str(exc), file=sys.stderr)
+            return 1
+        print(f"Generated retry prompt: {result['prompt']}")
+        if "user_feedback" in result:
+            print(f"Generated user feedback template: {result['user_feedback']}")
+        print(f"Next manual Copilot CLI instruction: Read .ai/{args.issue_key}/copilot_retry_prompt.md and continue the workflow.")
+        return 0
+
     if args.command == "check-results":
         missing = workflow.check_results_step(repo_root, args.issue_key, strict=args.strict)
         if missing:
@@ -235,6 +251,21 @@ def main(argv: list[str] | None = None) -> int:
             return 1 if args.strict else 0
         else:
             print("PASS: all Copilot result files exist.")
+        return 0
+
+    if args.command == "manual-result":
+        try:
+            result = workflow.manual_result_step(repo_root, args.issue_key, overwrite=args.overwrite)
+        except FileNotFoundError as exc:
+            print(str(exc), file=sys.stderr)
+            return 1
+        if args.overwrite:
+            print("WARN: overwrote result files with developer manual-fix templates.")
+        print(f"Manual result templates for {args.issue_key}:")
+        for file_name in result["created"]:
+            print(f"  created: {file_name}")
+        for file_name in result["preserved"]:
+            print(f"  preserved: {file_name}")
         return 0
 
     if args.command == "summarize-results":

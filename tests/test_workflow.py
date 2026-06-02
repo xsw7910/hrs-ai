@@ -70,6 +70,8 @@ def test_workflow_status_json_generation(tmp_path):
         "push_plan": "skipped",
         "jira_comment_draft": "skipped",
         "jira_comment": "skipped",
+        "retry_prompt": "skipped",
+        "manual_result": "skipped",
     }
     assert ".ai/HR-12345/copilot_task.md" in status["generated_files"]
     assert ".ai/HR-12345/copilot_handoff.md" in status["generated_files"]
@@ -2709,3 +2711,132 @@ def test_jira_comment_execute_status_includes_generated_files(tmp_path, monkeypa
     assert "[START] jira_comment execute" in log_text
     assert "[GENERATED] .ai/HR-12345/jira_comment_post_result.json" in log_text
     assert "[END] jira_comment: pass" in log_text
+
+
+# ---------------------------------------------------------------------------
+# Phase 9.3 — Retry prompts and manual result templates
+# ---------------------------------------------------------------------------
+
+
+def _write_retry_package(tmp_path: Path) -> Path:
+    issue_dir = tmp_path / ".ai" / "HR-12345"
+    issue_dir.mkdir(parents=True, exist_ok=True)
+    (issue_dir / "bug_context.md").write_text("# Bug Context\n\nInvestigate stale results.", encoding="utf-8")
+    return issue_dir
+
+
+def test_retry_prompt_creates_user_feedback_template_if_missing(tmp_path, monkeypatch):
+    issue_dir = _write_retry_package(tmp_path)
+    monkeypatch.chdir(tmp_path)
+
+    assert main(["retry-prompt", "HR-12345"]) == 0
+
+    feedback = (issue_dir / "user_feedback.md").read_text(encoding="utf-8")
+    prompt = (issue_dir / "copilot_retry_prompt.md").read_text(encoding="utf-8")
+    assert "# User Feedback: HR-12345" in feedback
+    assert "Do not claim tests passed unless they were run." in feedback
+    assert "# Copilot Retry Prompt: HR-12345" in prompt
+    assert ".ai/HR-12345/user_feedback.md" in prompt
+
+
+def test_retry_prompt_includes_developer_feedback(tmp_path, monkeypatch):
+    issue_dir = _write_retry_package(tmp_path)
+    (issue_dir / "user_feedback.md").write_text("The retry must inspect EmployeeSearchModel.", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+
+    assert main(["retry-prompt", "HR-12345"]) == 0
+    prompt = (issue_dir / "copilot_retry_prompt.md").read_text(encoding="utf-8")
+
+    assert "The retry must inspect EmployeeSearchModel." in prompt
+
+
+def test_retry_prompt_lists_present_and_missing_previous_attempt_files(tmp_path, monkeypatch):
+    issue_dir = _write_retry_package(tmp_path)
+    (issue_dir / "code_search.md").write_text("src/EmployeeSearch.cpp:42", encoding="utf-8")
+    (issue_dir / "test_result.md").write_text("Tests failed.", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+
+    assert main(["retry-prompt", "HR-12345"]) == 0
+    prompt = (issue_dir / "copilot_retry_prompt.md").read_text(encoding="utf-8")
+
+    assert "- .ai/HR-12345/code_search.md" in prompt
+    assert "### test_result.md" in prompt
+    assert "present" in prompt
+    assert "### bug_analysis.md" in prompt
+    assert "missing" in prompt
+
+
+def test_retry_prompt_fails_helpfully_when_package_missing(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+
+    assert main(["retry-prompt", "HR-12345"]) == 1
+    err = capsys.readouterr().err
+
+    assert "No workflow package found for HR-12345" in err
+
+
+def test_manual_result_creates_missing_result_templates(tmp_path, monkeypatch):
+    issue_dir = _write_retry_package(tmp_path)
+    monkeypatch.chdir(tmp_path)
+
+    assert main(["manual-result", "HR-12345"]) == 0
+
+    for file_name in workflow.REQUIRED_COPILOT_RESULT_FILES:
+        text = (issue_dir / file_name).read_text(encoding="utf-8")
+        assert "## Fix Source" in text
+        assert "Developer manual fix." in text
+
+
+def test_manual_result_does_not_overwrite_existing_files_by_default(tmp_path, monkeypatch):
+    issue_dir = _write_retry_package(tmp_path)
+    (issue_dir / "bug_analysis.md").write_text("Custom analysis stays.", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+
+    assert main(["manual-result", "HR-12345"]) == 0
+
+    assert (issue_dir / "bug_analysis.md").read_text(encoding="utf-8") == "Custom analysis stays."
+    assert (issue_dir / "fix_summary.md").exists()
+
+
+def test_manual_result_overwrite_replaces_existing_files(tmp_path, monkeypatch):
+    issue_dir = _write_retry_package(tmp_path)
+    (issue_dir / "bug_analysis.md").write_text("Custom analysis goes away.", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+
+    assert main(["manual-result", "HR-12345", "--overwrite"]) == 0
+    text = (issue_dir / "bug_analysis.md").read_text(encoding="utf-8")
+
+    assert "Custom analysis goes away." not in text
+    assert "# Bug Analysis: HR-12345" in text
+    assert "Developer manual fix." in text
+
+
+def test_manual_result_updates_status_and_log(tmp_path, monkeypatch):
+    issue_dir = _write_retry_package(tmp_path)
+    monkeypatch.chdir(tmp_path)
+
+    assert main(["manual-result", "HR-12345"]) == 0
+    status = json.loads((issue_dir / "workflow_status.json").read_text(encoding="utf-8"))
+    log_text = (issue_dir / "execution.log").read_text(encoding="utf-8")
+
+    assert status["steps"]["manual_result"] == "pass"
+    assert ".ai/HR-12345/bug_analysis.md" in status["generated_files"]
+    assert "[START] manual_result" in log_text
+    assert "[GENERATED] .ai/HR-12345/bug_analysis.md" in log_text
+    assert "[END] manual_result: pass" in log_text
+
+
+def test_retry_prompt_updates_status_and_log(tmp_path, monkeypatch):
+    issue_dir = _write_retry_package(tmp_path)
+    monkeypatch.chdir(tmp_path)
+
+    assert main(["retry-prompt", "HR-12345"]) == 0
+    status = json.loads((issue_dir / "workflow_status.json").read_text(encoding="utf-8"))
+    log_text = (issue_dir / "execution.log").read_text(encoding="utf-8")
+
+    assert status["steps"]["retry_prompt"] == "pass"
+    assert ".ai/HR-12345/copilot_retry_prompt.md" in status["generated_files"]
+    assert ".ai/HR-12345/user_feedback.md" in status["generated_files"]
+    assert "[START] retry_prompt" in log_text
+    assert "[GENERATED] .ai/HR-12345/copilot_retry_prompt.md" in log_text
+    assert "[END] retry_prompt: pass" in log_text

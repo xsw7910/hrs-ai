@@ -29,6 +29,8 @@ WORKFLOW_STEPS = [
     "push_plan",
     "jira_comment_draft",
     "jira_comment",
+    "retry_prompt",
+    "manual_result",
 ]
 
 
