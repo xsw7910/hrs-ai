@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -85,18 +86,27 @@ def generate_git_context(repo_root: Path, issue_key: str) -> str:
     return "\n".join(lines).rstrip() + "\n"
 
 
-def branch_name(issue_key: str, description: str = "ai-assisted-jira-bug-workflow") -> str:
-    slug_chars: list[str] = []
-    previous_dash = False
-    for char in description.lower():
-        if char.isalnum():
-            slug_chars.append(char)
-            previous_dash = False
-        elif not previous_dash:
-            slug_chars.append("-")
-            previous_dash = True
-    slug = "".join(slug_chars).strip("-")[:60].strip("-")
-    return f"feature/{issue_key}-{slug or 'bug-fix'}"
+def branch_name(issue_key: str, description: str | None = None) -> str:
+    slug = summary_slug(description)
+    branch = f"feature/{issue_key}-{slug or 'jira-workflow'}"
+    return branch[:100].rstrip("-")
+
+
+def summary_slug(description: str | None, max_length: int = 55) -> str:
+    if not description:
+        return ""
+    slug = re.sub(r"[^a-z0-9]+", "-", description.lower())
+    slug = re.sub(r"-+", "-", slug).strip("-")
+    words = [word for word in slug.split("-") if word and word not in {"are"}]
+    capped: list[str] = []
+    current_length = 0
+    for word in words:
+        next_length = current_length + len(word) + (1 if capped else 0)
+        if next_length > max_length:
+            break
+        capped.append(word)
+        current_length = next_length
+    return "-".join(capped)
 
 
 def _related_files(repo_root: Path, issue_key: str) -> list[str]:

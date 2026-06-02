@@ -11,7 +11,7 @@ import pytest
 from hrs_ai.core import workflow
 from hrs_ai.cli import main
 from hrs_ai.core.context import _code_search_summary
-from hrs_ai.core.git_ops import branch_name
+from hrs_ai.core.git_ops import branch_name, summary_slug
 from hrs_ai.core.jira import JiraFetchError, classify_attachment, fetch_issue
 from hrs_ai.core.jira import jira_field_report_markdown, jira_summary_markdown, normalize_core_fields, normalize_attachments, parse_issue, parsed_markdown
 from hrs_ai.core.jira_parse import extract_parsed_details
@@ -38,8 +38,25 @@ def test_output_directory_creation(tmp_path, monkeypatch):
 
 
 def test_branch_name_generation():
-    assert branch_name("HR-12345") == "feature/HR-12345-ai-assisted-jira-bug-workflow"
-    assert branch_name("HR-1", "Fix stale search!") == "feature/HR-1-fix-stale-search"
+    assert branch_name("HR-26307", "Amplitude Spectrum - min/max ranges are not converted to dB") == (
+        "feature/HR-26307-amplitude-spectrum-min-max-ranges-not-converted-to-db"
+    )
+    assert branch_name("HR-12345", "Fix crash: OpenVDS import fails on .vds file") == (
+        "feature/HR-12345-fix-crash-openvds-import-fails-on-vds-file"
+    )
+    assert branch_name("HR-12345") == "feature/HR-12345-jira-workflow"
+
+
+def test_summary_slug_rules():
+    assert summary_slug("[Import] As a user, I can import a 3D, post-stack VDS file into Geoview") == (
+        "import-as-a-user-i-can-import-a-3d-post-stack-vds-file"
+    )
+    assert summary_slug("Amplitude Spectrum - min/max ranges are not converted to dB") == (
+        "amplitude-spectrum-min-max-ranges-not-converted-to-db"
+    )
+    assert summary_slug("Fix --- crash /// OpenVDS") == "fix-crash-openvds"
+    assert summary_slug("") == ""
+    assert len(summary_slug("word " * 40)) <= 60
 
 
 def test_workflow_status_json_generation(tmp_path):
@@ -149,7 +166,7 @@ def test_copilot_task_references_code_search(tmp_path):
     assert "Run Copilot CLI from the target repo root" in task
     assert "Do not run Copilot CLI from the hrs-ai tool source directory" in task
     assert ".ai/HR-12345/` files are relative to the target repo root" in task
-    assert "feature/HR-12345-ai-assisted-jira-bug-workflow" in task
+    assert "feature/HR-12345-demo-bug-employee-search-returns-stale-results-after" in task
     assert "Check the current branch before editing" in task
     assert "Create or switch to the feature branch before editing files" in task
     assert ".ai/HR-12345/bug_context.md" in task
@@ -175,6 +192,49 @@ def test_copilot_task_references_code_search(tmp_path):
     assert "git clean -fd" in task
     assert "Do not push unless explicitly instructed" in task
     assert "Do not update Jira" in task
+
+
+def test_copilot_task_branch_uses_jira_summary_slug(tmp_path):
+    issue_dir = tmp_path / ".ai" / "HR-26307"
+    issue_dir.mkdir(parents=True)
+    (issue_dir / "jira.json").write_text(
+        json.dumps(
+            {
+                "key": "HR-26307",
+                "fields": {
+                    "summary": "Amplitude Spectrum - min/max ranges are not converted to dB",
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    workflow.prompt_step(tmp_path, "HR-26307")
+    task = (issue_dir / "copilot_task.md").read_text(encoding="utf-8")
+
+    assert "feature/HR-26307-amplitude-spectrum-min-max-ranges-not-converted-to-db" in task
+
+
+def test_copilot_task_branch_uses_normalized_summary_fallback(tmp_path):
+    issue_dir = tmp_path / ".ai" / "HR-26305"
+    issue_dir.mkdir(parents=True)
+    (issue_dir / "jira.json").write_text(
+        json.dumps(
+            {
+                "key": "HR-26305",
+                "fields": {},
+                "hrs_ai_normalized": {
+                    "summary": "[Import] As a user, I can import a 3D, post-stack VDS file into Geoview",
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    workflow.prompt_step(tmp_path, "HR-26305")
+    task = (issue_dir / "copilot_task.md").read_text(encoding="utf-8")
+
+    assert "feature/HR-26305-import-as-a-user-i-can-import-a-3d-post-stack-vds-file" in task
 
 
 def test_keyword_schema_matches_phase_2_plan():
@@ -2714,7 +2774,7 @@ def test_jira_comment_execute_status_includes_generated_files(tmp_path, monkeypa
 
 
 # ---------------------------------------------------------------------------
-# Phase 9.3 — Retry prompts and manual result templates
+# Phase 9.4 — Retry prompts and manual result templates
 # ---------------------------------------------------------------------------
 
 

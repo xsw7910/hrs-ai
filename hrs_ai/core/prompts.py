@@ -7,8 +7,8 @@ from pathlib import Path
 from .git_ops import branch_name
 
 
-def generate_prompts(issue_key: str) -> dict[str, str]:
-    branch = branch_name(issue_key)
+def generate_prompts(issue_key: str, summary: str | None = None) -> dict[str, str]:
+    branch = branch_name(issue_key, summary)
     return {
         "copilot_task.md": _copilot_task(issue_key, branch),
         "copilot_handoff.md": _copilot_handoff(issue_key),
@@ -20,8 +20,8 @@ def generate_prompts(issue_key: str) -> dict[str, str]:
     }
 
 
-def generate_copilot_task_files(issue_key: str) -> dict[str, str]:
-    branch = branch_name(issue_key)
+def generate_copilot_task_files(issue_key: str, summary: str | None = None) -> dict[str, str]:
+    branch = branch_name(issue_key, summary)
     return {
         "copilot_task.md": _copilot_task(issue_key, branch),
         "copilot_handoff.md": _copilot_handoff(issue_key),

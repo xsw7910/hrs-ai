@@ -327,7 +327,8 @@ def prompt_step(repo_root: Path, issue_key: str) -> None:
     target = _prepare_issue_dir(repo_root, issue_key)
     log(target, "[START] prompt")
     try:
-        for file_name, content in generate_prompts(issue_key).items():
+        summary = _issue_summary(target)
+        for file_name, content in generate_prompts(issue_key, summary).items():
             (target / file_name).write_text(content, encoding="utf-8")
         _mark_step(repo_root, issue_key, "prompt", "pass")
         log(target, "[END] prompt: pass")
@@ -344,7 +345,8 @@ def copilot_task_step(repo_root: Path, issue_key: str) -> None:
         raise FileNotFoundError(f"Missing {bug_context}. Run: hrs-ai bug {issue_key}")
     log(target, "[START] copilot_task")
     try:
-        for file_name, content in generate_copilot_task_files(issue_key).items():
+        summary = _issue_summary(target)
+        for file_name, content in generate_copilot_task_files(issue_key, summary).items():
             (target / file_name).write_text(content, encoding="utf-8")
         log(target, "[END] copilot_task: pass")
     except Exception as exc:
@@ -975,6 +977,25 @@ def _fetch_message(result: JiraFetchResult) -> str:
     if result.source == "mock":
         return f"{result.error_message} Using mock/demo Jira data."
     return "Fetched Jira data from configured Jira instance."
+
+
+def _issue_summary(target: Path) -> str | None:
+    jira_path = target / "jira.json"
+    if not jira_path.exists():
+        return None
+    try:
+        issue = _read_json(jira_path)
+    except Exception:
+        return None
+    fields = issue.get("fields", {}) if isinstance(issue.get("fields"), dict) else {}
+    summary = fields.get("summary")
+    if isinstance(summary, str) and summary.strip():
+        return summary
+    normalized = issue.get("hrs_ai_normalized", {}) if isinstance(issue.get("hrs_ai_normalized"), dict) else {}
+    normalized_summary = normalized.get("summary")
+    if isinstance(normalized_summary, str) and normalized_summary.strip():
+        return normalized_summary
+    return None
 
 
 def _generated_files(repo_root: Path, issue_key: str) -> list[str]:

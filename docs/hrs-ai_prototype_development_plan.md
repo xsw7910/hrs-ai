@@ -55,7 +55,7 @@ feature/HR-12345-<description>
 Demo branch:
 
 ```bash
-feature/HR-12345-ai-assisted-jira-bug-workflow
+feature/HR-12345-<summary-slug>
 ```
 
 Rules:
@@ -1203,7 +1203,7 @@ Your task is to analyze and fix Jira issue HR-12345.
 
 Create or switch to this branch:
 
-feature/HR-12345-ai-assisted-jira-bug-workflow
+feature/HR-12345-<summary-slug>
 
 ## Safety Rules
 
@@ -1232,7 +1232,7 @@ feature/HR-12345-ai-assisted-jira-bug-workflow
 
 1. Check current git status.
 2. Create or switch to branch:
-   feature/HR-12345-ai-assisted-jira-bug-workflow
+   feature/HR-12345-<summary-slug>
 3. Read:
    .ai/HR-12345/bug_context.md
 4. Inspect related files listed in:
@@ -1297,13 +1297,13 @@ Copilot CLI should not do by default:
 Branch name for this prototype:
 
 ```bash
-feature/HR-12345-ai-assisted-jira-bug-workflow
+feature/HR-12345-<summary-slug>
 ```
 
 Command:
 
 ```bash
-hrs-ai branch HR-12345 --description "ai-assisted-jira-bug-workflow"
+hrs-ai branch HR-12345 --description "<jira-summary>"
 ```
 
 Expected git operations:
@@ -1311,7 +1311,7 @@ Expected git operations:
 ```bash
 git status --porcelain
 git diff-index --quiet HEAD --
-git checkout -b feature/HR-12345-ai-assisted-jira-bug-workflow
+git checkout -b feature/HR-12345-<summary-slug>
 ```
 
 Optional:
@@ -1996,7 +1996,7 @@ Read .ai/HR-12345/copilot_task.md and complete the workflow.
 ### Expected Branch
 
 ```bash
-feature/HR-12345-ai-assisted-jira-bug-workflow
+feature/HR-12345-<summary-slug>
 ```
 
 ### Demo Message
@@ -2023,7 +2023,7 @@ The prototype is successful if it can demonstrate:
 9. Copilot CLI can use the task prompt manually or automatically to perform git/code/test work.
 10. hrs-ai can save memory entry for future reuse.
 11. The workflow can guide creation of branch:
-    feature/HR-12345-ai-assisted-jira-bug-workflow
+    feature/HR-12345-<summary-slug>
 ```
 
 ---
@@ -2060,7 +2060,8 @@ The most important generated file is:
 The expected branch is:
 
 ```bash
-feature/HR-12345-ai-assisted-jira-bug-workflow
+feature/HR-12345-<summary-slug>
 ```
 
 `--copilot-fix` remains experimental until Copilot CLI automatic invocation is validated in the company environment.
+
