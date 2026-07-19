@@ -96,6 +96,16 @@ def _copilot_task(issue_key: str, branch: str) -> str:
         f"- `.ai/{issue_key}/test_result.md`\n"
         f"- `.ai/{issue_key}/diff_summary.md`\n"
         f"- `.ai/{issue_key}/review_notes.md`\n\n"
+        "## Report Status to Jira (before commit)\n\n"
+        "After writing the required result files, and BEFORE any commit:\n"
+        "- Post one Jira comment that records the current work status and the analysis summary, so watchers are notified.\n"
+        "- Run these two commands from the target repo root:\n"
+        f"  - `hrs-ai jira-comment-draft {issue_key}`\n"
+        f"  - `hrs-ai jira-comment {issue_key} --execute`\n"
+        "- The comment states the current work status (for example: fix implemented, tests run, ready for review) together with root cause, fix summary, changed files, and validation, drawn from the result files.\n"
+        "- Post exactly ONE comment. Do not transition the issue, assign it, or change any Jira field.\n"
+        "- If the post fails (for example, no Jira access), continue to delivery and tell the developer the comment was not posted.\n"
+        "- This is the only permitted Jira write; do it before asking about commit.\n\n"
         f"{delivery_instructions_block(issue_key, branch)}"
         "## Forbidden Actions\n\n"
         "- Do not run `git reset --hard`.\n"
@@ -105,7 +115,7 @@ def _copilot_task(issue_key: str, branch: str) -> str:
         "- Do not force push.\n"
         "- Do not use `--force` or `--force-with-lease`.\n"
         "- Do not merge.\n"
-        "- Do not update Jira.\n"
+        "- Do not update Jira fields; posting the one status comment described above is allowed.\n"
         "- Do not transition Jira.\n"
         "- Do not assign Jira.\n"
         "- Do not change Jira fields.\n"
@@ -125,7 +135,7 @@ def _copilot_handoff(issue_key: str) -> str:
         "- Do not run from the hrs-ai tool repo.\n"
         "- Do not work directly on main/master.\n"
         "- Do not commit or push unless the developer explicitly approves after a delivery summary.\n"
-        "- Never push main/master, force push, merge, update Jira, or commit `.ai/` or `.ai_memory/`.\n"
+        "- Never push main/master, force push, merge, transition/assign/edit Jira fields, or commit `.ai/` or `.ai_memory/` (posting one status comment via hrs-ai is allowed).\n"
         f"- Generate the required result files under `.ai/{issue_key}/`.\n"
     )
 
@@ -200,7 +210,7 @@ This document gives Copilot CLI stable team rules for working in a legacy C++/Qt
 - Never push main/master.
 - Never force push.
 - Never commit .ai/ or .ai_memory/.
-- Never update Jira.
+- Never transition, assign, or edit Jira fields. You may post exactly one status comment via `hrs-ai jira-comment --execute` when the task instructions ask for it.
 - Developer approval is required for any git commit or git push.
 - Always summarize changed files.
 

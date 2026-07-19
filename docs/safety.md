@@ -22,7 +22,8 @@ hrs-ai is designed as a prepare-only and planning tool. The developer remains in
 - `retry-prompt` does not call Copilot; the developer runs Copilot manually.
 - `manual-result` does not inspect or modify product source code.
 - Generated Copilot instructions may offer optional assisted delivery, but Copilot must ask for explicit approval before any commit or push.
-- Copilot must never push main/master, force push, commit `.ai/` or `.ai_memory/`, or update Jira.
+- The generated `copilot_task.md` instructs Copilot/Claude to post one Jira status comment (via `hrs-ai jira-comment --execute`) after writing the result files and before commit, so watchers are notified while the developer still controls the commit.
+- Copilot must never push main/master, force push, commit `.ai/` or `.ai_memory/`, transition Jira, assign Jira, or change Jira fields. The single status comment above is the only permitted Jira write.
 - hrs-ai does not download Jira attachments; it records attachment metadata only.
 - hrs-ai does not create pull requests.
 - hrs-ai does not merge.
