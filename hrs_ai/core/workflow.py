@@ -119,6 +119,9 @@ def run_bug_workflow(
         git_context_step(repo_root, issue_key)
         _progress(progress, "context")
         context_step(repo_root, issue_key)
+        # memory_search.md and git_context.md are intermediate: their content is
+        # folded into bug_context.md, so they are not kept in the final output.
+        _remove_intermediate_files(repo_root, issue_key)
         _progress(progress, "prompt")
         prompt_step(repo_root, issue_key)
         memory_add_step(repo_root, issue_key)
@@ -177,6 +180,20 @@ def run_bug_workflow(
 def _progress(progress: Callable[[str], None] | None, event: str) -> None:
     if progress:
         progress(event)
+
+
+# Intermediate artifacts whose content is folded into bug_context.md and are not
+# kept in the final .ai/<issue>/ output.
+_INTERMEDIATE_FILES = ("memory_search.md", "git_context.md")
+
+
+def _remove_intermediate_files(repo_root: Path, issue_key: str) -> None:
+    target = issue_dir(repo_root, issue_key)
+    for file_name in _INTERMEDIATE_FILES:
+        path = target / file_name
+        if path.exists():
+            path.unlink()
+            log(target, f"[INFO] folded into bug_context.md and removed: .ai/{issue_key}/{file_name}")
 
 
 def fetch_step(repo_root: Path, issue_key: str, allow_mock: bool = False) -> JiraFetchResult:
