@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
 from .cleanup import clean_issue_artifacts, validate_issue_key
-from .config import WORKFLOW_STEPS, issue_dir
+from .config import WORKFLOW_STEPS, EmailConfig, GraphConfig, issue_dir, load_email_config, load_graph_config
+from .email_notify import EmailSendError, EmailSendResult, build_email_draft, render_eml, send_notification, send_via_graph
 from .context import build_context
 from .delivery_instructions import delivery_instructions_block
 from .doctor import collect_doctor_report
@@ -53,11 +55,14 @@ def run_bug_workflow(
     fresh: bool = True,
     include_memory: bool = False,
     allow_mock: bool = False,
+    progress: Callable[[str], None] | None = None,
 ) -> WorkflowResult:
     clean_result = None
     if fresh:
         validate_issue_key(issue_key)
+        _progress(progress, "clean_start")
         clean_result = clean_issue_artifacts(repo_root, issue_key, include_memory=include_memory)
+        _progress(progress, "clean_done" if f".ai/{issue_key}/" in clean_result.deleted_paths else "clean_none")
 
     target = _prepare_issue_dir(repo_root, issue_key)
     command = f"hrs-ai bug {issue_key}"
@@ -93,19 +98,28 @@ def run_bug_workflow(
         log(target, "[INFO] previous workflow artifacts were preserved")
 
     try:
+        _progress(progress, "doctor")
         log(target, "[START] doctor")
         doctor_report = collect_doctor_report(repo_root)
         log(target, f"doctor report: {doctor_report}")
         _mark_step(repo_root, issue_key, "doctor", "pass")
         log(target, "[END] doctor: pass")
 
+        _progress(progress, "fetch")
         jira_result = fetch_step(repo_root, issue_key, allow_mock=allow_mock)
+        _progress(progress, "parse")
         parse_step(repo_root, issue_key)
+        _progress(progress, "keywords")
         keywords_step(repo_root, issue_key)
+        _progress(progress, "memory_search")
         memory_search_step(repo_root, issue_key)
+        _progress(progress, "code_search")
         code_search_step(repo_root, issue_key)
+        _progress(progress, "git_context")
         git_context_step(repo_root, issue_key)
+        _progress(progress, "context")
         context_step(repo_root, issue_key)
+        _progress(progress, "prompt")
         prompt_step(repo_root, issue_key)
         memory_add_step(repo_root, issue_key)
     except Exception as exc:
@@ -158,6 +172,11 @@ def run_bug_workflow(
         fresh=fresh,
         allow_mock=allow_mock,
     )
+
+
+def _progress(progress: Callable[[str], None] | None, event: str) -> None:
+    if progress:
+        progress(event)
 
 
 def fetch_step(repo_root: Path, issue_key: str, allow_mock: bool = False) -> JiraFetchResult:
@@ -478,6 +497,85 @@ def push_plan_step(repo_root: Path, issue_key: str) -> Path:
         raise
 
 
+def notify_step(
+    repo_root: Path,
+    issue_key: str,
+    execute: bool = False,
+    config: EmailConfig | None = None,
+    graph_config: GraphConfig | None = None,
+) -> dict[str, object]:
+    """Build the post-fix notification email and, when execute is set, send it.
+
+    A local preview (email_draft.md) and a portable notification.eml are always
+    written. Sending is an explicit, opt-in outward action (mirrors jira-comment):
+    it happens only when execute is True and a transport is configured. Microsoft
+    Graph is preferred when configured (works when SMTP client auth / port 25 are
+    blocked); otherwise SMTP is used.
+    """
+    target = _prepare_issue_dir(repo_root, issue_key)
+    log(target, f"[START] notify {'execute' if execute else 'preview'}")
+    try:
+        email_config = config if config is not None else load_email_config()
+        graph_config = graph_config if graph_config is not None else load_graph_config()
+        draft = build_email_draft(repo_root, issue_key)
+        draft_path = target / "email_draft.md"
+        draft_path.write_text(f"Subject: {draft.subject}\n\n{draft.body}", encoding="utf-8")
+        log(target, f"[GENERATED] .ai/{issue_key}/email_draft.md")
+
+        eml_path = target / "notification.eml"
+        eml_path.write_bytes(render_eml(draft, email_config.sender, email_config.recipients))
+        log(target, f"[GENERATED] .ai/{issue_key}/notification.eml")
+
+        if not execute:
+            _mark_step(repo_root, issue_key, "notify", "skipped")
+            log(target, "[INFO] notify preview only; no email was sent")
+            log(target, "[END] notify: skipped")
+            return {
+                "issue_key": issue_key,
+                "execute": False,
+                "sent": False,
+                "draft_path": draft_path,
+                "eml_path": eml_path,
+                "subject": draft.subject,
+            }
+
+        if graph_config.is_configured:
+            transport = "graph"
+            result = send_via_graph(graph_config, draft, email_config.sender, email_config.recipients)
+        else:
+            transport = "smtp"
+            result = send_notification(email_config, draft)
+        if result.sent:
+            _mark_step(repo_root, issue_key, "notify", "pass")
+            log(target, f"[INFO] notification email sent via {transport} to {len(result.recipients)} recipient(s)")
+            log(target, "[END] notify: pass")
+        else:
+            _mark_step(repo_root, issue_key, "notify", "skipped")
+            log(target, f"[WARN] notify skipped ({transport}): {result.skipped_reason}")
+            log(target, "[END] notify: skipped")
+        return {
+            "issue_key": issue_key,
+            "execute": True,
+            "sent": result.sent,
+            "transport": transport,
+            "draft_path": draft_path,
+            "eml_path": eml_path,
+            "subject": draft.subject,
+            "recipients": result.recipients,
+            "skipped_reason": result.skipped_reason,
+        }
+    except EmailSendError as exc:
+        _mark_step(repo_root, issue_key, "notify", "fail")
+        log(target, f"[ERROR] notify: {exc}")
+        log(target, "[END] notify: fail")
+        raise
+    except Exception as exc:
+        _mark_step(repo_root, issue_key, "notify", "fail")
+        log(target, f"[ERROR] notify: {exc}")
+        log(target, "[END] notify: fail")
+        raise
+
+
 def memory_update_step(repo_root: Path, issue_key: str) -> bool:
     target = _prepare_issue_dir(repo_root, issue_key)
     log(target, "[START] memory_update")
@@ -505,7 +603,8 @@ def memory_add_step(repo_root: Path, issue_key: str) -> None:
     try:
         parsed = parse_issue(_read_json(target / "jira.json"))
         entry = build_memory_entry(issue_key, parsed, f".ai/{issue_key}/bug_context.md")
-        (target / "memory_entry.md").write_text(entry, encoding="utf-8")
+        # The shared memory file under .ai_memory/ is the source of truth; no local
+        # per-issue copy is written to keep the .ai/<issue>/ output lean.
         add_memory_entry(repo_root, issue_key, entry)
         _mark_step(repo_root, issue_key, "memory_add", "pass")
         log(target, "[END] memory_add: pass")

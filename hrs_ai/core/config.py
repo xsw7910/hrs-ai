@@ -27,6 +27,7 @@ WORKFLOW_STEPS = [
     "delivery_check",
     "commit_plan",
     "push_plan",
+    "notify",
     "jira_comment_draft",
     "jira_comment",
     "retry_prompt",
@@ -47,6 +48,73 @@ class AppConfig:
         return bool(self.jira_base_url and self.jira_email and self.jira_token)
 
 
+@dataclass(frozen=True)
+class EmailConfig:
+    """SMTP configuration for outbound notification email.
+
+    Credentials are read from the environment only. hrs-ai never hardcodes or
+    persists SMTP secrets; use a secrets manager to inject them at runtime.
+    """
+
+    host: str | None
+    port: int
+    username: str | None
+    password: str | None
+    use_ssl: bool
+    use_starttls: bool
+    sender: str | None
+    recipients: tuple[str, ...]
+
+    @property
+    def is_configured(self) -> bool:
+        # Enough to send: a server, a sender, and at least one recipient.
+        return bool(self.host and self.sender and self.recipients)
+
+    @property
+    def uses_auth(self) -> bool:
+        return bool(self.username)
+
+    def missing_fields(self) -> list[str]:
+        missing: list[str] = []
+        if not self.host:
+            missing.append("SMTP_HOST")
+        if not self.sender:
+            missing.append("HRS_AI_EMAIL_FROM")
+        if not self.recipients:
+            missing.append("HRS_AI_EMAIL_TO")
+        if self.username and not self.password:
+            missing.append("SMTP_PASSWORD")
+        return missing
+
+
+@dataclass(frozen=True)
+class GraphConfig:
+    """Microsoft Graph (client-credentials) settings for sending mail over HTTPS.
+
+    This is the transport of choice when the tenant disables SMTP client
+    authentication. All values come from the environment; the client secret is
+    never hardcoded, logged, or persisted by hrs-ai.
+    """
+
+    tenant_id: str | None
+    client_id: str | None
+    client_secret: str | None
+
+    @property
+    def is_configured(self) -> bool:
+        return bool(self.tenant_id and self.client_id and self.client_secret)
+
+    def missing_fields(self) -> list[str]:
+        missing: list[str] = []
+        if not self.tenant_id:
+            missing.append("GRAPH_TENANT_ID")
+        if not self.client_id:
+            missing.append("GRAPH_CLIENT_ID")
+        if not self.client_secret:
+            missing.append("GRAPH_CLIENT_SECRET")
+        return missing
+
+
 def load_config(repo_root: Path) -> AppConfig:
     return AppConfig(
         repo_root=repo_root,
@@ -55,6 +123,59 @@ def load_config(repo_root: Path) -> AppConfig:
         jira_token=os.getenv("JIRA_TOKEN"),
         copilot_command=os.getenv("HRS_AI_COPILOT_COMMAND", "copilot"),
     )
+
+
+def load_email_config() -> EmailConfig:
+    return EmailConfig(
+        host=_clean_env("SMTP_HOST"),
+        port=_env_int("SMTP_PORT", 587),
+        username=_clean_env("SMTP_USERNAME"),
+        password=os.getenv("SMTP_PASSWORD") or None,
+        use_ssl=_env_bool("SMTP_USE_SSL", False),
+        use_starttls=_env_bool("SMTP_USE_STARTTLS", True),
+        sender=_clean_env("HRS_AI_EMAIL_FROM"),
+        recipients=_parse_recipients(os.getenv("HRS_AI_EMAIL_TO")),
+    )
+
+
+def load_graph_config() -> GraphConfig:
+    return GraphConfig(
+        tenant_id=_clean_env("GRAPH_TENANT_ID"),
+        client_id=_clean_env("GRAPH_CLIENT_ID"),
+        client_secret=os.getenv("GRAPH_CLIENT_SECRET") or None,
+    )
+
+
+def _clean_env(name: str) -> str | None:
+    value = os.getenv(name)
+    if value is None:
+        return None
+    value = value.strip()
+    return value or None
+
+
+def _env_int(name: str, default: int) -> int:
+    raw = _clean_env(name)
+    if raw is None:
+        return default
+    try:
+        return int(raw)
+    except ValueError:
+        return default
+
+
+def _env_bool(name: str, default: bool) -> bool:
+    raw = _clean_env(name)
+    if raw is None:
+        return default
+    return raw.lower() in {"1", "true", "yes", "on"}
+
+
+def _parse_recipients(raw: str | None) -> tuple[str, ...]:
+    if not raw:
+        return ()
+    parts = [item.strip() for item in raw.replace(";", ",").split(",")]
+    return tuple(item for item in parts if item)
 
 
 def issue_dir(repo_root: Path, issue_key: str) -> Path:

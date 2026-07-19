@@ -9,7 +9,15 @@ hrs-ai is designed as a prepare-only and planning tool. The developer remains in
 - hrs-ai does not comment on, assign, close, or transition Jira issues.
 - `jira-comment-draft` generates a local markdown draft only; it does not post to Jira.
 - `jira-comment` previews by default and posts only when `--execute` is explicitly provided.
+- `summarize-results` does not post to Jira by default. It posts one analysis comment only when opted in — either `--jira-comment` on the command, or the environment variable `HRS_AI_AUTO_JIRA_COMMENT` set to a truthy value. `--no-jira-comment` always wins. This is intended so Jira notifies watchers by email once the fix results are ready, before the developer decides whether to commit.
+- Auto-posting from `summarize-results` adds exactly one Jira comment (same scope limits as `jira-comment --execute`); a Jira/network failure is non-fatal and never fails `summarize-results`.
 - `jira-comment --execute` only adds one Jira comment; it does not update fields, transition status, assign issues, upload attachments, download attachments, call Copilot, or run git commands.
+- `notify` previews by default (writes `.ai/<issue>/email_draft.md` and a portable `notification.eml`) and sends only when `--execute` is explicitly provided.
+- Automatic sending uses Microsoft Graph when configured, otherwise SMTP; if neither is configured, `notify`/`commit-plan` still succeed and report that no email was sent, and the `.eml` can be sent manually via `scripts/send-via-outlook.ps1` (Outlook).
+- `commit-plan` sends the notification email at the commit gate only when a transport is configured through the environment; `--no-email` suppresses it.
+- The notification email contains only the fix summary (Jira item, original problem, root cause, changes made) assembled from local artifacts, is sanitized to redact secret-like values, and is sent only to `HRS_AI_EMAIL_TO`.
+- SMTP passwords and Graph client secrets are read from environment variables only; hrs-ai never hardcodes, logs, or persists them, and error messages never include the secret.
+- Sending the notification email does not modify source code, Jira, or git state.
 - `retry-prompt` and `manual-result` generate local markdown artifacts only.
 - `retry-prompt` does not call Copilot; the developer runs Copilot manually.
 - `manual-result` does not inspect or modify product source code.
@@ -34,12 +42,13 @@ hrs-ai is designed as a prepare-only and planning tool. The developer remains in
 
 ## Final Safety Summary
 
-- Only `hrs-ai jira-comment <ISSUE> --execute` writes to Jira.
-- That command only adds one Jira comment from the reviewed local draft.
-- No other hrs-ai command writes Jira.
+- Writing to Jira happens only via `hrs-ai jira-comment <ISSUE> --execute`, or via `hrs-ai summarize-results <ISSUE>` when explicitly opted in (`--jira-comment` or `HRS_AI_AUTO_JIRA_COMMENT`).
+- Both add exactly one Jira comment from the local analysis draft; neither transitions, assigns, or edits fields.
+- No other hrs-ai command writes Jira, and the opt-in default is off.
 - No command transitions Jira issues, assigns issues, updates fields, uploads attachments, or downloads attachments.
 - No command automatically invokes Copilot.
 - hrs-ai does not run `git add`, `git commit`, `git push`, merge, or PR creation.
+- The only outbound network actions are the read-only Jira fetch, `jira-comment --execute` (one comment), and the notification email over SMTP or Microsoft Graph (`notify --execute` or a configured `commit-plan`). The email is sent only to the configured internal recipients and carries no credentials.
 
 ## Generated Artifact Scope
 hrs-ai writes generated workflow files to:

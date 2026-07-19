@@ -53,6 +53,114 @@ hrs-ai bug HR-12345 --allow-mock
 
 When mock fallback is used, `jira_summary.md`, `jira.json`, and `execution.log` clearly mark the data as mock/demo fallback.
 
+## Email Notification Configuration
+At the commit gate (`hrs-ai commit-plan <ISSUE>`), hrs-ai can email you a summary of
+the completed fix: the Jira item, the original problem, the root cause, and the changes
+made. The email body is assembled from local `result_summary.md` and `jira_summary.md`;
+run `hrs-ai summarize-results <ISSUE>` first so those artifacts exist.
+
+hrs-ai supports two automatic transports plus a manual Outlook option. It picks
+**Graph if configured, otherwise SMTP**. `hrs-ai doctor` shows `email_configured`
+(SMTP) and `email_graph_configured` (Graph).
+
+### Option 1 — Microsoft Graph (recommended for Microsoft 365)
+Use this when your tenant disables SMTP client authentication (error `SmtpClientAuthentication
+is disabled for the Tenant`) or blocks outbound port 25 — Graph sends over HTTPS/443.
+It requires a one-time **app registration** by an admin (see below), then:
+
+```powershell
+$env:GRAPH_TENANT_ID="<tenant id / directory id>"
+$env:GRAPH_CLIENT_ID="<application (client) id>"
+$env:GRAPH_CLIENT_SECRET="..."        # store in a secrets manager, not in scripts
+$env:HRS_AI_EMAIL_FROM="you@your-company.com"   # mailbox the app may send as
+$env:HRS_AI_EMAIL_TO="you@your-company.com"     # comma/semicolon separated for multiple
+```
+
+**What to ask IT for (app registration):**
+- An Entra ID (Azure AD) app registration; give you the **Directory (tenant) ID** and **Application (client) ID**.
+- A **client secret** on that app.
+- The **application** permission **`Mail.Send`** (Microsoft Graph), with **admin consent granted**.
+- Ideally scope it with an *Application Access Policy* so the app can only send as your mailbox.
+
+### Option 2 — SMTP
+Configure SMTP through the environment (credentials are never hardcoded or persisted):
+
+```powershell
+$env:SMTP_HOST="smtp.your-company.com"
+$env:SMTP_PORT="587"              # optional, default 587
+$env:SMTP_USERNAME="relay-user"   # optional; omit for an open internal relay
+$env:SMTP_PASSWORD="..."          # store in a secrets manager, not in scripts
+$env:SMTP_USE_STARTTLS="true"     # optional, default true
+$env:SMTP_USE_SSL="false"         # optional, default false (set true for SMTPS/465)
+$env:HRS_AI_EMAIL_FROM="hrs-ai@your-company.com"
+$env:HRS_AI_EMAIL_TO="you@your-company.com"   # comma/semicolon separated for multiple
+```
+
+For a guided setup that stores the password in the PowerShell SecretStore (never in
+plain text) and loads every variable into your session, edit the values at the top of
+`scripts/setup-email.ps1` once and run it:
+
+```powershell
+.\scripts\setup-email.ps1            # load config into the current session
+.\scripts\setup-email.ps1 -Persist   # also apply to all future PowerShell sessions
+.\scripts\setup-email.ps1 -ResetPassword   # re-enter the stored SMTP password
+```
+
+### Option 3 — Manual send via Outlook (no transport config)
+When no automatic transport is available, `hrs-ai notify` still writes a portable
+`.ai/<ISSUE>/notification.eml`. To open it as a pre-filled Outlook compose window
+(Outlook sends over its own modern-auth channel, so no SMTP/port-25 needed):
+
+```powershell
+hrs-ai notify HR-12345                       # writes email_draft.md + notification.eml
+.\scripts\send-via-outlook.ps1 HR-12345      # opens Outlook; review and click Send
+```
+
+### Sending
+Sending is opt-in and human-controlled, matching the rest of the workflow:
+
+```powershell
+hrs-ai notify HR-12345             # preview only: writes email_draft.md + notification.eml, sends nothing
+hrs-ai notify HR-12345 --execute   # send automatically (Graph if configured, else SMTP)
+hrs-ai commit-plan HR-12345        # generate commit plan AND send the notification email
+hrs-ai commit-plan HR-12345 --no-email   # generate commit plan without sending email
+```
+
+If no transport is configured, `commit-plan` still succeeds and simply reports that no
+email was sent (use Option 3 to send manually). The email body is sanitized to redact
+secret-like values before sending, and no secret (SMTP password or Graph client secret)
+is ever logged or included in error messages.
+
+## Notify via Jira Comment (no email server needed)
+If your tenant blocks SMTP and app registration for Graph is not available, the simplest
+way to be notified when a fix is ready is a **Jira comment**: hrs-ai posts the analysis
+summary to the issue, and Jira emails the issue's watchers/assignee/reporter through its
+own notification system. This reuses your existing Jira credentials
+(`JIRA_BASE_URL` / `JIRA_EMAIL` / `JIRA_TOKEN`) — no mail server, no Graph, no IT ticket.
+
+Opt in so the comment is posted automatically as soon as the fix results are summarized
+(before you decide whether to commit):
+
+```powershell
+$env:HRS_AI_AUTO_JIRA_COMMENT="true"   # enable auto-post from summarize-results
+hrs-ai summarize-results HR-12345       # summarizes results AND posts one Jira comment
+```
+
+Per-run control overrides the environment variable:
+
+```powershell
+hrs-ai summarize-results HR-12345 --jira-comment      # force post this run
+hrs-ai summarize-results HR-12345 --no-jira-comment   # never post this run
+```
+
+Notes:
+- You must be **watching** the issue (or be its assignee/reporter) and have Jira email
+  notifications enabled to receive the message; that is a Jira-side setting.
+- Auto-post adds exactly one comment; it never edits fields, transitions, or assigns.
+- If posting fails (e.g., no access to the issue), `summarize-results` still succeeds and
+  prints a warning — post manually later with `hrs-ai jira-comment <ISSUE> --execute`.
+- The comment body is sanitized to redact secret-like values.
+
 ## Important: Run From Target Repo Root
 The hrs-ai source repo can be anywhere. Run `hrs-ai` from the target product repository root, because generated `.ai` and `.ai_memory` folders are written relative to the current working directory.
 
@@ -81,6 +189,7 @@ hrs-ai jira-comment HR-12345
 hrs-ai retry-prompt HR-12345
 hrs-ai manual-result HR-12345
 hrs-ai delivery-check HR-12345
+hrs-ai notify HR-12345
 hrs-ai commit-plan HR-12345
 hrs-ai push-plan HR-12345
 ```
@@ -114,7 +223,8 @@ hrs-ai push-plan HR-12345
 - `hrs-ai manual-result <ISSUE>`: create developer manual-fix result templates without overwriting existing result files.
 - `hrs-ai manual-result <ISSUE> --overwrite`: replace result files with fresh manual-fix templates.
 - `hrs-ai delivery-check <ISSUE>`: check readiness for manual delivery.
-- `hrs-ai commit-plan <ISSUE>`: generate a manual commit plan.
+- `hrs-ai notify <ISSUE>`: write the post-fix notification (`email_draft.md` + `notification.eml`); add `--execute` to send automatically (Graph if configured, else SMTP).
+- `hrs-ai commit-plan <ISSUE>`: generate a manual commit plan and email the fix summary at the commit gate (`--no-email` to skip).
 - `hrs-ai push-plan <ISSUE>`: generate a manual push plan.
 - `hrs-ai clean <ISSUE>`: remove generated `.ai/<issue>/` workflow artifacts while preserving memory.
 - `hrs-ai clean <ISSUE> --include-memory`: also remove `.ai_memory/bugs/<issue>.md` for that issue only.
