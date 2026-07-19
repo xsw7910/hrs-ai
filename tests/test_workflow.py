@@ -97,8 +97,11 @@ def test_workflow_status_json_generation(tmp_path):
     assert ".ai/HR-12345/code_search.md" in status["generated_files"]
     assert ".ai/HR-12345/related_files.json" in status["generated_files"]
     assert ".ai/HR-12345/search_quality.json" in status["generated_files"]
-    assert ".ai/HR-12345/memory_search.md" in status["generated_files"]
-    assert ".ai/HR-12345/git_context.md" in status["generated_files"]
+    # memory_search.md and git_context.md are intermediate and folded into
+    # bug_context.md, so they are not kept in the final output.
+    assert ".ai/HR-12345/memory_search.md" not in status["generated_files"]
+    assert ".ai/HR-12345/git_context.md" not in status["generated_files"]
+    assert ".ai/HR-12345/bug_context.md" in status["generated_files"]
     assert ".ai_memory/bugs/HR-12345.md" in status["generated_files"]
 
 
@@ -211,8 +214,10 @@ def test_execution_log_contains_prepare_only_lifecycle(tmp_path, monkeypatch):
     assert "[GENERATED] .ai/HR-12345/code_search.md" in log_text
     assert "[GENERATED] .ai/HR-12345/related_files.json" in log_text
     assert "[GENERATED] .ai/HR-12345/search_quality.json" in log_text
-    assert "[GENERATED] .ai/HR-12345/memory_search.md" in log_text
-    assert "[GENERATED] .ai/HR-12345/git_context.md" in log_text
+    assert "folded into bug_context.md and removed: .ai/HR-12345/memory_search.md" in log_text
+    assert "folded into bug_context.md and removed: .ai/HR-12345/git_context.md" in log_text
+    assert "[GENERATED] .ai/HR-12345/memory_search.md" not in log_text
+    assert "[GENERATED] .ai/HR-12345/git_context.md" not in log_text
     assert "[GENERATED] .ai/HR-12345/copilot_task.md" in log_text
     assert "[GENERATED] .ai/HR-12345/copilot_handoff.md" in log_text
     assert "[GENERATED] .ai/HR-12345/copilot_team_instructions.md" in log_text
@@ -237,8 +242,10 @@ def test_copilot_task_references_code_search(tmp_path):
     assert ".ai/HR-12345/code_search.md" in task
     assert ".ai/HR-12345/related_files.json" in task
     assert ".ai/HR-12345/search_quality.json" in task
-    assert ".ai/HR-12345/memory_search.md" in task
-    assert ".ai/HR-12345/git_context.md" in task
+    # Historical issues and git context now come from bug_context.md, not standalone files.
+    assert ".ai/HR-12345/memory_search.md" not in task
+    assert ".ai/HR-12345/git_context.md" not in task
+    assert "included in `bug_context.md`" in task
     assert "Do not edit code until after reviewing context and related files" in task
     assert "If search confidence is Low" in task
     assert "do not assume the matched files are the correct implementation" in task
@@ -382,8 +389,9 @@ def test_bug_workflow_generates_phase_2_files_and_enriched_context(tmp_path):
     assert (issue_dir / "code_search.md").is_file()
     assert (issue_dir / "related_files.json").is_file()
     assert (issue_dir / "search_quality.json").is_file()
-    assert (issue_dir / "memory_search.md").is_file()
-    assert (issue_dir / "git_context.md").is_file()
+    # Folded into bug_context.md and not kept as standalone files.
+    assert not (issue_dir / "memory_search.md").exists()
+    assert not (issue_dir / "git_context.md").exists()
     assert "## Code Search Summary" in context
     assert "## Similar Historical Issues" in context
     assert "## Git Context" in context
