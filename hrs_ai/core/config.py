@@ -42,6 +42,9 @@ class AppConfig:
     jira_email: str | None
     jira_token: str | None
     copilot_command: str
+    claude_command: str
+    claude_args: str
+    copilot_args: str
 
     @property
     def has_jira_credentials(self) -> bool:
@@ -122,6 +125,13 @@ def load_config(repo_root: Path) -> AppConfig:
         jira_email=os.getenv("JIRA_EMAIL"),
         jira_token=os.getenv("JIRA_TOKEN"),
         copilot_command=os.getenv("HRS_AI_COPILOT_COMMAND", "copilot"),
+        claude_command=os.getenv("HRS_AI_CLAUDE_COMMAND", "claude"),
+        # Interactive by default, but auto-accept file edits so the agent is not
+        # blocked on every edit. For a fully unattended run (also skipping shell
+        # prompts for git / hrs-ai), set HRS_AI_CLAUDE_ARGS to include
+        # --dangerously-skip-permissions.
+        claude_args=os.getenv("HRS_AI_CLAUDE_ARGS", "--permission-mode acceptEdits"),
+        copilot_args=os.getenv("HRS_AI_COPILOT_ARGS", ""),
     )
 
 

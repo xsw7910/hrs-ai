@@ -247,6 +247,7 @@ def test_copilot_task_references_code_search(tmp_path):
     assert ".ai/HR-12345/git_context.md" not in task
     assert "included in `bug_context.md`" in task
     assert "Do not edit code until after reviewing context and related files" in task
+    assert "Do not dispatch a background sub-agent and then wait idle" in task
     assert "If search confidence is Low" in task
     assert "do not assume the matched files are the correct implementation" in task
     assert "write a no-op analysis" in task

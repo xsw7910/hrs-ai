@@ -161,6 +161,37 @@ Notes:
   prints a warning — post manually later with `hrs-ai jira-comment <ISSUE> --execute`.
 - The comment body is sanitized to redact secret-like values.
 
+## Optional: Let an Agent Complete the Workflow
+By default `hrs-ai bug` is prepare-only and prints the manual handoff line. You can
+instead have it launch a coding agent to read `copilot_task.md` and complete the
+workflow (analyze, implement the smallest safe fix, write result files, post one Jira
+status comment) — the agent still stops at the commit gate and asks before committing.
+
+```powershell
+hrs-ai bug HR-12345 --claude     # launch Claude after preparation
+hrs-ai bug HR-12345 --copilot    # launch Copilot CLI instead
+hrs-ai bug HR-12345              # no flag: prepare only (default, unchanged)
+```
+
+The agent runs interactively in the current (target) repo so you can watch it work.
+Configuration:
+
+```powershell
+$env:HRS_AI_CLAUDE_COMMAND="claude"                        # binary to launch
+$env:HRS_AI_CLAUDE_ARGS="--permission-mode acceptEdits"    # default: auto-accept file edits
+# For a fully unattended run (also skips shell prompts for git / hrs-ai):
+$env:HRS_AI_CLAUDE_ARGS="--dangerously-skip-permissions"   # understand the risk first
+```
+
+With the default `acceptEdits`, the agent applies file edits without prompting but may
+still ask before shell commands (e.g., running `hrs-ai jira-comment --execute` or git).
+`--dangerously-skip-permissions` removes those prompts too, at the cost of unattended
+execution — use it only when you trust the task and repo.
+
+Treat all agent-generated code as third-party: **review it before you commit**. hrs-ai
+never commits or pushes for you; the agent stops and asks at the commit gate.
+`hrs-ai doctor` reports `claude_available` / `copilot_available`.
+
 ## Important: Run From Target Repo Root
 The hrs-ai source repo can be anywhere. Run `hrs-ai` from the target product repository root, because generated `.ai` and `.ai_memory` folders are written relative to the current working directory.
 

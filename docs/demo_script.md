@@ -46,6 +46,16 @@ To continue an existing workflow package without cleaning old artifacts, run:
 hrs-ai bug HR-12345 --resume
 ```
 
+To have an agent complete the workflow right after preparation (analyze, fix, write
+result files, post one Jira status comment, then stop at the commit gate), add
+`--claude` or `--copilot`:
+
+```powershell
+hrs-ai bug HR-12345 --claude
+```
+
+Without a flag, `hrs-ai bug` stays prepare-only. Review agent-generated code before committing.
+
 `--fresh` and `--no-mock` are still accepted for compatibility, but they are no longer required for the normal real Jira workflow.
 
 3. Show generated files:

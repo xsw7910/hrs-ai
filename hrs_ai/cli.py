@@ -8,7 +8,7 @@ import os
 import sys
 from pathlib import Path
 
-from hrs_ai.core import copilot, doctor, workflow
+from hrs_ai.core import agent_runner, copilot, doctor, workflow
 from hrs_ai.core.cleanup import clean_issue_artifacts
 from hrs_ai.core.context import build_context
 from hrs_ai.core.email_notify import EmailSendError
@@ -95,6 +95,17 @@ def build_parser() -> argparse.ArgumentParser:
         "--copilot-fix",
         action="store_true",
         help="Print experimental Copilot invocation guidance after preparation.",
+    )
+    bug_run = bug_parser.add_mutually_exclusive_group()
+    bug_run.add_argument(
+        "--claude",
+        action="store_true",
+        help="After preparation, launch Claude in the target repo to complete the workflow.",
+    )
+    bug_run.add_argument(
+        "--copilot",
+        action="store_true",
+        help="After preparation, launch Copilot CLI in the target repo to complete the workflow.",
     )
     bug_mode = bug_parser.add_mutually_exclusive_group()
     bug_mode.add_argument(
@@ -397,6 +408,9 @@ def main(argv: list[str] | None = None) -> int:
         if args.copilot_fix:
             copilot.print_copilot_check()
             copilot.print_auto_invocation_not_implemented(args.issue_key)
+        if args.claude or args.copilot:
+            agent = "claude" if args.claude else "copilot"
+            return _run_agent_after_prepare(repo_root, args.issue_key, agent)
         return 0
 
     return 1
@@ -429,6 +443,24 @@ def _print_status(repo_root: Path, issue_key: str) -> int:
 
 def _allow_mock(args) -> bool:
     return bool(getattr(args, "allow_mock", False))
+
+
+def _run_agent_after_prepare(repo_root: Path, issue_key: str, agent: str) -> int:
+    print()
+    print(f"Launching {agent} to complete the workflow for {issue_key}.")
+    print("The agent will analyze, implement the smallest safe fix, write result files,")
+    print("and post ONE Jira status comment. It stops at the commit gate and asks before committing.")
+    print("Review its changes as third-party code before you commit.")
+    result = agent_runner.run_agent(repo_root, issue_key, agent)
+    if not result.ran:
+        print(f"WARN: could not launch {agent}: {result.skipped_reason}", file=sys.stderr)
+        print(f"Open {agent} manually from the target repo root and run:", file=sys.stderr)
+        print(f"  Read .ai/{issue_key}/copilot_task.md and complete the workflow.", file=sys.stderr)
+        return 1
+    if result.returncode not in (0, None):
+        print(f"WARN: {agent} exited with code {result.returncode}.", file=sys.stderr)
+        return result.returncode
+    return 0
 
 
 def _bug_progress_printer(issue_key: str):

@@ -14,7 +14,8 @@ def print_copilot_check() -> None:
     print(f"copilot_command: {config.copilot_command}")
     print(f"copilot_available: {command_available(config.copilot_command)}")
     print(f"gh_available: {command_available('gh')}")
-    print("automatic_invocation: experimental and not enabled")
+    print(f"claude_available: {command_available(config.claude_command)}")
+    print("automatic_invocation: opt-in via `hrs-ai bug --claude` or `--copilot`")
     print("default_mode: prepare-only")
 
 

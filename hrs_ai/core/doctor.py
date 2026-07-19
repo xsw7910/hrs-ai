@@ -28,6 +28,7 @@ def collect_doctor_report(repo_root: Path) -> dict[str, str | bool | None]:
         "jira_email_present": bool(config.jira_email),
         "jira_token_present": bool(config.jira_token),
         "copilot_available": command_available(config.copilot_command),
+        "claude_available": command_available(config.claude_command),
         "email_configured": email_config.is_configured,
         "email_graph_configured": graph_config.is_configured,
     }

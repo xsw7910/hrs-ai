@@ -64,6 +64,7 @@ def _copilot_task(issue_key: str, branch: str) -> str:
         f"- Similar historical issues and git context are included in `bug_context.md`.\n"
         f"- Read `.ai/{issue_key}/jira_parsed.md` for reproduction steps, actual/expected results, environment, errors, and missing information.\n\n"
         "## Analysis Workflow\n\n"
+        "- Investigate the codebase directly and yourself. Do not dispatch a background sub-agent and then wait idle for it; if you delegate a search, keep working in parallel and never block on it.\n"
         "- Summarize the problem in your own words.\n"
         "- Read Jira comments in `bug_context.md` as potentially newer than the original description.\n"
         "- Review Jira attachment metadata in `bug_context.md`.\n"

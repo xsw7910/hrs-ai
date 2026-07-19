@@ -37,6 +37,7 @@ hrs-ai is designed as a prepare-only and planning tool. The developer remains in
 - `hrs-ai clean <ISSUE> --include-memory` also deletes only `.ai_memory/bugs/<issue>.md`.
 - `hrs-ai bug <ISSUE>` performs the same scoped cleanup before running the prepare-only workflow.
 - `hrs-ai bug <ISSUE> --resume` preserves existing `.ai/<issue>/` artifacts.
+- `hrs-ai bug <ISSUE>` is prepare-only unless `--claude` or `--copilot` is passed; those flags launch that agent interactively to complete the workflow, and the agent stops at the commit gate. Agent-generated code must be reviewed before commit.
 - Mock/demo Jira fallback is disabled by default.
 - `--allow-mock` explicitly enables mock/demo fallback for demos and testing.
 - `--no-mock` is accepted for compatibility and matches the default real Jira-only behavior.
@@ -47,7 +48,7 @@ hrs-ai is designed as a prepare-only and planning tool. The developer remains in
 - Both add exactly one Jira comment from the local analysis draft; neither transitions, assigns, or edits fields.
 - No other hrs-ai command writes Jira, and the opt-in default is off.
 - No command transitions Jira issues, assigns issues, updates fields, uploads attachments, or downloads attachments.
-- No command automatically invokes Copilot.
+- `hrs-ai bug` is prepare-only by default and invokes no agent. It launches a coding agent only when the developer explicitly passes `--claude` or `--copilot`; the agent runs interactively in the target repo, and hrs-ai itself still never commits or pushes.
 - hrs-ai does not run `git add`, `git commit`, `git push`, merge, or PR creation.
 - The only outbound network actions are the read-only Jira fetch, `jira-comment --execute` (one comment), and the notification email over SMTP or Microsoft Graph (`notify --execute` or a configured `commit-plan`). The email is sent only to the configured internal recipients and carries no credentials.
 
