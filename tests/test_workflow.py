@@ -265,6 +265,10 @@ def test_copilot_task_references_code_search(tmp_path):
     assert "Do not add `.ai/`" in task
     assert "Do not add `.ai_memory/`" in task
     assert "Do not update Jira" in task
+    # Before commit, Copilot posts one Jira status comment.
+    assert "Report Status to Jira (before commit)" in task
+    assert "hrs-ai jira-comment HR-12345 --execute" in task
+    assert "Post exactly ONE comment" in task
 
 
 def test_copilot_task_branch_uses_jira_summary_slug(tmp_path):

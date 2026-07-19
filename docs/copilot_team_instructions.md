@@ -66,7 +66,7 @@ This document gives Copilot CLI stable team rules for working in a legacy C++/Qt
 - Never push main/master.
 - Never force push.
 - Never commit .ai/ or .ai_memory/.
-- Never update Jira.
+- Never transition, assign, or edit Jira fields. You may post exactly one status comment via `hrs-ai jira-comment --execute` when the task instructions ask for it.
 - Developer approval is required for any git commit or git push.
 - Always summarize changed files.
 
