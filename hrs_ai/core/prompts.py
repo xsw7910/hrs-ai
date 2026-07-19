@@ -8,21 +8,21 @@ from .delivery_instructions import delivery_instructions_block
 from .git_ops import branch_name
 
 
-def generate_prompts(issue_key: str, summary: str | None = None) -> dict[str, str]:
+def generate_prompts(issue_key: str, summary: str | None = None, hint: str | None = None) -> dict[str, str]:
     # The full analysis/fix/review/test workflow lives inside copilot_task.md, so
     # the standalone per-phase prompt files are intentionally not generated.
     branch = branch_name(issue_key, summary)
     return {
-        "copilot_task.md": _copilot_task(issue_key, branch),
+        "copilot_task.md": _copilot_task(issue_key, branch, hint),
         "copilot_handoff.md": _copilot_handoff(issue_key),
         "copilot_team_instructions.md": copilot_team_instructions(),
     }
 
 
-def generate_copilot_task_files(issue_key: str, summary: str | None = None) -> dict[str, str]:
+def generate_copilot_task_files(issue_key: str, summary: str | None = None, hint: str | None = None) -> dict[str, str]:
     branch = branch_name(issue_key, summary)
     return {
-        "copilot_task.md": _copilot_task(issue_key, branch),
+        "copilot_task.md": _copilot_task(issue_key, branch, hint),
         "copilot_handoff.md": _copilot_handoff(issue_key),
         "copilot_team_instructions.md": copilot_team_instructions(),
     }
@@ -35,9 +35,18 @@ def copilot_team_instructions() -> str:
     return _fallback_team_instructions()
 
 
-def _copilot_task(issue_key: str, branch: str) -> str:
+def _copilot_task(issue_key: str, branch: str, hint: str | None = None) -> str:
+    hint_block = ""
+    if hint and hint.strip():
+        hint_block = (
+            "## Developer Hint\n\n"
+            f"{hint.strip()}\n\n"
+            "Trust this hint. Go straight to the location it names and implement the fix there. "
+            "Do not run broad exploration and do not spawn agents to re-locate what the hint already tells you.\n\n"
+        )
     return (
         f"# Copilot CLI Task: {issue_key}\n\n"
+        f"{hint_block}"
         "## Execution Location\n\n"
         "- Run Copilot CLI from the target repo root (the target repository root).\n"
         "- Do not run Copilot CLI from the hrs-ai tool source directory.\n"
@@ -64,7 +73,7 @@ def _copilot_task(issue_key: str, branch: str) -> str:
         f"- Similar historical issues and git context are included in `bug_context.md`.\n"
         f"- Read `.ai/{issue_key}/jira_parsed.md` for reproduction steps, actual/expected results, environment, errors, and missing information.\n\n"
         "## Analysis Workflow\n\n"
-        "- Investigate the codebase directly and yourself. Do not dispatch a background sub-agent and then wait idle for it; if you delegate a search, keep working in parallel and never block on it.\n"
+        "- Investigate inline using Read, Grep, and Glob only. Do not use the Task tool or spawn any background or sub-agents, and never idle waiting on one.\n"
         "- Summarize the problem in your own words.\n"
         "- Read Jira comments in `bug_context.md` as potentially newer than the original description.\n"
         "- Review Jira attachment metadata in `bug_context.md`.\n"

@@ -56,6 +56,7 @@ def run_bug_workflow(
     include_memory: bool = False,
     allow_mock: bool = False,
     progress: Callable[[str], None] | None = None,
+    hint: str | None = None,
 ) -> WorkflowResult:
     clean_result = None
     if fresh:
@@ -65,6 +66,12 @@ def run_bug_workflow(
         _progress(progress, "clean_done" if f".ai/{issue_key}/" in clean_result.deleted_paths else "clean_none")
 
     target = _prepare_issue_dir(repo_root, issue_key)
+    # A developer hint steers the agent straight to the fix location. An explicit
+    # --hint wins; otherwise a hint from a prior run is reused (survives --resume).
+    hint_path = target / "developer_hint.md"
+    effective_hint = hint if hint and hint.strip() else (hint_path.read_text(encoding="utf-8") if not fresh and hint_path.exists() else None)
+    if effective_hint and effective_hint.strip():
+        hint_path.write_text(effective_hint.strip() + "\n", encoding="utf-8")
     command = f"hrs-ai bug {issue_key}"
     if not fresh:
         command += " --resume"
@@ -365,7 +372,8 @@ def prompt_step(repo_root: Path, issue_key: str) -> None:
     log(target, "[START] prompt")
     try:
         summary = _issue_summary(target)
-        for file_name, content in generate_prompts(issue_key, summary).items():
+        hint = _read_artifact(target, "developer_hint.md") or None
+        for file_name, content in generate_prompts(issue_key, summary, hint=hint).items():
             (target / file_name).write_text(content, encoding="utf-8")
         _mark_step(repo_root, issue_key, "prompt", "pass")
         log(target, "[END] prompt: pass")
@@ -383,7 +391,8 @@ def copilot_task_step(repo_root: Path, issue_key: str) -> None:
     log(target, "[START] copilot_task")
     try:
         summary = _issue_summary(target)
-        for file_name, content in generate_copilot_task_files(issue_key, summary).items():
+        hint = _read_artifact(target, "developer_hint.md") or None
+        for file_name, content in generate_copilot_task_files(issue_key, summary, hint=hint).items():
             (target / file_name).write_text(content, encoding="utf-8")
         log(target, "[END] copilot_task: pass")
     except Exception as exc:

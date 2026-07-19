@@ -56,6 +56,13 @@ hrs-ai bug HR-12345 --claude
 
 Without a flag, `hrs-ai bug` stays prepare-only. Review agent-generated code before committing.
 
+For a faster, more predictable run when the fix location is known, add `--hint` so the agent
+goes straight there instead of investigating:
+
+```powershell
+hrs-ai bug HR-12345 --claude --hint "Fix in FooWidget.cxx: <root cause / approach>"
+```
+
 `--fresh` and `--no-mock` are still accepted for compatibility, but they are no longer required for the normal real Jira workflow.
 
 3. Show generated files:

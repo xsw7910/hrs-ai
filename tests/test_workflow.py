@@ -247,7 +247,7 @@ def test_copilot_task_references_code_search(tmp_path):
     assert ".ai/HR-12345/git_context.md" not in task
     assert "included in `bug_context.md`" in task
     assert "Do not edit code until after reviewing context and related files" in task
-    assert "Do not dispatch a background sub-agent and then wait idle" in task
+    assert "Do not use the Task tool or spawn any background or sub-agents" in task
     assert "If search confidence is Low" in task
     assert "do not assume the matched files are the correct implementation" in task
     assert "write a no-op analysis" in task
@@ -736,6 +736,42 @@ def test_copilot_task_command_regenerates_task_files(tmp_path, monkeypatch):
     # is contained in copilot_task.md).
     assert not (issue_dir / "copilot_fix_prompt.md").exists()
     assert not (issue_dir / "review_prompt.md").exists()
+
+
+def test_bug_hint_is_injected_into_copilot_task(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    hint = "Fix in HrsQtProcessWidgetInversion.cxx: preserve non-Seismic input volume on tab switch"
+
+    assert main(["bug", "HR-12345", "--allow-mock", "--hint", hint]) == 0
+    issue_dir = tmp_path / ".ai" / "HR-12345"
+    task = (issue_dir / "copilot_task.md").read_text(encoding="utf-8")
+
+    assert (issue_dir / "developer_hint.md").read_text(encoding="utf-8").strip() == hint
+    assert "## Developer Hint" in task
+    assert hint in task
+    assert "Trust this hint" in task
+
+
+def test_bug_without_hint_has_no_developer_hint_section(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+
+    assert main(["bug", "HR-12345", "--allow-mock"]) == 0
+    issue_dir = tmp_path / ".ai" / "HR-12345"
+
+    assert not (issue_dir / "developer_hint.md").exists()
+    assert "## Developer Hint" not in (issue_dir / "copilot_task.md").read_text(encoding="utf-8")
+
+
+def test_bug_hint_persists_across_resume(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    hint = "Look at HrsQtProcessWidgetInversion.cxx"
+
+    assert main(["bug", "HR-12345", "--allow-mock", "--hint", hint]) == 0
+    # Resume without repeating --hint: the stored hint should still apply.
+    assert main(["bug", "HR-12345", "--allow-mock", "--resume"]) == 0
+    task = (tmp_path / ".ai" / "HR-12345" / "copilot_task.md").read_text(encoding="utf-8")
+
+    assert hint in task
 
 
 def test_copilot_task_command_reports_missing_bug_context(tmp_path, monkeypatch, capsys):

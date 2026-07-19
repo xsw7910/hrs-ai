@@ -173,6 +173,17 @@ hrs-ai bug HR-12345 --copilot    # launch Copilot CLI instead
 hrs-ai bug HR-12345              # no flag: prepare only (default, unchanged)
 ```
 
+To steer the agent straight to a known fix location (skips broad investigation — much
+faster when you already know where the bug is), pass `--hint`:
+
+```powershell
+hrs-ai bug HR-12345 --claude --hint "Fix in FooWidget.cxx: preserve selection on tab switch"
+```
+
+The hint is saved to `.ai/<ISSUE>/developer_hint.md`, injected as a "Developer Hint" section
+at the top of `copilot_task.md`, and reused on `--resume`. copilot_task.md also tells the
+agent to investigate inline (Read/Grep/Glob) and not spawn background sub-agents.
+
 The agent runs interactively in the current (target) repo so you can watch it work.
 Configuration:
 

@@ -123,6 +123,11 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="With fresh mode, also remove that issue's memory entry before rerunning.",
     )
+    bug_parser.add_argument(
+        "--hint",
+        metavar="TEXT",
+        help="Developer hint (e.g. fix location) injected into copilot_task.md so the agent goes straight to it.",
+    )
     bug_mock = bug_parser.add_mutually_exclusive_group()
     bug_mock.add_argument("--allow-mock", action="store_true", help="Allow mock/demo fallback when Jira fetch fails.")
     bug_mock.add_argument("--no-mock", action="store_true", help="Require real Jira data. This is the default.")
@@ -385,6 +390,7 @@ def main(argv: list[str] | None = None) -> int:
                 include_memory=args.include_memory,
                 allow_mock=_allow_mock(args),
                 progress=progress,
+                hint=args.hint,
             )
         except JiraFetchError as exc:
             print(f"[ERROR] Fetching Jira issue failed: {exc.result.error_message}", file=sys.stderr)
