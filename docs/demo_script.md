@@ -76,6 +76,21 @@ hrs-ai commit-plan HR-12345
 hrs-ai push-plan HR-12345
 ```
 
+As soon as results are summarized, `summarize-results` can post the analysis as a Jira
+comment so Jira notifies watchers by email — before the developer decides whether to commit.
+Opt in with `HRS_AI_AUTO_JIRA_COMMENT=true` or `summarize-results --jira-comment`; suppress
+with `--no-jira-comment`. This reuses the existing Jira credentials (no mail server needed)
+and is the simplest notification path when SMTP/Graph are unavailable.
+
+At the commit gate, `commit-plan` also emails a fix summary (Jira item, original problem,
+root cause, and changes made) when an email transport is configured. hrs-ai uses
+**Microsoft Graph** (recommended for Microsoft 365, sends over HTTPS) when
+`GRAPH_TENANT_ID`/`GRAPH_CLIENT_ID`/`GRAPH_CLIENT_SECRET` are set, otherwise **SMTP**.
+Preview without sending using `hrs-ai notify HR-12345`; add `--execute` to send, or run
+`commit-plan --no-email` to skip. With no transport configured, `commit-plan` still
+succeeds and reports that no email was sent — the generated `notification.eml` can be sent
+manually via `scripts/send-via-outlook.ps1`. See the README "Email Notification Configuration" section.
+
 6. Explain generated memory:
 
 ```text

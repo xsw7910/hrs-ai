@@ -9,15 +9,13 @@ from .git_ops import branch_name
 
 
 def generate_prompts(issue_key: str, summary: str | None = None) -> dict[str, str]:
+    # The full analysis/fix/review/test workflow lives inside copilot_task.md, so
+    # the standalone per-phase prompt files are intentionally not generated.
     branch = branch_name(issue_key, summary)
     return {
         "copilot_task.md": _copilot_task(issue_key, branch),
         "copilot_handoff.md": _copilot_handoff(issue_key),
         "copilot_team_instructions.md": copilot_team_instructions(),
-        "copilot_analysis_prompt.md": _analysis_prompt(issue_key),
-        "copilot_fix_prompt.md": _fix_prompt(issue_key),
-        "review_prompt.md": _review_prompt(issue_key),
-        "test_plan.md": _test_plan(issue_key),
     }
 
 
@@ -27,8 +25,6 @@ def generate_copilot_task_files(issue_key: str, summary: str | None = None) -> d
         "copilot_task.md": _copilot_task(issue_key, branch),
         "copilot_handoff.md": _copilot_handoff(issue_key),
         "copilot_team_instructions.md": copilot_team_instructions(),
-        "copilot_fix_prompt.md": _fix_prompt(issue_key),
-        "review_prompt.md": _review_prompt(issue_key),
     }
 
 
@@ -133,40 +129,6 @@ def _copilot_handoff(issue_key: str) -> str:
         "- Never push main/master, force push, merge, update Jira, or commit `.ai/` or `.ai_memory/`.\n"
         f"- Generate the required result files under `.ai/{issue_key}/`.\n"
     )
-
-
-def _analysis_prompt(issue_key: str) -> str:
-    return (
-        f"# Copilot Analysis Prompt: {issue_key}\n\n"
-        "Read `.ai/{issue_key}/bug_context.md`, inspect the repository, and identify the most likely root cause. "
-        "Write findings to `.ai/{issue_key}/bug_analysis.md` before editing code.\n"
-    ).format(issue_key=issue_key)
-
-
-def _fix_prompt(issue_key: str) -> str:
-    return (
-        f"# Copilot Fix Prompt: {issue_key}\n\n"
-        "Implement the smallest safe fix that addresses the bug context. Keep unrelated refactors out of scope. "
-        "Write `.ai/{issue_key}/fix_summary.md` and `.ai/{issue_key}/diff_summary.md`.\n"
-    ).format(issue_key=issue_key)
-
-
-def _review_prompt(issue_key: str) -> str:
-    return (
-        f"# Review Prompt: {issue_key}\n\n"
-        "Review the changes for correctness, regression risk, missing tests, and safety-rule compliance. "
-        "Write `.ai/{issue_key}/review_notes.md`.\n"
-    ).format(issue_key=issue_key)
-
-
-def _test_plan(issue_key: str) -> str:
-    return (
-        f"# Test Plan: {issue_key}\n\n"
-        "- Identify focused tests related to the bug.\n"
-        "- Run the narrowest useful test command available.\n"
-        "- If no tests exist, document the manual validation path.\n"
-        "- Write `.ai/{issue_key}/test_result.md`.\n"
-    ).format(issue_key=issue_key)
 
 
 # This fallback should mirror docs/copilot_team_instructions.md.

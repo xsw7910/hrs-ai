@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
 from hrs_ai.core import copilot, doctor, workflow
 from hrs_ai.core.cleanup import clean_issue_artifacts
 from hrs_ai.core.context import build_context
+from hrs_ai.core.email_notify import EmailSendError
 from hrs_ai.core.jira import JiraCommentPostError, JiraFetchError, fetch_issue, parse_issue
 from hrs_ai.core.keywords import extract_keywords
 from hrs_ai.core.memory import add_memory_entry, search_memory
@@ -23,9 +25,23 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers.add_parser("doctor", help="Check local environment readiness.")
     subparsers.add_parser("copilot-check", help="Check Copilot CLI readiness.")
 
-    for name in ("parse", "keywords", "search", "git-context", "context", "prompt", "status", "copilot-task", "copilot-instructions", "summarize-results", "review-package", "delivery-check", "commit-plan", "push-plan", "retry-prompt"):
+    for name in ("parse", "keywords", "search", "git-context", "context", "prompt", "status", "copilot-task", "copilot-instructions", "review-package", "delivery-check", "push-plan", "retry-prompt"):
         command = subparsers.add_parser(name, help=f"Run the {name} step.")
         command.add_argument("issue_key")
+
+    summarize_parser = subparsers.add_parser("summarize-results", help="Summarize Copilot results; optionally post a Jira comment so watchers are notified.")
+    summarize_parser.add_argument("issue_key")
+    summarize_jira = summarize_parser.add_mutually_exclusive_group()
+    summarize_jira.add_argument("--jira-comment", action="store_true", help="Post the analysis summary as a Jira comment (Jira then notifies watchers by email).")
+    summarize_jira.add_argument("--no-jira-comment", action="store_true", help="Do not post a Jira comment even if HRS_AI_AUTO_JIRA_COMMENT is set.")
+
+    commit_plan_parser = subparsers.add_parser("commit-plan", help="Run the commit-plan step and notify by email at the commit gate.")
+    commit_plan_parser.add_argument("issue_key")
+    commit_plan_parser.add_argument("--no-email", action="store_true", help="Do not send the commit-gate notification email.")
+
+    notify_parser = subparsers.add_parser("notify", help="Preview or send the post-fix notification email.")
+    notify_parser.add_argument("issue_key")
+    notify_parser.add_argument("--execute", action="store_true", help="Send the email over SMTP. Without this flag, only a local preview is written.")
 
     fetch_parser = subparsers.add_parser("fetch", help="Fetch Jira data.")
     fetch_parser.add_argument("issue_key")
@@ -271,6 +287,8 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "summarize-results":
         workflow.summarize_results_step(repo_root, args.issue_key)
         print(f"Generated result summary and manual validation for {args.issue_key}.")
+        if _auto_jira_comment_enabled(args):
+            _post_jira_comment_auto(repo_root, args.issue_key)
         return 0
 
     if args.command == "review-package":
@@ -291,6 +309,18 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "commit-plan":
         workflow.commit_plan_step(repo_root, args.issue_key)
         print(f"Generated commit plan for {args.issue_key}.")
+        if not args.no_email:
+            _notify_at_commit_gate(repo_root, args.issue_key)
+        return 0
+
+    if args.command == "notify":
+        try:
+            result = workflow.notify_step(repo_root, args.issue_key, execute=args.execute)
+        except EmailSendError as exc:
+            print(f"ERROR: {exc}", file=sys.stderr)
+            _print_email_env_hint()
+            return 1
+        _print_notify_result(result)
         return 0
 
     if args.command == "push-plan":
@@ -333,6 +363,8 @@ def main(argv: list[str] | None = None) -> int:
         if args.include_memory and args.resume:
             print("ERROR: --include-memory requires fresh mode and cannot be used with --resume.", file=sys.stderr)
             return 1
+        print(f"hrs-ai bug {args.issue_key}")
+        progress = _bug_progress_printer(args.issue_key)
         try:
             result = workflow.run_bug_workflow(
                 repo_root,
@@ -341,22 +373,25 @@ def main(argv: list[str] | None = None) -> int:
                 fresh=fresh,
                 include_memory=args.include_memory,
                 allow_mock=_allow_mock(args),
+                progress=progress,
             )
         except JiraFetchError as exc:
+            print(f"[ERROR] Fetching Jira issue failed: {exc.result.error_message}", file=sys.stderr)
+            _print_log_hint(repo_root, args.issue_key)
             _print_jira_error(exc)
             return 1
         except ValueError as exc:
             print(f"ERROR: {exc}", file=sys.stderr)
+            _print_log_hint(repo_root, args.issue_key)
             return 1
         if result.jira_result and result.jira_result.source == "mock":
             print(f"WARN: {result.jira_result.error_message} Using mock/demo Jira data.")
-        if fresh and result.clean_result and f".ai/{args.issue_key}/" in result.clean_result.deleted_paths:
-            print(f"Cleaned previous workflow artifacts for {args.issue_key}.")
         if not fresh:
             print(f"Resuming existing workflow package for {args.issue_key}.")
             print("Previous artifacts were preserved.")
+        _print_key_generated_artifacts(repo_root, args.issue_key)
         print(f"Prepared hrs-ai workflow package for {args.issue_key}.")
-        print(f"Artifacts: {result.issue_dir}")
+        print(f"Artifacts: .ai/{args.issue_key}")
         print("Next manual Copilot CLI instruction:")
         print(f"  Read .ai/{args.issue_key}/copilot_task.md and complete the workflow.")
         if args.copilot_fix:
@@ -394,6 +429,130 @@ def _print_status(repo_root: Path, issue_key: str) -> int:
 
 def _allow_mock(args) -> bool:
     return bool(getattr(args, "allow_mock", False))
+
+
+def _bug_progress_printer(issue_key: str):
+    messages = {
+        "doctor": "[1/9] Checking environment...",
+        "fetch": f"[2/9] Fetching Jira issue {issue_key}...",
+        "parse": "[3/9] Parsing Jira details...",
+        "keywords": "[4/9] Extracting keywords...",
+        "memory_search": "[5/9] Searching memory...",
+        "code_search": "[6/9] Searching codebase...",
+        "git_context": "[7/9] Collecting git context...",
+        "context": "[8/9] Building bug context...",
+        "prompt": "[9/9] Generating Copilot task package...",
+    }
+
+    def print_progress(event: str) -> None:
+        if event == "clean_start":
+            print(f"Cleaning previous workflow artifacts for {issue_key}...")
+        elif event == "clean_done":
+            print(f"Cleaned previous workflow artifacts for {issue_key}.")
+        elif event == "clean_none":
+            print(f"No previous workflow artifacts found for {issue_key}.")
+        elif event in messages:
+            print(messages[event])
+
+    return print_progress
+
+
+def _print_key_generated_artifacts(repo_root: Path, issue_key: str) -> None:
+    key_files = [
+        "jira_summary.md",
+        "jira_parsed.md",
+        "code_search.md",
+        "bug_context.md",
+        "copilot_task.md",
+    ]
+    existing = [f".ai/{issue_key}/{file_name}" for file_name in key_files if (repo_root / ".ai" / issue_key / file_name).exists()]
+    if not existing:
+        return
+    print("Generated:")
+    for file_name in existing:
+        print(f"  {file_name}")
+
+
+def _print_log_hint(repo_root: Path, issue_key: str) -> None:
+    if (repo_root / ".ai" / issue_key / "execution.log").exists():
+        print(f"See .ai/{issue_key}/execution.log for details.", file=sys.stderr)
+
+
+def _auto_jira_comment_enabled(args) -> bool:
+    if getattr(args, "no_jira_comment", False):
+        return False
+    if getattr(args, "jira_comment", False):
+        return True
+    return os.getenv("HRS_AI_AUTO_JIRA_COMMENT", "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _post_jira_comment_auto(repo_root: Path, issue_key: str) -> None:
+    """Post the analysis summary as a Jira comment (best-effort, non-fatal).
+
+    Runs right after the fix results are summarized so Jira notifies watchers by
+    email before the developer decides whether to commit. A failure here never
+    fails summarize-results.
+    """
+    try:
+        workflow.jira_comment_draft_step(repo_root, issue_key, strict=False)
+        result = workflow.jira_comment_step(repo_root, issue_key, execute=True)
+    except (JiraCommentPostError, JiraFetchError) as exc:
+        message = getattr(exc, "message", None) or getattr(getattr(exc, "result", None), "error_message", None) or str(exc)
+        print(f"WARN: auto Jira comment not posted: {message}", file=sys.stderr)
+        print("Post manually when ready:  hrs-ai jira-comment-draft "
+              f"{issue_key}  then  hrs-ai jira-comment {issue_key} --execute", file=sys.stderr)
+        return
+    except (FileNotFoundError, ValueError) as exc:
+        print(f"WARN: auto Jira comment not posted: {exc}", file=sys.stderr)
+        return
+    print(f"Posted Jira comment for {issue_key}. Jira will notify watchers by email.")
+    print(f"  Comment ID: {result.get('comment_id') or '(not returned)'}")
+
+
+def _notify_at_commit_gate(repo_root: Path, issue_key: str) -> None:
+    """Send the notification email at the commit decision point (best-effort)."""
+    try:
+        result = workflow.notify_step(repo_root, issue_key, execute=True)
+    except EmailSendError as exc:
+        print(f"WARN: commit-gate email not sent: {exc}", file=sys.stderr)
+        _print_email_env_hint()
+        return
+    _print_notify_result(result)
+
+
+def _print_notify_result(result: dict) -> None:
+    issue_key = result.get("issue_key")
+    if result.get("draft_path"):
+        print(f"Email draft: .ai/{issue_key}/email_draft.md")
+    if result.get("eml_path"):
+        print(f"Outlook-ready file: .ai/{issue_key}/notification.eml")
+    if not result.get("execute"):
+        print("Preview only. No email was sent.")
+        print(f"  To send automatically:  hrs-ai notify {issue_key} --execute   (needs SMTP or Graph configured)")
+        print(f"  To send via Outlook:    .\\scripts\\send-via-outlook.ps1 {issue_key}")
+        return
+    if result.get("sent"):
+        recipients = result.get("recipients") or ()
+        print(f"Sent notification email via {result.get('transport', 'smtp')} to: {', '.join(recipients)}")
+    else:
+        print(f"WARN: email not sent. {result.get('skipped_reason', '')}".rstrip())
+        _print_email_env_hint()
+
+
+def _print_email_env_hint() -> None:
+    print("To enable automatic email, configure one transport:", file=sys.stderr)
+    print(
+        "  Graph (recommended for Microsoft 365): GRAPH_TENANT_ID, GRAPH_CLIENT_ID, "
+        "GRAPH_CLIENT_SECRET, HRS_AI_EMAIL_FROM, HRS_AI_EMAIL_TO.",
+        file=sys.stderr,
+    )
+    print(
+        "  SMTP: SMTP_HOST, HRS_AI_EMAIL_FROM, HRS_AI_EMAIL_TO "
+        "(and SMTP_USERNAME/SMTP_PASSWORD if the relay needs auth).",
+        file=sys.stderr,
+    )
+    print("Store secrets in a secrets manager; do not hardcode them.", file=sys.stderr)
+    print("No transport configured? Send via Outlook: .\\scripts\\send-via-outlook.ps1 <ISSUE>", file=sys.stderr)
 
 
 def _print_jira_error(exc: JiraFetchError) -> None:

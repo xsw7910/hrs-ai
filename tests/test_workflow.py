@@ -85,6 +85,7 @@ def test_workflow_status_json_generation(tmp_path):
         "delivery_check": "skipped",
         "commit_plan": "skipped",
         "push_plan": "skipped",
+        "notify": "skipped",
         "jira_comment_draft": "skipped",
         "jira_comment": "skipped",
         "retry_prompt": "skipped",
@@ -113,6 +114,66 @@ def test_bug_command_runs_in_temporary_directory(tmp_path, monkeypatch):
     assert exit_code == 0
     assert (tmp_path / ".ai" / "HR-12345" / "jira_summary.md").is_file()
     assert (tmp_path / ".ai" / "HR-12345" / "workflow_status.json").is_file()
+
+
+def test_bug_command_prints_progress_and_key_artifacts(tmp_path, monkeypatch, capsys):
+    _set_jira_env(monkeypatch)
+    monkeypatch.setattr(
+        "hrs_ai.core.jira.urllib.request.urlopen",
+        lambda request, timeout: _good_jira_response()(),
+    )
+    monkeypatch.chdir(tmp_path)
+
+    assert main(["bug", "HR-12345"]) == 0
+    output = capsys.readouterr().out
+
+    assert "hrs-ai bug HR-12345" in output
+    assert "Checking environment" in output
+    assert "Fetching Jira issue HR-12345" in output
+    assert "Parsing Jira details" in output
+    assert "Extracting keywords" in output
+    assert "Searching memory" in output
+    assert "Searching codebase" in output
+    assert "Building bug context" in output
+    assert "Generating Copilot task package" in output
+    assert "Generated:" in output
+    assert ".ai/HR-12345/jira_summary.md" in output
+    assert ".ai/HR-12345/jira_parsed.md" in output
+    assert ".ai/HR-12345/code_search.md" in output
+    assert ".ai/HR-12345/bug_context.md" in output
+    assert ".ai/HR-12345/copilot_task.md" in output
+    assert "Prepared hrs-ai workflow package for HR-12345." in output
+    assert "Artifacts: .ai/HR-12345" in output
+
+
+def test_bug_command_fetch_failure_prints_clear_error(tmp_path, monkeypatch, capsys):
+    monkeypatch.delenv("JIRA_BASE_URL", raising=False)
+    monkeypatch.delenv("JIRA_EMAIL", raising=False)
+    monkeypatch.delenv("JIRA_TOKEN", raising=False)
+    monkeypatch.chdir(tmp_path)
+
+    assert main(["bug", "HR-12345"]) == 1
+    captured = capsys.readouterr()
+
+    assert "Fetching Jira issue HR-12345" in captured.out
+    assert "ERROR" in captured.err
+    assert "Fetching Jira issue failed" in captured.err
+    assert "See .ai/HR-12345/execution.log for details." in captured.err
+
+
+def test_bug_command_progress_does_not_print_jira_token(tmp_path, monkeypatch, capsys):
+    _set_jira_env(monkeypatch)
+    monkeypatch.setattr(
+        "hrs_ai.core.jira.urllib.request.urlopen",
+        lambda request, timeout: _good_jira_response()(),
+    )
+    monkeypatch.chdir(tmp_path)
+
+    assert main(["bug", "HR-12345"]) == 0
+    captured = capsys.readouterr()
+
+    assert "token-value" not in captured.out
+    assert "token-value" not in captured.err
 
 
 def test_execution_log_contains_prepare_only_lifecycle(tmp_path, monkeypatch):
@@ -658,8 +719,10 @@ def test_copilot_task_command_regenerates_task_files(tmp_path, monkeypatch):
     assert (issue_dir / "copilot_handoff.md").is_file()
     assert "UNIQUE_STALE_TEAM_INSTRUCTIONS" not in (issue_dir / "copilot_team_instructions.md").read_text()
     assert "Copilot Team Instructions" in (issue_dir / "copilot_team_instructions.md").read_text()
-    assert (issue_dir / "copilot_fix_prompt.md").is_file()
-    assert (issue_dir / "review_prompt.md").is_file()
+    # The standalone per-phase prompt files are no longer generated (their content
+    # is contained in copilot_task.md).
+    assert not (issue_dir / "copilot_fix_prompt.md").exists()
+    assert not (issue_dir / "review_prompt.md").exists()
 
 
 def test_copilot_task_command_reports_missing_bug_context(tmp_path, monkeypatch, capsys):
@@ -2782,6 +2845,104 @@ def test_jira_comment_execute_status_includes_generated_files(tmp_path, monkeypa
     assert "[START] jira_comment execute" in log_text
     assert "[GENERATED] .ai/HR-12345/jira_comment_post_result.json" in log_text
     assert "[END] jira_comment: pass" in log_text
+
+
+# ---------------------------------------------------------------------------
+# Auto Jira comment after summarize-results (notify-on-fix-ready)
+# ---------------------------------------------------------------------------
+
+
+def test_summarize_results_auto_posts_jira_comment_with_flag(tmp_path, monkeypatch, capsys):
+    issue_dir = _write_comment_draft_package(tmp_path)
+    _set_jira_env(monkeypatch)
+    monkeypatch.delenv("HRS_AI_AUTO_JIRA_COMMENT", raising=False)
+    monkeypatch.chdir(tmp_path)
+    requests = []
+
+    def fake_urlopen(request, timeout):
+        requests.append(request)
+        return _JiraPostResponse()
+
+    monkeypatch.setattr("hrs_ai.core.jira.urllib.request.urlopen", fake_urlopen)
+
+    assert main(["summarize-results", "HR-12345", "--jira-comment"]) == 0
+    out = capsys.readouterr().out
+
+    assert len(requests) == 1
+    assert requests[0].full_url == "https://jira.example.test/rest/api/3/issue/HR-12345/comment"
+    assert requests[0].get_method() == "POST"
+    assert "Posted Jira comment for HR-12345. Jira will notify watchers by email." in out
+    assert (issue_dir / "result_summary.md").is_file()
+    assert (issue_dir / "jira_comment_post_result.json").is_file()
+
+
+def test_summarize_results_auto_posts_when_env_enabled(tmp_path, monkeypatch):
+    _write_comment_draft_package(tmp_path)
+    _set_jira_env(monkeypatch)
+    monkeypatch.setenv("HRS_AI_AUTO_JIRA_COMMENT", "true")
+    monkeypatch.chdir(tmp_path)
+    requests = []
+
+    def fake_urlopen(request, timeout):
+        requests.append(request)
+        return _JiraPostResponse()
+
+    monkeypatch.setattr("hrs_ai.core.jira.urllib.request.urlopen", fake_urlopen)
+
+    assert main(["summarize-results", "HR-12345"]) == 0
+    assert len(requests) == 1
+
+
+def test_summarize_results_no_jira_comment_overrides_env(tmp_path, monkeypatch):
+    _write_comment_draft_package(tmp_path)
+    _set_jira_env(monkeypatch)
+    monkeypatch.setenv("HRS_AI_AUTO_JIRA_COMMENT", "true")
+    monkeypatch.chdir(tmp_path)
+    called = {"value": False}
+
+    def fake_urlopen(request, timeout):
+        called["value"] = True
+        return _JiraPostResponse()
+
+    monkeypatch.setattr("hrs_ai.core.jira.urllib.request.urlopen", fake_urlopen)
+
+    assert main(["summarize-results", "HR-12345", "--no-jira-comment"]) == 0
+    assert called["value"] is False
+
+
+def test_summarize_results_default_does_not_post(tmp_path, monkeypatch):
+    _write_comment_draft_package(tmp_path)
+    _set_jira_env(monkeypatch)
+    monkeypatch.delenv("HRS_AI_AUTO_JIRA_COMMENT", raising=False)
+    monkeypatch.chdir(tmp_path)
+    called = {"value": False}
+
+    def fake_urlopen(request, timeout):
+        called["value"] = True
+        return _JiraPostResponse()
+
+    monkeypatch.setattr("hrs_ai.core.jira.urllib.request.urlopen", fake_urlopen)
+
+    assert main(["summarize-results", "HR-12345"]) == 0
+    assert called["value"] is False
+
+
+def test_summarize_results_auto_post_failure_is_non_fatal(tmp_path, monkeypatch, capsys):
+    issue_dir = _write_comment_draft_package(tmp_path)
+    _set_jira_env(monkeypatch)
+    monkeypatch.chdir(tmp_path)
+
+    def fake_urlopen(request, timeout):
+        raise _http_error(500)
+
+    monkeypatch.setattr("hrs_ai.core.jira.urllib.request.urlopen", fake_urlopen)
+
+    # summarize-results must still succeed even if the Jira post fails.
+    assert main(["summarize-results", "HR-12345", "--jira-comment"]) == 0
+    err = capsys.readouterr().err
+
+    assert "auto Jira comment not posted" in err
+    assert (issue_dir / "result_summary.md").is_file()
 
 
 # ---------------------------------------------------------------------------

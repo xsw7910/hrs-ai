@@ -6,12 +6,14 @@ import platform
 import sys
 from pathlib import Path
 
-from .config import load_config
+from .config import load_config, load_email_config, load_graph_config
 from .git_ops import command_available, current_branch, inside_git_repo, working_tree_status
 
 
-def collect_doctor_report(repo_root: Path) -> dict[str, str | bool]:
+def collect_doctor_report(repo_root: Path) -> dict[str, str | bool | None]:
     config = load_config(repo_root)
+    email_config = load_email_config()
+    graph_config = load_graph_config()
     in_git = command_available("git") and inside_git_repo(repo_root)
     return {
         "python_version": platform.python_version(),
@@ -26,6 +28,8 @@ def collect_doctor_report(repo_root: Path) -> dict[str, str | bool]:
         "jira_email_present": bool(config.jira_email),
         "jira_token_present": bool(config.jira_token),
         "copilot_available": command_available(config.copilot_command),
+        "email_configured": email_config.is_configured,
+        "email_graph_configured": graph_config.is_configured,
     }
 
 
