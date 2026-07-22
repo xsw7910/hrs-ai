@@ -55,7 +55,7 @@ class AppConfig:
 class EmailConfig:
     """SMTP configuration for outbound notification email.
 
-    Credentials are read from the environment only. hrs-ai never hardcodes or
+    Credentials are read from the environment only. bugpilot never hardcodes or
     persists SMTP secrets; use a secrets manager to inject them at runtime.
     """
 
@@ -96,7 +96,7 @@ class GraphConfig:
 
     This is the transport of choice when the tenant disables SMTP client
     authentication. All values come from the environment; the client secret is
-    never hardcoded, logged, or persisted by hrs-ai.
+    never hardcoded, logged, or persisted by bugpilot.
     """
 
     tenant_id: str | None
@@ -128,7 +128,7 @@ def load_config(repo_root: Path) -> AppConfig:
         claude_command=os.getenv("HRS_AI_CLAUDE_COMMAND", "claude"),
         # Interactive by default, but auto-accept file edits so the agent is not
         # blocked on every edit. For a fully unattended run (also skipping shell
-        # prompts for git / hrs-ai), set HRS_AI_CLAUDE_ARGS to include
+        # prompts for git / bugpilot), set HRS_AI_CLAUDE_ARGS to include
         # --dangerously-skip-permissions.
         claude_args=os.getenv("HRS_AI_CLAUDE_ARGS", "--permission-mode acceptEdits"),
         copilot_args=os.getenv("HRS_AI_COPILOT_ARGS", ""),

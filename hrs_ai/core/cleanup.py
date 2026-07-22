@@ -1,4 +1,4 @@
-"""Safe cleanup helpers for generated hrs-ai artifacts."""
+"""Safe cleanup helpers for generated bugpilot artifacts."""
 
 from __future__ import annotations
 

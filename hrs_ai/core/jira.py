@@ -89,7 +89,7 @@ def fetch_issue(repo_root: Path, issue_key: str, allow_mock: bool = True) -> Jir
         headers={
             "Authorization": f"Basic {token}",
             "Accept": "application/json",
-            "User-Agent": "hrs-ai-prototype/0.1",
+            "User-Agent": "bugpilot-prototype/0.1",
         },
     )
     try:
@@ -144,7 +144,7 @@ def post_jira_comment(repo_root: Path, issue_key: str, comment_text: str) -> Jir
 
     url = f"{config.jira_base_url.rstrip('/')}/rest/api/3/issue/{issue_key}/comment"
     token = base64.b64encode(f"{config.jira_email}:{config.jira_token}".encode()).decode()
-    body = json.dumps({"body": _plain_text_adf(prepared)}).encode("utf-8")
+    body = json.dumps({"body": _markdown_to_adf(prepared)}).encode("utf-8")
     request = urllib.request.Request(
         url,
         data=body,
@@ -152,7 +152,7 @@ def post_jira_comment(repo_root: Path, issue_key: str, comment_text: str) -> Jir
             "Authorization": f"Basic {token}",
             "Accept": "application/json",
             "Content-Type": "application/json",
-            "User-Agent": "hrs-ai-prototype/0.1",
+            "User-Agent": "bugpilot-prototype/0.1",
         },
         method="POST",
     )
@@ -189,23 +189,65 @@ def post_jira_comment(repo_root: Path, issue_key: str, comment_text: str) -> Jir
 def prepare_jira_comment_text(comment_text: str) -> str:
     text = sanitize_comment_text(str(comment_text)).strip()
     if len(text) > MAX_JIRA_COMMENT_LENGTH:
-        return text[:MAX_JIRA_COMMENT_LENGTH].rstrip() + "\n\n[truncated by hrs-ai]"
+        return text[:MAX_JIRA_COMMENT_LENGTH].rstrip() + "\n\n[truncated by bugpilot]"
     return text
 
 
-def _plain_text_adf(text: str) -> dict:
-    paragraphs = []
-    for paragraph in text.splitlines():
-        if paragraph.strip():
-            paragraphs.append(
-                {
-                    "type": "paragraph",
-                    "content": [{"type": "text", "text": paragraph}],
-                }
-            )
-    if not paragraphs:
-        paragraphs.append({"type": "paragraph", "content": [{"type": "text", "text": text}]})
-    return {"type": "doc", "version": 1, "content": paragraphs}
+def _markdown_to_adf(text: str) -> dict:
+    """Render the small markdown subset bugpilot emits into Atlassian Document Format.
+
+    Jira Cloud renders ADF, not markdown, so posting raw markdown shows literal
+    `##` / `---` / `-`. This converts headings, horizontal rules, and bullet
+    lists into real ADF nodes; everything else becomes a paragraph.
+    """
+    content: list[dict] = []
+    bullets: list[str] = []
+
+    def flush_bullets() -> None:
+        if bullets:
+            content.append({
+                "type": "bulletList",
+                "content": [
+                    {"type": "listItem", "content": [_paragraph(item)]}
+                    for item in bullets
+                ],
+            })
+            bullets.clear()
+
+    for raw in text.splitlines():
+        line = raw.strip()
+        if not line:
+            flush_bullets()
+            continue
+        if len(line) >= 3 and set(line) <= {"-", "*", "_"}:  # horizontal rule
+            flush_bullets()
+            content.append({"type": "rule"})
+            continue
+        heading = re.match(r"^(#{1,6})\s+(.*\S)\s*$", line)
+        if heading:
+            flush_bullets()
+            level = min(len(heading.group(1)) + 1, 6)  # '#' -> h2, '##' -> h3
+            content.append({
+                "type": "heading",
+                "attrs": {"level": level},
+                "content": [{"type": "text", "text": heading.group(2)}],
+            })
+            continue
+        bullet = re.match(r"^[-*]\s+(.*\S)\s*$", line)
+        if bullet:
+            bullets.append(bullet.group(1))
+            continue
+        flush_bullets()
+        content.append(_paragraph(line))
+    flush_bullets()
+
+    if not content:
+        content.append(_paragraph(text.strip() or " "))
+    return {"type": "doc", "version": 1, "content": content}
+
+
+def _paragraph(text: str) -> dict:
+    return {"type": "paragraph", "content": [{"type": "text", "text": text}]}
 
 
 def parse_issue(issue: dict) -> dict[str, object]:
@@ -539,9 +581,9 @@ def _comments_markdown(comments: list[object]) -> str:
 
 def _attachments_markdown(attachments: list[object]) -> str:
     if not attachments:
-        return "No attachments found.\n\nAttachment content is not downloaded by hrs-ai."
+        return "No attachments found.\n\nAttachment content is not downloaded by bugpilot."
     lines = [
-        "Attachment content is not downloaded by hrs-ai.",
+        "Attachment content is not downloaded by bugpilot.",
         "",
         "| Filename | Type | Size | Created | Author |",
         "|---|---|---:|---|---|",
@@ -747,7 +789,7 @@ def _safe_preview(value: object, max_len: int = 80) -> str:
 
 
 def sanitize_comment_text(text: str) -> str:
-    """Redact secret-like values before generated text is shared outside hrs-ai."""
+    """Redact secret-like values before generated text is shared outside bugpilot."""
     text = _redact_query_params(str(text))
     return _redact_kv(text)
 

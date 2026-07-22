@@ -1,1 +1,1 @@
-"""Core modules for hrs-ai."""
+"""Core modules for bugpilot."""

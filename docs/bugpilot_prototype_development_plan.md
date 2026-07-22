@@ -1,8 +1,8 @@
-# hrs-ai Prototype Development Plan
+# bugpilot Prototype Development Plan
 
 ## 1. Overview
 
-This document defines a prototype development and implementation plan for **hrs-ai**, an internal AI-assisted development workflow tool.
+This document defines a prototype development and implementation plan for **bugpilot**, an internal AI-assisted development workflow tool.
 
 The goal of this prototype is to demonstrate an end-to-end workflow that connects:
 
@@ -21,13 +21,13 @@ This prototype is not intended to be a final production-quality platform. The ma
 The tool name is:
 
 ```bash
-hrs-ai
+bugpilot
 ```
 
 Example command:
 
 ```bash
-hrs-ai bug HR-12345
+bugpilot bug HR-12345
 ```
 
 ---
@@ -78,7 +78,7 @@ The prototype should prove that a developer can run a single command and produce
 Default safe command:
 
 ```bash
-hrs-ai bug HR-12345
+bugpilot bug HR-12345
 ```
 
 Expected result:
@@ -99,7 +99,7 @@ Expected result:
 Optional experimental command:
 
 ```bash
-hrs-ai bug HR-12345 --copilot-fix
+bugpilot bug HR-12345 --copilot-fix
 ```
 
 Expected behavior:
@@ -118,7 +118,7 @@ Expected behavior:
 The prototype should preserve a clean boundary between deterministic automation and AI-driven work.
 
 ```text
-hrs-ai responsibilities:
+bugpilot responsibilities:
 - deterministic workflow orchestration
 - Jira fetching
 - Jira parsing
@@ -143,7 +143,7 @@ Copilot CLI responsibilities:
 - review notes generation
 ```
 
-This keeps `hrs-ai` predictable and auditable while allowing Copilot CLI to perform AI coding tasks.
+This keeps `bugpilot` predictable and auditable while allowing Copilot CLI to perform AI coding tasks.
 
 ---
 
@@ -152,9 +152,9 @@ This keeps `hrs-ai` predictable and auditable while allowing Copilot CLI to perf
 ```text
 Developer
    |
-   | hrs-ai bug HR-12345
+   | bugpilot bug HR-12345
    v
-hrs-ai CLI
+bugpilot CLI
    |
    |-- Doctor / Environment Check
    |
@@ -198,7 +198,7 @@ Use a moderate modular structure from the beginning. Avoid both extremes: do not
 Recommended structure:
 
 ```text
-tools/hrs-ai/
+tools/bugpilot/
   README.md
   pyproject.toml
 
@@ -234,7 +234,7 @@ tools/hrs-ai/
 Optional temporary Phase 1 shortcut:
 
 ```text
-tools/hrs-ai/
+tools/bugpilot/
   hrs_ai.py
   templates/
   README.md
@@ -316,7 +316,7 @@ export HRS_AI_DEFAULT_BASE_BRANCH="main"
 export HRS_AI_COPILOT_COMMAND="copilot"
 ```
 
-### 10.2 Optional `.hrs-ai.yml`
+### 10.2 Optional `.bugpilot.yml`
 
 The Jira key must be provided at runtime. It should not be hardcoded in config.
 
@@ -379,17 +379,17 @@ memory:
 
 ## 11. Working Directory and Execution Location
 
-`hrs-ai` and GitHub Copilot CLI should be run from the **target repository root directory**, not from the `hrs-ai` tool source directory.
+`bugpilot` and GitHub Copilot CLI should be run from the **target repository root directory**, not from the `bugpilot` tool source directory.
 
-This is important because both `hrs-ai` and Copilot CLI need to operate against the repository being analyzed and modified.
+This is important because both `bugpilot` and Copilot CLI need to operate against the repository being analyzed and modified.
 
 ### 11.1 Recommended Directory Layout
 
 Example:
 
 ```text
-hrs-ai tool source:
-C:\tools\hrs-ai\
+bugpilot tool source:
+C:\tools\bugpilot\
 
 target product repository:
 C:\sandbox\monorepo_qt6\monorepo\
@@ -400,8 +400,8 @@ The developer should run commands from the target product repository:
 ```powershell
 cd C:\sandbox\monorepo_qt6\monorepo
 
-hrs-ai doctor
-hrs-ai bug HR-12345
+bugpilot doctor
+bugpilot bug HR-12345
 copilot
 ```
 
@@ -415,14 +415,14 @@ Read .ai/HR-12345/copilot_task.md and complete the workflow.
 
 Copilot CLI uses the current working directory as its project context.
 
-If Copilot CLI is run from the `hrs-ai` tool directory:
+If Copilot CLI is run from the `bugpilot` tool directory:
 
 ```powershell
-cd C:\tools\hrs-ai
+cd C:\tools\bugpilot
 copilot
 ```
 
-then Copilot will see and operate on the `hrs-ai` tool code, not the target product repository.
+then Copilot will see and operate on the `bugpilot` tool code, not the target product repository.
 
 This may cause incorrect behavior such as:
 
@@ -430,7 +430,7 @@ This may cause incorrect behavior such as:
 - reading the wrong files
 - checking the wrong git status
 - creating branches in the wrong repo
-- editing the hrs-ai tool instead of the product code
+- editing the bugpilot tool instead of the product code
 - running tests in the wrong project
 ```
 
@@ -458,12 +458,12 @@ This allows Copilot CLI to read files using relative paths:
 .ai/HR-12345/code_search.md
 ```
 
-### 11.4 How hrs-ai Should Be Installed or Invoked
+### 11.4 How bugpilot Should Be Installed or Invoked
 
-`hrs-ai` can be installed as a command-line tool:
+`bugpilot` can be installed as a command-line tool:
 
 ```powershell
-cd C:\tools\hrs-ai
+cd C:\tools\bugpilot
 pip install -e .
 ```
 
@@ -471,14 +471,14 @@ After installation, it can be run from any target repository:
 
 ```powershell
 cd C:\sandbox\monorepo_qt6\monorepo
-hrs-ai bug HR-12345
+bugpilot bug HR-12345
 ```
 
 If not installed, it can be invoked by full path:
 
 ```powershell
 cd C:\sandbox\monorepo_qt6\monorepo
-python C:\tools\hrs-ai\hrs_ai.py bug HR-12345
+python C:\tools\bugpilot\hrs_ai.py bug HR-12345
 ```
 
 For a modular package, it can also be run as:
@@ -493,10 +493,10 @@ python -m hrs_ai bug HR-12345
 The general rule is:
 
 ```text
-hrs-ai source code location:
-- can be anywhere, such as C:\tools\hrs-ai
+bugpilot source code location:
+- can be anywhere, such as C:\tools\bugpilot
 
-hrs-ai execution location:
+bugpilot execution location:
 - target repository root
 
 Copilot CLI execution location:
@@ -517,13 +517,13 @@ source code modified by Copilot:
 Default command:
 
 ```bash
-hrs-ai bug HR-12345
+bugpilot bug HR-12345
 ```
 
 Equivalent behavior:
 
 ```text
-hrs-ai bug HR-12345 --prepare-only
+bugpilot bug HR-12345 --prepare-only
 ```
 
 This mode:
@@ -551,7 +551,7 @@ Read .ai/HR-12345/copilot_task.md and complete the workflow.
 Command:
 
 ```bash
-hrs-ai bug HR-12345 --copilot-fix
+bugpilot bug HR-12345 --copilot-fix
 ```
 
 Behavior:
@@ -578,7 +578,7 @@ Before relying on `--copilot-fix`, implement and run a small validation command.
 Command:
 
 ```bash
-hrs-ai copilot-check
+bugpilot copilot-check
 ```
 
 Purpose:
@@ -610,7 +610,7 @@ Output:
 If unsupported:
 
 ```text
-- Keep hrs-ai useful by generating copilot_task.md.
+- Keep bugpilot useful by generating copilot_task.md.
 - Ask the developer to manually open Copilot CLI.
 - Do not block the rest of the workflow.
 ```
@@ -622,7 +622,7 @@ If unsupported:
 ### 13.1 Doctor
 
 ```bash
-hrs-ai doctor
+bugpilot doctor
 ```
 
 Purpose:
@@ -662,7 +662,7 @@ Halt branch creation unless an explicit override flag is provided.
 ### 13.2 Status
 
 ```bash
-hrs-ai status HR-12345
+bugpilot status HR-12345
 ```
 
 Purpose:
@@ -704,7 +704,7 @@ Generated:
 ### 13.3 Fetch Jira
 
 ```bash
-hrs-ai fetch HR-12345
+bugpilot fetch HR-12345
 ```
 
 Purpose:
@@ -791,7 +791,7 @@ Raw data is still saved in .ai/HR-12345/jira.json.
 ### 13.5 Parse Jira
 
 ```bash
-hrs-ai parse HR-12345
+bugpilot parse HR-12345
 ```
 
 Purpose:
@@ -822,7 +822,7 @@ Output:
 ### 13.6 Extract Keywords
 
 ```bash
-hrs-ai keywords HR-12345
+bugpilot keywords HR-12345
 ```
 
 Purpose:
@@ -894,7 +894,7 @@ Example:
 ### 13.7 Code Search
 
 ```bash
-hrs-ai search HR-12345
+bugpilot search HR-12345
 ```
 
 Purpose:
@@ -967,7 +967,7 @@ code_search.md must include enough file path and line-number information for Cop
 
 ### 13.8 Related File Ranking
 
-Can be part of `hrs-ai search`.
+Can be part of `bugpilot search`.
 
 Purpose:
 
@@ -1003,13 +1003,13 @@ Output:
 ### 13.9 Memory Search
 
 ```bash
-hrs-ai memory search HR-12345
+bugpilot memory search HR-12345
 ```
 
 or:
 
 ```bash
-hrs-ai memory search "VDS import crash"
+bugpilot memory search "VDS import crash"
 ```
 
 Purpose:
@@ -1041,7 +1041,7 @@ Output:
 ### 13.10 Git Context
 
 ```bash
-hrs-ai git-context HR-12345
+bugpilot git-context HR-12345
 ```
 
 Purpose:
@@ -1069,7 +1069,7 @@ Output:
 ### 13.11 Build Bug Context
 
 ```bash
-hrs-ai context HR-12345
+bugpilot context HR-12345
 ```
 
 Purpose:
@@ -1161,7 +1161,7 @@ Context risks:
 ### 13.12 Generate Copilot Task and Prompts
 
 ```bash
-hrs-ai prompt HR-12345
+bugpilot prompt HR-12345
 ```
 
 Purpose:
@@ -1303,7 +1303,7 @@ feature/HR-12345-<summary-slug>
 Command:
 
 ```bash
-hrs-ai branch HR-12345 --description "<jira-summary>"
+bugpilot branch HR-12345 --description "<jira-summary>"
 ```
 
 Expected git operations:
@@ -1336,21 +1336,21 @@ Do not force checkout or reset.
 Command:
 
 ```bash
-hrs-ai bug HR-12345 --copilot-fix
+bugpilot bug HR-12345 --copilot-fix
 ```
 
 Implementation:
 
 ```text
-1. hrs-ai prepares context and task prompt.
-2. hrs-ai checks whether Copilot CLI automatic invocation is supported.
+1. bugpilot prepares context and task prompt.
+2. bugpilot checks whether Copilot CLI automatic invocation is supported.
 3. If supported, Copilot CLI reads copilot_task.md.
 4. Copilot CLI creates branch.
 5. Copilot CLI analyzes issue.
 6. Copilot CLI edits source code.
 7. Copilot CLI runs tests if available.
 8. Copilot CLI writes summary files.
-9. If unsupported, hrs-ai prints manual Copilot CLI instructions.
+9. If unsupported, bugpilot prints manual Copilot CLI instructions.
 ```
 
 Generated files after Copilot fix:
@@ -1371,7 +1371,7 @@ Generated files after Copilot fix:
 Command:
 
 ```bash
-hrs-ai test-plan HR-12345
+bugpilot test-plan HR-12345
 ```
 
 Purpose:
@@ -1427,7 +1427,7 @@ Example:
 Command:
 
 ```bash
-hrs-ai diff HR-12345
+bugpilot diff HR-12345
 ```
 
 Purpose:
@@ -1456,7 +1456,7 @@ Output:
 Generated by:
 
 ```bash
-hrs-ai prompt HR-12345
+bugpilot prompt HR-12345
 ```
 
 Output:
@@ -1494,7 +1494,7 @@ NEEDS CHANGES
 Command:
 
 ```bash
-hrs-ai memory add HR-12345
+bugpilot memory add HR-12345
 ```
 
 Purpose:
@@ -1554,7 +1554,7 @@ TBD
 
 ## Notes
 
-Created by hrs-ai prototype.
+Created by bugpilot prototype.
 ```
 
 ### 21.2 Memory Search
@@ -1562,7 +1562,7 @@ Created by hrs-ai prototype.
 Command:
 
 ```bash
-hrs-ai memory search HR-12345
+bugpilot memory search HR-12345
 ```
 
 Purpose:
@@ -1588,7 +1588,7 @@ Output:
 Command:
 
 ```bash
-hrs-ai memory update HR-12345
+bugpilot memory update HR-12345
 ```
 
 Purpose:
@@ -1664,7 +1664,7 @@ Each workflow run should write:
 Command:
 
 ```bash
-hrs-ai bug HR-12345
+bugpilot bug HR-12345
 ```
 
 Default mode:
@@ -1757,7 +1757,7 @@ Validate what the company Copilot CLI can actually do from a script.
 Implement:
 
 ```text
-- hrs-ai copilot-check
+- bugpilot copilot-check
 - detect copilot command
 - detect gh copilot command
 - test whether markdown task prompt can be passed programmatically
@@ -1781,21 +1781,21 @@ Run a complete workflow without code modification.
 Implement:
 
 ```text
-- hrs-ai doctor
-- hrs-ai fetch HR-12345
-- hrs-ai parse HR-12345
-- hrs-ai keywords HR-12345
-- hrs-ai context HR-12345
-- hrs-ai prompt HR-12345
-- hrs-ai memory add HR-12345
-- hrs-ai status HR-12345
-- hrs-ai bug HR-12345
+- bugpilot doctor
+- bugpilot fetch HR-12345
+- bugpilot parse HR-12345
+- bugpilot keywords HR-12345
+- bugpilot context HR-12345
+- bugpilot prompt HR-12345
+- bugpilot memory add HR-12345
+- bugpilot status HR-12345
+- bugpilot bug HR-12345
 ```
 
 Completion criteria:
 
 ```text
-Running hrs-ai bug HR-12345 creates .ai/HR-12345 and .ai_memory/bugs/HR-12345.md.
+Running bugpilot bug HR-12345 creates .ai/HR-12345 and .ai_memory/bugs/HR-12345.md.
 ```
 
 ### Phase 2: Code Search and Memory Search
@@ -1866,7 +1866,7 @@ Implement:
 Completion criteria:
 
 ```text
-After Copilot fix, hrs-ai can generate test/review artifacts and update the shared memory entry.
+After Copilot fix, bugpilot can generate test/review artifacts and update the shared memory entry.
 ```
 
 ### Phase 5: Optional Commit and Push
@@ -1905,17 +1905,17 @@ This phase is optional and should not be part of the default prototype demo.
 ### Must Have
 
 ```text
-1. hrs-ai doctor
-2. hrs-ai copilot-check
-3. hrs-ai fetch HR-12345
-4. hrs-ai keywords HR-12345
-5. hrs-ai search HR-12345
-6. hrs-ai memory search HR-12345
-7. hrs-ai context HR-12345
-8. hrs-ai prompt HR-12345
-9. hrs-ai status HR-12345
-10. hrs-ai bug HR-12345
-11. hrs-ai memory add HR-12345
+1. bugpilot doctor
+2. bugpilot copilot-check
+3. bugpilot fetch HR-12345
+4. bugpilot keywords HR-12345
+5. bugpilot search HR-12345
+6. bugpilot memory search HR-12345
+7. bugpilot context HR-12345
+8. bugpilot prompt HR-12345
+9. bugpilot status HR-12345
+10. bugpilot bug HR-12345
+11. bugpilot memory add HR-12345
 ```
 
 ### Should Have
@@ -1963,7 +1963,7 @@ This phase is optional and should not be part of the default prototype demo.
 ### Demo Command
 
 ```bash
-hrs-ai bug HR-12345
+bugpilot bug HR-12345
 ```
 
 Default behavior:
@@ -2013,15 +2013,15 @@ The prototype is successful if it can demonstrate:
 
 ```text
 1. Jira issue HR-12345 can be fetched automatically.
-2. hrs-ai can generate structured Jira summary.
-3. hrs-ai can extract useful capped keywords.
-4. hrs-ai can search related code with strict output limits.
-5. hrs-ai can search previous AI memory.
-6. hrs-ai can build bug_context.md with context quality score.
-7. hrs-ai can generate Copilot CLI task prompt.
-8. hrs-ai can log execution and show workflow status.
+2. bugpilot can generate structured Jira summary.
+3. bugpilot can extract useful capped keywords.
+4. bugpilot can search related code with strict output limits.
+5. bugpilot can search previous AI memory.
+6. bugpilot can build bug_context.md with context quality score.
+7. bugpilot can generate Copilot CLI task prompt.
+8. bugpilot can log execution and show workflow status.
 9. Copilot CLI can use the task prompt manually or automatically to perform git/code/test work.
-10. hrs-ai can save memory entry for future reuse.
+10. bugpilot can save memory entry for future reuse.
 11. The workflow can guide creation of branch:
     feature/HR-12345-<summary-slug>
 ```
@@ -2030,7 +2030,7 @@ The prototype is successful if it can demonstrate:
 
 ## 30. Summary
 
-The purpose of **hrs-ai** is to demonstrate a practical AI-assisted development workflow:
+The purpose of **bugpilot** is to demonstrate a practical AI-assisted development workflow:
 
 ```text
 Jira issue → context builder → code search → shared memory → Copilot CLI task →
@@ -2040,7 +2040,7 @@ branch → fix → test/review artifacts → memory update
 For this prototype:
 
 ```text
-hrs-ai prepares the context.
+bugpilot prepares the context.
 Copilot CLI performs git/code/test work.
 Shared AI memory preserves useful investigation results.
 ```
@@ -2048,7 +2048,7 @@ Shared AI memory preserves useful investigation results.
 The most important demo command is:
 
 ```bash
-hrs-ai bug HR-12345
+bugpilot bug HR-12345
 ```
 
 The most important generated file is:

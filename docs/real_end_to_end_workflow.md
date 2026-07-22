@@ -1,6 +1,6 @@
 # Real End-to-End Workflow
 
-This workflow is for a real Jira-backed trial from the target product repository root. It keeps hrs-ai as the deterministic context and workflow tool, while Copilot CLI remains the manually launched coding agent.
+This workflow is for a real Jira-backed trial from the target product repository root. It keeps bugpilot as the deterministic context and workflow tool, while Copilot CLI remains the manually launched coding agent.
 
 ## Step 1: Run From Target Product Repo Root
 
@@ -13,7 +13,7 @@ Generated `.ai` and `.ai_memory` files are written relative to this directory.
 ## Step 2: Check Environment
 
 ```powershell
-hrs-ai doctor
+bugpilot doctor
 ```
 
 Confirm Python, git, ripgrep, Jira environment variables, and Copilot CLI availability.
@@ -21,7 +21,7 @@ Confirm Python, git, ripgrep, Jira environment variables, and Copilot CLI availa
 ## Step 3: Validate Jira
 
 ```powershell
-hrs-ai jira-validate HR-26307
+bugpilot jira-validate HR-26307
 ```
 
 This validates real Jira field mapping and generates Jira summary/parsing diagnostics without running code search or Copilot task generation.
@@ -29,7 +29,7 @@ This validates real Jira field mapping and generates Jira summary/parsing diagno
 ## Step 4: Prepare Workflow Package
 
 ```powershell
-hrs-ai bug HR-26307
+bugpilot bug HR-26307
 ```
 
 Real Jira is the default. Mock fallback requires `--allow-mock`. The `bug` command is fresh by default; use `--resume` only when continuing existing artifacts.
@@ -86,7 +86,7 @@ Only approve this if the branch is safe to deliver. Copilot must not push `main`
 If Copilot needs another attempt, add feedback and generate a retry prompt:
 
 ```powershell
-hrs-ai retry-prompt HR-26307
+bugpilot retry-prompt HR-26307
 ```
 
 Edit:
@@ -104,16 +104,16 @@ Read .ai/HR-26307/copilot_retry_prompt.md and continue the workflow.
 If the developer fixed the issue manually, generate result templates instead:
 
 ```powershell
-hrs-ai manual-result HR-26307
+bugpilot manual-result HR-26307
 ```
 
 Existing result files are preserved unless `--overwrite` is explicitly used.
 
 ```powershell
-hrs-ai check-results HR-26307
-hrs-ai summarize-results HR-26307
-hrs-ai memory update HR-26307
-hrs-ai review-package HR-26307
+bugpilot check-results HR-26307
+bugpilot summarize-results HR-26307
+bugpilot memory update HR-26307
+bugpilot review-package HR-26307
 ```
 
 Review generated result and validation files before preparing any Jira comment.
@@ -121,7 +121,7 @@ Review generated result and validation files before preparing any Jira comment.
 ## Step 8: Jira Comment Draft
 
 ```powershell
-hrs-ai jira-comment-draft HR-26307
+bugpilot jira-comment-draft HR-26307
 ```
 
 This creates a local draft only:
@@ -133,7 +133,7 @@ This creates a local draft only:
 ## Step 9: Preview Jira Comment
 
 ```powershell
-hrs-ai jira-comment HR-26307
+bugpilot jira-comment HR-26307
 ```
 
 Preview mode does not call Jira and does not write a comment.
@@ -143,7 +143,7 @@ Preview mode does not call Jira and does not write a comment.
 Only after reviewing the draft:
 
 ```powershell
-hrs-ai jira-comment HR-26307 --execute
+bugpilot jira-comment HR-26307 --execute
 ```
 
 This posts exactly one Jira comment from the local draft. It does not update status, assignee, priority, fields, or attachments.

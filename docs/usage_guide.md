@@ -1,353 +1,260 @@
 # Usage Guide
 
-Run commands from the target repository root. Generated files are written under `.ai/<issue>/` and `.ai_memory/bugs/`.
+Run commands from the **target repository root**. Generated files are written under `.ai/<issue>/` and `.ai_memory/bugs/`.
 
 ## Recommended Real Workflow
 
 ```powershell
-hrs-ai doctor
-hrs-ai jira-validate HR-26307
-hrs-ai bug HR-26307
-hrs-ai jira-comment-draft HR-26307
-hrs-ai jira-comment HR-26307
-hrs-ai jira-comment HR-26307 --execute
+bugpilot doctor                       # check environment (Python, git, ripgrep, Jira, Copilot/Claude, email)
+bugpilot jira-validate HR-26307       # confirm Jira fetch + field mapping (real Jira only)
+bugpilot bug HR-26307                 # prepare the AI-ready package (prepare-only)
+#   … run Copilot/Claude on .ai/HR-26307/copilot_task.md, or use `bugpilot bug HR-26307 --claude`
+bugpilot check-results HR-26307       # confirm the agent wrote its result files
+bugpilot summarize-results HR-26307   # roll results into result_summary.md (+ optional Jira comment)
+bugpilot review-package HR-26307      # generate a final review prompt
+bugpilot memory update HR-26307       # fold the final result into shared memory
+bugpilot delivery-check HR-26307      # is it ready for manual commit/push?
+bugpilot commit-plan HR-26307         # generate a manual commit plan (+ optional email at the gate)
+bugpilot push-plan HR-26307           # generate a manual push plan
 ```
 
-Real Jira is the default for `fetch` and `bug`. Mock/demo fallback is disabled unless `--allow-mock` is explicitly provided. `hrs-ai bug <ISSUE>` runs fresh by default; use `--resume` only when you intentionally want to preserve existing `.ai/<issue>/` artifacts. `jira-comment` previews by default and writes Jira only with `--execute`.
+Real Jira is the default for `fetch` and `bug`; mock/demo fallback is disabled unless `--allow-mock` is given. `bugpilot bug` runs **fresh** by default; use `--resume` only when you intentionally want to keep existing `.ai/<issue>/` artifacts. Nothing is committed, pushed, or written to Jira automatically — outward actions are explicit and opt-in.
+
+## Running `bugpilot bug` as smaller manual steps
+
+`bugpilot bug <ISSUE>` is a convenience wrapper that runs these steps in order. You can run each one **on its own** to inspect, re-run, or debug a single stage (each writes its own artifact under `.ai/<issue>/`):
+
+| # | Stage | Command | Writes |
+|---|-------|---------|--------|
+| 1 | Environment check | `bugpilot doctor` | — (prints report) |
+| 2 | Fetch Jira | `bugpilot fetch HR-26307` | `jira.json`, `jira_summary.md` |
+| 3 | Parse Jira | `bugpilot parse HR-26307` | `jira_parsed.md` |
+| 4 | Extract keywords | `bugpilot keywords HR-26307` | `extracted_keywords.json` |
+| 5 | Search memory | `bugpilot memory search HR-26307` | `memory_search.md` |
+| 6 | Search code | `bugpilot search HR-26307` | `code_search.md`, `related_files.json`, `search_quality.json` |
+| 7 | Git context | `bugpilot git-context HR-26307` | `git_context.md` |
+| 8 | Build context | `bugpilot context HR-26307` | `bug_context.md` |
+| 9 | Generate task package | `bugpilot prompt HR-26307` | `copilot_task.md`, `copilot_handoff.md`, `copilot_team_instructions.md` |
+| 10 | Add memory entry | `bugpilot memory add HR-26307` | `.ai_memory/bugs/HR-26307.md` |
+
+Each step reads the artifacts written by the previous one, so run them in order the first time. Notes:
+
+- Steps 3, 4, 6, 8 read `jira.json` / `extracted_keywords.json`, so run `fetch` (and `keywords`) first.
+- When you run the full `bugpilot bug`, it also **cleans** old `.ai/<issue>/` artifacts first and **folds** `memory_search.md` and `git_context.md` into `bug_context.md` (then removes those two intermediate files). Running the steps manually keeps them as separate files.
+- `bugpilot copilot-task <ISSUE>` regenerates just the step-9 task package from an existing `bug_context.md`.
 
 ## Command Reference
 
-### `hrs-ai doctor`
-Purpose: Report local environment, git status, ripgrep, Jira env vars, and Copilot CLI availability.
-Generated files: None.
-Read-only: Yes.
-Modifies source code: No.
-
-### `hrs-ai copilot-check`
-Purpose: Check Copilot CLI and GitHub CLI availability and explain that automatic invocation is not enabled.
-Generated files: None.
-Read-only: Yes.
-Modifies source code: No.
-
-### `hrs-ai clean <ISSUE>`
-Purpose: Remove generated workflow artifacts for one issue.
-Generated files: None.
-Read-only: No; deletes generated `.ai/<issue>/` artifacts only.
-Modifies source code: No.
-
-Memory is preserved by default. This command does not delete product source files, update Jira, or run git commands.
-
-### `hrs-ai clean <ISSUE> --include-memory`
-Purpose: Remove generated workflow artifacts and that issue's shared memory entry.
-Generated files: None.
-Read-only: No; deletes `.ai/<issue>/` and `.ai_memory/bugs/<issue>.md` only.
-Modifies source code: No.
-
-Other memory entries are preserved.
-
-### `hrs-ai fetch <ISSUE>`
-Purpose: Fetch real Jira data and fail clearly if Jira is unavailable.
-Generated files: `.ai/<issue>/jira.json`, `.ai/<issue>/jira_summary.md`.
-Read-only: Writes generated artifacts only.
-Modifies source code: No.
-
-Jira Cloud ADF descriptions and comments are converted into readable Markdown in `jira_summary.md`. Attachment metadata is listed when available, but attachment content is not downloaded. Raw fetched Jira data remains in `jira.json`.
-
-Mock fallback is disabled by default. Use `--allow-mock` only for demo/testing fallback. When fallback is used, generated files clearly state `Data Source: mock/demo fallback`.
-
-### `hrs-ai fetch <ISSUE> --allow-mock`
-Purpose: Explicitly allow mock/demo fallback when Jira fetch fails.
-Generated files: `.ai/<issue>/jira.json`, `.ai/<issue>/jira_summary.md`.
-Read-only: Writes generated artifacts only.
-Modifies source code: No.
-
-### `hrs-ai fetch <ISSUE> --no-mock`
-Purpose: Require real Jira data and fail if Jira fetch fails. This is the default.
-Generated files: `workflow_status.json` and `execution.log` may be written to record failure; no mock Jira files are generated.
-Read-only: Writes generated status/log artifacts only.
-Modifies source code: No.
-
-### `hrs-ai parse <ISSUE>`
-Purpose: Parse Jira data into structured markdown for downstream context.
-Generated files: `.ai/<issue>/jira_parsed.md`.
-Read-only: Writes generated artifacts only.
-Modifies source code: No.
-
-ADF descriptions and comments are converted before parsed context is written. `jira_parsed.md` extracts reproduction steps, actual/expected results, environment/version information, error messages, stack traces, log signals, regression signals, and a missing information checklist from the Jira description and comments.
-
-### `hrs-ai jira-validate <ISSUE>`
-Purpose: Validate Jira issue fetch and field mapping without running code search or Copilot task generation.
-Generated files: `.ai/<issue>/jira.json`, `.ai/<issue>/jira_summary.md`, `.ai/<issue>/jira_parsed.md`, `.ai/<issue>/jira_field_report.md`.
-Read-only: Writes generated artifacts only.
-Modifies source code: No.
-
-Requires real Jira credentials (`JIRA_BASE_URL`, `JIRA_EMAIL`, `JIRA_TOKEN`). Does not use mock fallback. Useful for verifying field mapping and diagnosing unexpected Jira responses before running the full workflow. Attachment metadata is collected but attachment content is not downloaded.
-
-### `hrs-ai keywords <ISSUE>`
-Purpose: Extract high-value, normal, and dropped keywords from parsed Jira context.
-Generated files: `.ai/<issue>/extracted_keywords.json`.
-Read-only: Writes generated artifacts only.
-Modifies source code: No.
-
-### `hrs-ai search <ISSUE>`
-Purpose: Run ripgrep-based code search, rank related files, and assess search confidence.
-Generated files: `.ai/<issue>/code_search.md`, `.ai/<issue>/related_files.json`, `.ai/<issue>/search_quality.json`.
-Read-only: Writes generated artifacts only.
-Modifies source code: No.
-
-`search_quality.json` reports `high`, `medium`, or `low` confidence, reasons, likely high-confidence files, low-confidence false positives, and noise indicators such as CI/build/license/vendor/docs/generated paths.
-
-### `hrs-ai memory search <ISSUE or query>`
-Purpose: Search shared markdown memory by issue keywords or free-text query.
-Generated files: `.ai/<issue>/memory_search.md` when an issue key is provided.
-Read-only: Writes generated artifacts only for issue searches.
-Modifies source code: No.
-
-### `hrs-ai memory add <ISSUE>`
-Purpose: Create or refresh a shared memory entry for the issue.
-Generated files: `.ai/<issue>/memory_entry.md`, `.ai_memory/bugs/<issue>.md`.
-Read-only: Writes generated memory only.
-Modifies source code: No.
-
-### `hrs-ai memory update <ISSUE>`
-Purpose: Update shared memory with final result information after Copilot work.
-Generated files: Updates `.ai_memory/bugs/<issue>.md`.
-Read-only: Writes generated memory only.
-Modifies source code: No.
-
-### `hrs-ai git-context <ISSUE>`
-Purpose: Capture branch, working tree status, and recent git history for related files.
-Generated files: `.ai/<issue>/git_context.md`.
-Read-only: Writes generated artifacts only.
-Modifies source code: No.
-
-### `hrs-ai context <ISSUE>`
-Purpose: Build the enriched bug context package for Copilot CLI.
-Generated files: `.ai/<issue>/bug_context.md`.
-Read-only: Writes generated artifacts only.
-Modifies source code: No.
-
-### `hrs-ai prompt <ISSUE>`
-Purpose: Generate prompt and task files for Copilot and review workflows.
-Generated files: `.ai/<issue>/copilot_task.md`, `.ai/<issue>/copilot_handoff.md`, `.ai/<issue>/copilot_analysis_prompt.md`, `.ai/<issue>/copilot_fix_prompt.md`, `.ai/<issue>/review_prompt.md`, `.ai/<issue>/test_plan.md`.
-Read-only: Writes generated artifacts only.
-Modifies source code: No.
-
-### `hrs-ai copilot-task <ISSUE>`
-Purpose: Regenerate Copilot task and handoff files from existing bug context.
-Generated files: `.ai/<issue>/copilot_task.md`, `.ai/<issue>/copilot_handoff.md`, `.ai/<issue>/copilot_team_instructions.md`, `.ai/<issue>/copilot_fix_prompt.md`, `.ai/<issue>/review_prompt.md`.
-Read-only: Writes generated artifacts only.
-Modifies source code: No.
-
-### `hrs-ai copilot-instructions <ISSUE>`
-Purpose: Generate or refresh per-issue Copilot team instructions.
-Generated files: `.ai/<issue>/copilot_team_instructions.md`.
-Read-only: Writes generated artifacts only.
-Modifies source code: No.
-
-This does not fetch Jira, rerun code search, or modify product source. It copies the reusable `docs/copilot_team_instructions.md` template, or uses a built-in fallback if the docs file is unavailable.
-
-Generated Copilot task and retry prompts may ask the developer whether Copilot should commit and push after completing the workflow. This is optional assisted delivery only: Copilot must show a delivery summary first, then commit and push only after explicit approval. It must not push main/master, force push, commit `.ai/` or `.ai_memory/`, or update Jira.
-
-### `hrs-ai check-results <ISSUE>`
-Purpose: Check whether Copilot result files exist.
-Generated files: None.
-Read-only: Yes.
-Modifies source code: No.
-
-### `hrs-ai check-results <ISSUE> --strict`
-Purpose: Check result files and return nonzero if any are missing.
-Generated files: None.
-Read-only: Yes.
-Modifies source code: No.
-
-### `hrs-ai summarize-results <ISSUE>`
-Purpose: Concatenate Copilot result files into a final result summary and manual validation guide.
-Generated files: `.ai/<issue>/result_summary.md`, `.ai/<issue>/manual_validation.md`.
-Read-only: Writes generated artifacts only.
-Modifies source code: No.
-
-### `hrs-ai review-package <ISSUE>`
-Purpose: Generate a final review prompt for Copilot, Claude, Codex, or a human reviewer.
-Generated files: `.ai/<issue>/final_review_prompt.md`.
-Read-only: Writes generated artifacts only.
-Modifies source code: No.
-
-### `hrs-ai jira-comment-draft <ISSUE>`
-Purpose: Generate a local, reviewable Jira comment draft from existing hrs-ai artifacts.
-Generated files: `.ai/<issue>/jira_comment_draft.md`.
-Read-only: Writes generated artifacts only.
-Modifies source code: No.
-
-This does not fetch Jira, post to Jira, run code search, invoke Copilot, or modify product source code. It summarizes existing context and result artifacts into a conservative draft that a developer can review before manually posting anywhere.
-
-If Copilot result files are missing, the default command still generates a draft with clear missing-artifact notes for manual/demo friendliness.
-
-### `hrs-ai jira-comment-draft <ISSUE> --strict`
-Purpose: Generate a local Jira comment draft only when all required Copilot result files exist.
-Generated files: `.ai/<issue>/jira_comment_draft.md` when validation passes.
-Read-only: Writes generated artifacts/status only.
-Modifies source code: No.
-
-Strict mode returns nonzero if any required Copilot result file is missing: `bug_analysis.md`, `fix_summary.md`, `test_result.md`, `diff_summary.md`, or `review_notes.md`.
-
-### `hrs-ai jira-comment <ISSUE>`
-Purpose: Preview the local Jira comment draft without posting to Jira.
-Generated files: Updates workflow status and execution log when present.
-Read-only: Writes generated status/log artifacts only.
-Modifies source code: No.
-
-This reads `.ai/<issue>/jira_comment_draft.md`, prints a concise preview, and exits without calling Jira. Jira credentials are not required for preview mode.
-
-### `hrs-ai jira-comment <ISSUE> --execute`
-Purpose: Post exactly one Jira comment from the local draft.
-Generated files: `.ai/<issue>/jira_comment_post_result.json`, `.ai/<issue>/jira_comment_post_summary.md`.
-Read-only: No; adds one Jira comment only.
-Modifies source code: No.
-
-Requires `JIRA_BASE_URL`, `JIRA_EMAIL`, and `JIRA_TOKEN`. Before posting, hrs-ai sanitizes and length-caps the draft again. This command does not update Jira fields, transition status, assign the issue, upload or download attachments, call Copilot, create PRs, or run git commit/push/merge.
-
-### `hrs-ai retry-prompt <ISSUE>`
-Purpose: Generate a focused second-attempt Copilot prompt using local artifacts and developer feedback.
-Generated files: `.ai/<issue>/copilot_retry_prompt.md`; creates `.ai/<issue>/user_feedback.md` if missing.
-Read-only: Writes generated artifacts/status only.
-Modifies source code: No.
-
-This does not fetch Jira, post Jira comments, run code search, call Copilot, or modify source code. Edit `user_feedback.md` with what failed, then run `retry-prompt` again to include that feedback in `copilot_retry_prompt.md`.
-
-### `hrs-ai manual-result <ISSUE>`
-Purpose: Create developer manual-fix result templates.
-Generated files: missing Copilot result files under `.ai/<issue>/`.
-Read-only: Writes generated artifacts/status only.
-Modifies source code: No.
-
-Creates missing `bug_analysis.md`, `fix_summary.md`, `test_result.md`, `diff_summary.md`, and `review_notes.md` templates with `Fix Source: Developer manual fix`. Existing files are preserved.
-
-### `hrs-ai manual-result <ISSUE> --overwrite`
-Purpose: Replace result files with fresh developer manual-fix templates.
-Generated files: result templates under `.ai/<issue>/`.
-Read-only: Writes generated artifacts/status only.
-Modifies source code: No.
-
-Use this only when you intentionally want to discard existing result artifact text.
-
-### `hrs-ai delivery-check <ISSUE>`
-Purpose: Check whether the issue package looks ready for manual delivery.
-Generated files: Updates workflow status and execution log when present.
-Read-only: Writes generated status/log artifacts only.
-Modifies source code: No.
-
-### `hrs-ai commit-plan <ISSUE>`
-Purpose: Generate a manual commit plan using read-only git commands.
-Generated files: `.ai/<issue>/commit_plan.md`.
-Read-only: Writes generated artifacts only.
-Modifies source code: No.
-
-### `hrs-ai push-plan <ISSUE>`
-Purpose: Generate a manual push plan using read-only git commands.
-Generated files: `.ai/<issue>/push_plan.md`.
-Read-only: Writes generated artifacts only.
-Modifies source code: No.
-
-### `hrs-ai commit <ISSUE> --execute`
-Purpose: Disabled prototype placeholder for future commit automation.
-Generated files: None.
-Read-only: Yes.
-Modifies source code: No.
-
-This intentionally does not run a real `git commit`. Use `commit-plan`, review the generated plan, and manually run git commands after review.
-
-### `hrs-ai push <ISSUE> --execute`
-Purpose: Disabled prototype placeholder for future push automation.
-Generated files: None.
-Read-only: Yes.
-Modifies source code: No.
-
-This intentionally does not run a real `git push`. Use `push-plan`, review the generated plan, and manually run git commands after review.
-
-### `hrs-ai status <ISSUE>`
-Purpose: Show workflow status and generated files for an issue.
-Generated files: None.
-Read-only: Yes.
-Modifies source code: No.
-
-### `hrs-ai bug <ISSUE>`
-Purpose: Run the main end-to-end prepare-only workflow.
-Generated files: Full issue package under `.ai/<issue>/` and shared memory entry `.ai_memory/bugs/<issue>.md`.
-Read-only: Writes generated artifacts only.
-Modifies source code: No.
-
-This command fetches or prepares Jira data, parses it, extracts keywords, runs code search, searches memory, captures git context, builds `bug_context.md`, generates Copilot task and handoff files, creates test and review artifacts, and writes the memory entry.
-
-`bug_context.md` includes Code Search Quality. If search confidence is low, the Copilot task tells the coding agent to verify the feature exists before editing and to write a no-op analysis when no real implementation is found.
-
-The workflow also generates `.ai/<issue>/copilot_team_instructions.md`, a per-issue copy of stable team rules for legacy C++/Qt codebases.
-
-It does not modify source code, commit, push, merge, create PRs, update Jira, or automatically invoke Copilot.
-
-The default behavior is real Jira only, fresh run, and mock fallback disabled. If Jira env vars are missing or Jira fetch fails, the workflow stops clearly and does not generate mock Jira artifacts. Old `.ai/<issue>/` artifacts are cleaned before the run; `.ai_memory/bugs/<issue>.md` is preserved unless `--include-memory` is used.
-
-### `hrs-ai bug <ISSUE> --allow-mock`
-Purpose: Explicitly allow mock/demo Jira fallback.
-Generated files: Full issue package under `.ai/<issue>/` and memory entry `.ai_memory/bugs/<issue>.md`.
-Read-only: Writes generated artifacts only.
-Modifies source code: No.
-
-### `hrs-ai bug <ISSUE> --no-mock`
-Purpose: Require real Jira data. This is the default.
-Generated files: `workflow_status.json` and `execution.log` may be written if Jira fetch fails.
-Read-only: Writes generated status/log artifacts only when failing.
-Modifies source code: No.
-
-When Jira fetch fails, this stops the workflow before parse, keyword extraction, code search, context generation, prompts, or memory add.
-
-### `hrs-ai bug <ISSUE> --fresh`
-Purpose: Remove old `.ai/<issue>/` workflow artifacts, then run the main prepare-only workflow. This is the default.
-Generated files: Fresh issue package under `.ai/<issue>/` and memory entry `.ai_memory/bugs/<issue>.md`.
-Read-only: No; deletes generated `.ai/<issue>/` artifacts before regenerating them.
-Modifies source code: No.
-
-Memory is preserved before the rerun unless `--include-memory` is also provided. This is useful for demos where older result summaries, review prompts, or commit/push plans should not appear in a new prepare-only run.
-
-### `hrs-ai bug <ISSUE> --resume`
-Purpose: Preserve old `.ai/<issue>/` workflow artifacts and continue an existing workflow.
-Generated files: Updates or regenerates files under `.ai/<issue>/` and the memory entry `.ai_memory/bugs/<issue>.md`.
-Read-only: Writes generated artifacts only.
-Modifies source code: No.
-
-Use this when you intentionally want to keep previous artifacts such as result summaries, review prompts, or delivery plans. `--resume` cannot be combined with `--fresh` or `--include-memory`.
-
-### `hrs-ai bug <ISSUE> --include-memory`
-Purpose: Remove old `.ai/<issue>/` artifacts and that issue's memory entry, then run the main prepare-only workflow.
-Generated files: Fresh issue package under `.ai/<issue>/` and a newly generated `.ai_memory/bugs/<issue>.md`.
-Read-only: No; deletes generated artifacts for the requested issue only.
-Modifies source code: No.
-
-Other memory entries and product source files are preserved.
-
-## Jira Environment
-Set these variables for real Jira usage:
+### Environment & status
+
+#### `bugpilot doctor`
+Report Python, git, current directory, git repo status, ripgrep, Jira env vars, Copilot and Claude availability, and email configuration (`email_configured`, `email_graph_configured`).
+Generated files: None. Read-only: Yes. Modifies source: No.
+
+#### `bugpilot copilot-check`
+Report Copilot CLI, GitHub CLI, and Claude availability. Automatic agent invocation is opt-in via `bugpilot bug --claude` / `--copilot`.
+Generated files: None. Read-only: Yes. Modifies source: No.
+
+#### `bugpilot status <ISSUE>`
+Show workflow status and generated files for an issue (reads `workflow_status.json`).
+Generated files: None. Read-only: Yes. Modifies source: No.
+
+### Jira
+
+#### `bugpilot fetch <ISSUE>` · `--allow-mock` · `--no-mock`
+Fetch real Jira data. `--no-mock` (default) requires real Jira and fails clearly if unavailable. `--allow-mock` permits a clearly-marked demo fallback.
+Generated files: `jira.json`, `jira_summary.md`. Read-only: writes artifacts only. Modifies source: No.
+ADF descriptions/comments are converted to Markdown; attachment metadata is listed but content is not downloaded.
 
+#### `bugpilot jira-validate <ISSUE>`
+Validate Jira fetch and field mapping without code search or task generation. Requires real Jira credentials; no mock fallback.
+Generated files: `jira.json`, `jira_summary.md`, `jira_parsed.md`, `jira_field_report.md`. Read-only: writes artifacts only. Modifies source: No.
+
+#### `bugpilot parse <ISSUE>`
+Parse `jira.json` into structured markdown (reproduction steps, actual/expected, environment, errors, stack traces, missing-information checklist).
+Generated files: `jira_parsed.md`. Read-only: writes artifacts only. Modifies source: No.
+
+### Analysis
+
+#### `bugpilot keywords <ISSUE>`
+Extract high-value / normal / dropped keywords from parsed Jira context.
+Generated files: `extracted_keywords.json`. Read-only: writes artifacts only. Modifies source: No.
+
+#### `bugpilot search <ISSUE>`
+Run ripgrep-based code search, rank related files, and assess search confidence.
+Generated files: `code_search.md`, `related_files.json`, `search_quality.json`. Read-only: writes artifacts only. Modifies source: No.
+`search_quality.json` reports `high` / `medium` / `low` confidence with reasons, likely high-confidence files, low-confidence false positives, and noise indicators (CI/build/license/vendor/docs/generated paths).
+
+#### `bugpilot git-context <ISSUE>`
+Capture branch, working-tree status, and recent git history for related files.
+Generated files: `git_context.md`. Read-only: writes artifacts only. Modifies source: No.
+
+#### `bugpilot context <ISSUE>`
+Build the enriched `bug_context.md` from Jira, keywords, code search, memory, and git context.
+Generated files: `bug_context.md`. Read-only: writes artifacts only. Modifies source: No.
+
+### Context package & the main workflow
+
+#### `bugpilot prompt <ISSUE>`
+Generate the Copilot/Claude task package from `bug_context.md`.
+Generated files: `copilot_task.md`, `copilot_handoff.md`, `copilot_team_instructions.md`. Read-only: writes artifacts only. Modifies source: No.
+
+#### `bugpilot copilot-task <ISSUE>`
+Regenerate the task package from an existing `bug_context.md` (e.g., after editing context or upgrading templates).
+Generated files: `copilot_task.md`, `copilot_handoff.md`, `copilot_team_instructions.md`. Read-only: writes artifacts only. Modifies source: No.
+
+#### `bugpilot copilot-instructions <ISSUE>`
+Generate or refresh the per-issue team-rules file (copies `docs/copilot_team_instructions.md`, or a built-in fallback).
+Generated files: `copilot_team_instructions.md`. Read-only: writes artifacts only. Modifies source: No.
+
+#### `bugpilot bug <ISSUE>`
+Run the main end-to-end **prepare-only** workflow (the 10 steps above): fetch/parse Jira, extract keywords, search memory and code, capture git context, build `bug_context.md`, generate the task package, and write the shared memory entry.
+Generated files (typical): `execution.log`, `workflow_status.json`, `jira.json`, `jira_summary.md`, `jira_parsed.md`, `extracted_keywords.json`, `code_search.md`, `related_files.json`, `search_quality.json`, `bug_context.md`, `copilot_task.md`, `copilot_handoff.md`, `copilot_team_instructions.md`, and `.ai_memory/bugs/<issue>.md`.
+Read-only: writes artifacts only. Modifies source: No.
+Defaults: real Jira only, **fresh** run, mock fallback disabled. Old `.ai/<issue>/` artifacts are cleaned first; `.ai_memory/bugs/<issue>.md` is preserved unless `--include-memory`. It does not commit, push, merge, create PRs, update Jira, or invoke an agent unless you ask.
+
+Flags:
+
+- `--allow-mock` — permit a clearly-marked mock/demo Jira fallback when fetch fails.
+- `--no-mock` — require real Jira (default). If fetch fails, the workflow stops before parse/keywords/search/etc.
+- `--fresh` — clean old `.ai/<issue>/` artifacts before running (default).
+- `--resume` — keep existing `.ai/<issue>/` artifacts and continue. Cannot combine with `--fresh` or `--include-memory`.
+- `--include-memory` — also remove that issue's `.ai_memory/bugs/<issue>.md` before rerunning (fresh mode only).
+- `--hint "TEXT"` — save `developer_hint.md` and inject a **Developer Hint** at the top of `copilot_task.md` so the agent goes straight to the known fix location (also reused on `--resume`). Great for a fast, predictable demo.
+- `--claude` — after preparation, launch **Claude** in the target repo to complete the workflow (see below).
+- `--copilot` — same, but launch **Copilot CLI**.
+- `--copilot-fix` — print experimental Copilot invocation guidance after preparation (does not run an agent).
+
+#### `bugpilot bug <ISSUE> --claude` / `--copilot`
+After preparing the package, launch that agent **interactively in the target repo** to read `copilot_task.md` and complete the workflow (analyze → smallest safe fix → result files → one Jira status comment), stopping at the **commit gate** to ask before committing.
+Read-only: bugpilot itself writes only artifacts; the launched agent may edit source — review it as third-party code before committing.
+Configure with `HRS_AI_CLAUDE_COMMAND` / `HRS_AI_CLAUDE_ARGS` (default `--permission-mode acceptEdits`) or `HRS_AI_COPILOT_COMMAND` / `HRS_AI_COPILOT_ARGS`. For a fully unattended run set `HRS_AI_CLAUDE_ARGS="--dangerously-skip-permissions"` (understand the risk).
+
+### Results & memory
+
+#### `bugpilot check-results <ISSUE>` · `--strict`
+Check whether the agent's result files exist (`bug_analysis.md`, `fix_summary.md`, `test_result.md`, `diff_summary.md`, `review_notes.md`). `--strict` exits nonzero if any are missing.
+Generated files: None. Read-only: Yes. Modifies source: No.
+
+#### `bugpilot manual-result <ISSUE>` · `--overwrite`
+Create developer manual-fix templates for any missing result files (existing files preserved). `--overwrite` replaces them with fresh templates.
+Generated files: missing result files under `.ai/<issue>/`. Read-only: writes artifacts only. Modifies source: No.
+
+#### `bugpilot summarize-results <ISSUE>` · `--jira-comment` · `--no-jira-comment`
+Roll the agent's result files into a final summary and manual-validation guide.
+Generated files: `result_summary.md`, `manual_validation.md`. Read-only: writes artifacts only. Modifies source: No.
+With `--jira-comment` (or env `HRS_AI_AUTO_JIRA_COMMENT` set truthy) it also posts **one** Jira status comment right after summarizing, so Jira notifies watchers by email; `--no-jira-comment` always suppresses it. A Jira/network failure is non-fatal.
+
+#### `bugpilot review-package <ISSUE>`
+Generate a final review prompt for a human or an agent.
+Generated files: `final_review_prompt.md`. Read-only: writes artifacts only. Modifies source: No.
+
+#### `bugpilot memory search <ISSUE or query>`
+Search shared markdown memory by issue keywords or free-text.
+Generated files: `memory_search.md` when an issue key is given. Read-only: writes artifacts only for issue searches. Modifies source: No.
+
+#### `bugpilot memory add <ISSUE>`
+Create or refresh the shared memory entry for the issue.
+Generated files: `.ai_memory/bugs/<issue>.md`. Read-only: writes memory only. Modifies source: No.
+
+#### `bugpilot memory update <ISSUE>`
+Fold the final result (from `result_summary.md`) into the shared memory entry.
+Generated files: updates `.ai_memory/bugs/<issue>.md`. Read-only: writes memory only. Modifies source: No.
+
+### Notifications (email & Jira)
+
+#### `bugpilot notify <ISSUE>` · `--execute`
+Build the post-fix notification (Jira item, original problem, root cause, changes) from local artifacts.
+Generated files: `email_draft.md` (preview) and `notification.eml` (portable, openable in Outlook). Read-only: writes artifacts only. Modifies source: No.
+Default writes the draft only. `--execute` sends it — via **Microsoft Graph** if configured, otherwise **SMTP**; if neither is configured it reports that nothing was sent. The body is sanitized to redact secret-like values.
+
+#### `bugpilot jira-comment-draft <ISSUE>` · `--strict`
+Generate a local, reviewable Jira comment draft from existing artifacts (no Jira call). The draft is intentionally short — **Root Cause** (from `bug_analysis.md`) and a **Summary of Changes** (from `fix_summary.md`) — not the full diff or internal search/validation detail.
+Generated files: `jira_comment_draft.md`. Read-only: writes artifacts only. Modifies source: No.
+Without `--strict`, a missing section just shows a short "not found" note. `--strict` returns nonzero if any required result file is missing.
+
+#### `bugpilot jira-comment <ISSUE>` · `--execute`
+Preview the draft (default, no Jira call), or post exactly **one** Jira comment with `--execute`.
+Generated files (execute): `jira_comment_post_result.json`, `jira_comment_post_summary.md`. Read-only: preview yes; execute adds one comment only. Modifies source: No.
+`--execute` requires `JIRA_BASE_URL` / `JIRA_EMAIL` / `JIRA_TOKEN`. It does not change fields, transition status, assign, upload/download attachments, call an agent, create PRs, or run git.
+
+#### `bugpilot retry-prompt <ISSUE>`
+Generate a focused second-attempt prompt from local artifacts + developer feedback.
+Generated files: `copilot_retry_prompt.md`; creates `user_feedback.md` if missing. Read-only: writes artifacts only. Modifies source: No.
+Edit `user_feedback.md` with what failed, then re-run to include it.
+
+### Delivery (all read-only / plans)
+
+#### `bugpilot delivery-check <ISSUE>`
+Check whether the package looks ready for manual delivery (branch not main/master, result files present, etc.).
+Generated files: updates status/log when present. Read-only: writes status/log only. Modifies source: No.
+
+#### `bugpilot commit-plan <ISSUE>` · `--no-email`
+Generate a manual commit plan using read-only git commands. At this commit gate it also **sends the notification email** when a transport (Graph/SMTP) is configured; `--no-email` skips sending. If no transport is configured, it still succeeds and reports that no email was sent.
+Generated files: `commit_plan.md`. Read-only: writes artifacts only. Modifies source: No.
+
+#### `bugpilot push-plan <ISSUE>`
+Generate a manual push plan using read-only git commands.
+Generated files: `push_plan.md`. Read-only: writes artifacts only. Modifies source: No.
+
+#### `bugpilot commit <ISSUE> --execute` · `bugpilot push <ISSUE> --execute`
+Disabled prototype placeholders. They do **not** run real git. Use `commit-plan` / `push-plan`, review, then run git manually.
+Generated files: None. Read-only: Yes. Modifies source: No.
+
+### Cleanup
+
+#### `bugpilot clean <ISSUE>` · `--include-memory`
+Remove generated `.ai/<issue>/` artifacts. Memory is preserved by default; `--include-memory` also deletes `.ai_memory/bugs/<issue>.md`. Never touches product source, Jira, or git.
+Generated files: None. Read-only: deletes generated artifacts only. Modifies source: No.
+
+## Environment variables
+
+### Jira (required for real fetch and Jira comments)
 ```powershell
 $env:JIRA_BASE_URL="https://your-company.atlassian.net"
 $env:JIRA_EMAIL="you@example.com"
 $env:JIRA_TOKEN="your_jira_api_token"
 ```
 
-Demo usage:
-
+### Auto Jira comment (optional)
 ```powershell
-hrs-ai bug HR-12345 --allow-mock
+$env:HRS_AI_AUTO_JIRA_COMMENT="true"   # summarize-results posts one Jira comment automatically
 ```
 
-Real Jira usage:
-
+### Email notification (optional) — Microsoft Graph is preferred, else SMTP
 ```powershell
-hrs-ai bug HR-12345
+# recipients / sender (shared by both transports)
+$env:HRS_AI_EMAIL_FROM="you@your-company.com"
+$env:HRS_AI_EMAIL_TO="you@your-company.com"      # comma/semicolon separated for multiple
+
+# Option A — Microsoft Graph (works when the tenant disables SMTP AUTH / blocks port 25)
+$env:GRAPH_TENANT_ID="<directory (tenant) id>"
+$env:GRAPH_CLIENT_ID="<application (client) id>"
+$env:GRAPH_CLIENT_SECRET="..."                    # store in a secrets manager
+#   requires an Entra app registration with the application permission Mail.Send (admin-consented)
+
+# Option B — SMTP
+$env:SMTP_HOST="smtp.your-company.com"
+$env:SMTP_PORT="587"                              # optional, default 587
+$env:SMTP_USERNAME="relay-user"                   # optional; omit for an open internal relay
+$env:SMTP_PASSWORD="..."                          # store in a secrets manager
+$env:SMTP_USE_STARTTLS="true"                     # optional, default true
+$env:SMTP_USE_SSL="false"                         # optional, default false (set true for SMTPS/465)
+```
+If no transport is configured, `notify --execute` / `commit-plan` still succeed and simply report that no email was sent — the generated `notification.eml` can be sent manually (e.g., via Outlook).
+
+### Agent invocation (optional)
+```powershell
+$env:HRS_AI_CLAUDE_COMMAND="claude"                       # binary launched by `bugpilot bug --claude`
+$env:HRS_AI_CLAUDE_ARGS="--permission-mode acceptEdits"   # default; use --dangerously-skip-permissions for unattended
+$env:HRS_AI_COPILOT_COMMAND="copilot"                     # binary launched by `bugpilot bug --copilot`
+$env:HRS_AI_COPILOT_ARGS=""
 ```
 
-Equivalent explicit form:
+## Demo vs real
 
 ```powershell
-hrs-ai bug HR-12345 --fresh --no-mock
+bugpilot bug HR-12345 --allow-mock          # demo, no Jira credentials needed
+bugpilot bug HR-12345                        # real Jira (default)
+bugpilot bug HR-12345 --fresh --no-mock      # equivalent explicit form
 ```

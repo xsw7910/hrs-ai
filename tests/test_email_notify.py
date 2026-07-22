@@ -27,7 +27,7 @@ def _set_graph_env(monkeypatch):
     monkeypatch.setenv("GRAPH_TENANT_ID", "tenant-123")
     monkeypatch.setenv("GRAPH_CLIENT_ID", "client-123")
     monkeypatch.setenv("GRAPH_CLIENT_SECRET", "graph-secret-value")
-    monkeypatch.setenv("HRS_AI_EMAIL_FROM", "hrs-ai@example.test")
+    monkeypatch.setenv("HRS_AI_EMAIL_FROM", "bugpilot@example.test")
     monkeypatch.setenv("HRS_AI_EMAIL_TO", "dev@example.test")
 
 
@@ -62,7 +62,7 @@ def _install_fake_graph(monkeypatch):
 def _set_email_env(monkeypatch, *, auth=False):
     monkeypatch.setenv("SMTP_HOST", "smtp.example.test")
     monkeypatch.setenv("SMTP_PORT", "587")
-    monkeypatch.setenv("HRS_AI_EMAIL_FROM", "hrs-ai@example.test")
+    monkeypatch.setenv("HRS_AI_EMAIL_FROM", "bugpilot@example.test")
     monkeypatch.setenv("HRS_AI_EMAIL_TO", "dev@example.test")
     if auth:
         monkeypatch.setenv("SMTP_USERNAME", "smtp-user")
@@ -302,7 +302,7 @@ def test_notify_execute_smtp_failure_returns_error(tmp_path, monkeypatch, capsys
 
 def test_load_email_config_parses_recipients_and_flags(monkeypatch):
     monkeypatch.setenv("SMTP_HOST", "smtp.example.test")
-    monkeypatch.setenv("HRS_AI_EMAIL_FROM", "hrs-ai@example.test")
+    monkeypatch.setenv("HRS_AI_EMAIL_FROM", "bugpilot@example.test")
     monkeypatch.setenv("HRS_AI_EMAIL_TO", "a@x.test, b@y.test; c@z.test")
     monkeypatch.setenv("SMTP_USE_STARTTLS", "false")
     monkeypatch.setenv("SMTP_USE_SSL", "true")
@@ -325,7 +325,7 @@ def test_email_config_reports_missing_fields(monkeypatch):
 
 
 def test_notify_writes_portable_eml(tmp_path, monkeypatch):
-    monkeypatch.setenv("HRS_AI_EMAIL_FROM", "hrs-ai@example.test")
+    monkeypatch.setenv("HRS_AI_EMAIL_FROM", "bugpilot@example.test")
     monkeypatch.setenv("HRS_AI_EMAIL_TO", "dev@example.test")
     _seed_result_artifacts(tmp_path)
     monkeypatch.chdir(tmp_path)
@@ -362,9 +362,9 @@ def test_graph_transport_sends_over_https(tmp_path, monkeypatch, capsys):
     token_call, send_call = calls
     assert "oauth2" in token_call["url"] and "tenant-123" in token_call["url"]
     assert "graph.microsoft.com" in send_call["url"]
-    assert "hrs-ai@example.test/sendMail" in send_call["url"]
+    assert "bugpilot@example.test/sendMail" in send_call["url"]
     payload = json.loads(send_call["data"].decode())
-    assert payload["message"]["subject"].startswith("[hrs-ai] HR-12345")
+    assert payload["message"]["subject"].startswith("[bugpilot] HR-12345")
     assert payload["message"]["toRecipients"][0]["emailAddress"]["address"] == "dev@example.test"
     assert "Stale React Query cache key" in payload["message"]["body"]["content"]
     assert "Sent notification email via graph to: dev@example.test" in output

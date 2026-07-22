@@ -130,7 +130,7 @@ def test_bug_command_prints_progress_and_key_artifacts(tmp_path, monkeypatch, ca
     assert main(["bug", "HR-12345"]) == 0
     output = capsys.readouterr().out
 
-    assert "hrs-ai bug HR-12345" in output
+    assert "bugpilot bug HR-12345" in output
     assert "Checking environment" in output
     assert "Fetching Jira issue HR-12345" in output
     assert "Parsing Jira details" in output
@@ -145,7 +145,7 @@ def test_bug_command_prints_progress_and_key_artifacts(tmp_path, monkeypatch, ca
     assert ".ai/HR-12345/code_search.md" in output
     assert ".ai/HR-12345/bug_context.md" in output
     assert ".ai/HR-12345/copilot_task.md" in output
-    assert "Prepared hrs-ai workflow package for HR-12345." in output
+    assert "Prepared bugpilot workflow package for HR-12345." in output
     assert "Artifacts: .ai/HR-12345" in output
 
 
@@ -187,7 +187,7 @@ def test_execution_log_contains_prepare_only_lifecycle(tmp_path, monkeypatch):
     run_bug_workflow(tmp_path, "HR-12345", allow_mock=True)
     log_text = (tmp_path / ".ai" / "HR-12345" / "execution.log").read_text()
 
-    assert "[START] command: hrs-ai bug HR-12345" in log_text
+    assert "[START] command: bugpilot bug HR-12345" in log_text
     assert "[START] doctor" in log_text
     assert "[END] doctor: pass" in log_text
     assert "[START] fetch" in log_text
@@ -230,7 +230,7 @@ def test_copilot_task_references_code_search(tmp_path):
     task = (tmp_path / ".ai" / "HR-12345" / "copilot_task.md").read_text()
 
     assert "Run Copilot CLI from the target repo root" in task
-    assert "Do not run Copilot CLI from the hrs-ai tool source directory" in task
+    assert "Do not run Copilot CLI from the bugpilot tool source directory" in task
     assert ".ai/HR-12345/` files are relative to the target repo root" in task
     assert "feature/HR-12345-demo-bug-employee-search-returns-stale-results-after" in task
     assert "Check the current branch before editing" in task
@@ -268,7 +268,7 @@ def test_copilot_task_references_code_search(tmp_path):
     assert "Do not update Jira" in task
     # Before commit, Copilot posts one Jira status comment.
     assert "Report Status to Jira (before commit)" in task
-    assert "hrs-ai jira-comment HR-12345 --execute" in task
+    assert "bugpilot jira-comment HR-12345 --execute" in task
     assert "Post exactly ONE comment" in task
 
 
@@ -781,7 +781,7 @@ def test_copilot_task_command_reports_missing_bug_context(tmp_path, monkeypatch,
     error = capsys.readouterr().err
 
     assert "Missing .ai/HR-12345/bug_context.md." in error
-    assert "Run: hrs-ai bug HR-12345" in error
+    assert "Run: bugpilot bug HR-12345" in error
 
 
 def test_copilot_instructions_command_generates_file(tmp_path, monkeypatch, capsys):
@@ -1819,7 +1819,7 @@ def test_attachment_metadata_is_rendered_without_download():
 
     summary = jira_summary_markdown(issue, "Fetched Jira data from configured Jira instance.")
 
-    assert "Attachment content is not downloaded by hrs-ai." in summary
+    assert "Attachment content is not downloaded by bugpilot." in summary
     assert "| screenshot.png | screenshot | 2 KB" in summary
     assert "| crash.log | log | 12 KB" in summary
     assert "| repro.zip | repro_project | 4 KB" in summary
@@ -2568,22 +2568,16 @@ def test_jira_comment_draft_creates_draft_with_result_artifacts(tmp_path, monkey
     assert main(["jira-comment-draft", "HR-12345"]) == 0
     draft = (issue_dir / "jira_comment_draft.md").read_text(encoding="utf-8")
 
-    for heading in [
-        "# hrs-ai Analysis Summary",
-        "## Status",
-        "## Summary",
-        "## Root Cause / Investigation",
-        "## Fix Summary",
-        "## Validation",
-        "## Changed Files / Diff Summary",
-        "## Search Confidence",
-        "## Missing Information",
-        "## Attachment Note",
-        "## Safety Note",
-    ]:
+    for heading in ["# bugpilot Analysis Summary", "## Root Cause", "## Summary of Changes"]:
         assert heading in draft
-    assert "Fix prepared" in draft
-    assert "Cache invalidation failed." in draft
+    assert "Cache invalidation failed." in draft   # root cause (bug_analysis.md)
+    assert "Updated cache invalidation." in draft   # change summary (fix_summary.md)
+    # Trimmed: no full diff, validation, search-confidence, attachment, or status noise.
+    for absent in [
+        "## Changed Files / Diff Summary", "## Validation", "## Search Confidence",
+        "## Attachment Note", "## Status", "Changed src/search.cpp.",
+    ]:
+        assert absent not in draft
 
 
 def test_jira_comment_draft_works_with_missing_copilot_results(tmp_path, monkeypatch):
@@ -2594,9 +2588,7 @@ def test_jira_comment_draft_works_with_missing_copilot_results(tmp_path, monkeyp
     draft = (issue_dir / "jira_comment_draft.md").read_text(encoding="utf-8")
 
     assert "No root cause analysis artifact found." in draft
-    assert "No fix summary artifact found." in draft
-    assert "No test result artifact found. Validation is pending." in draft
-    assert "Missing: .ai/HR-12345/bug_analysis.md" in draft
+    assert "No change summary artifact found." in draft
 
 
 def test_jira_comment_draft_strict_fails_when_results_missing(tmp_path, monkeypatch, capsys):
@@ -2625,7 +2617,7 @@ def test_jira_comment_draft_requires_workflow_package(tmp_path, monkeypatch, cap
     assert main(["jira-comment-draft", "HR-12345"]) == 1
     err = capsys.readouterr().err
 
-    assert "No workflow package found for HR-12345. Run: hrs-ai bug HR-12345" in err
+    assert "No workflow package found for HR-12345. Run: bugpilot bug HR-12345" in err
 
 
 def test_jira_comment_draft_does_not_include_raw_jira_json(tmp_path, monkeypatch):
@@ -2657,7 +2649,7 @@ def test_jira_comment_draft_redacts_sensitive_values(tmp_path, monkeypatch):
     assert "<redacted>" in draft
 
 
-def test_jira_comment_draft_includes_search_quality(tmp_path, monkeypatch):
+def test_jira_comment_draft_omits_search_and_diff_detail(tmp_path, monkeypatch):
     issue_dir = _write_comment_draft_package(tmp_path)
     (issue_dir / "search_quality.json").write_text(
         json.dumps({"confidence": "low", "reasons": ["Only documentation matched"]}),
@@ -2668,29 +2660,38 @@ def test_jira_comment_draft_includes_search_quality(tmp_path, monkeypatch):
     assert main(["jira-comment-draft", "HR-12345"]) == 0
     draft = (issue_dir / "jira_comment_draft.md").read_text(encoding="utf-8")
 
-    assert "Confidence: low" in draft
-    assert "Only documentation matched" in draft
-    assert "manual verification" in draft
+    # Search confidence and full diff detail are no longer posted to Jira.
+    assert "Search Confidence" not in draft
+    assert "Only documentation matched" not in draft
+    assert "Changed src/search.cpp." not in draft
 
 
-def test_jira_comment_draft_includes_missing_information_checklist(tmp_path, monkeypatch):
+def test_jira_comment_draft_omits_missing_information_and_attachment_note(tmp_path, monkeypatch):
     issue_dir = _write_comment_draft_package(tmp_path, include_results=False)
     monkeypatch.chdir(tmp_path)
 
     assert main(["jira-comment-draft", "HR-12345"]) == 0
     draft = (issue_dir / "jira_comment_draft.md").read_text(encoding="utf-8")
 
-    assert "Environment/version information is missing." in draft
+    assert "Environment/version information is missing." not in draft
+    assert "bugpilot did not download or inspect Jira attachment contents" not in draft
 
 
-def test_jira_comment_draft_always_includes_attachment_note(tmp_path, monkeypatch):
-    issue_dir = _write_comment_draft_package(tmp_path)
-    monkeypatch.chdir(tmp_path)
+def test_markdown_to_adf_renders_headings_rule_and_bullets():
+    from hrs_ai.core.jira import _markdown_to_adf
 
-    assert main(["jira-comment-draft", "HR-12345"]) == 0
-    draft = (issue_dir / "jira_comment_draft.md").read_text(encoding="utf-8")
+    adf = _markdown_to_adf("# Title\n\n## Root Cause\n\nplain line\n\n- a\n- b\n\n---\nfooter")
+    types = [n["type"] for n in adf["content"]]
 
-    assert "hrs-ai did not download or inspect Jira attachment contents" in draft
+    assert adf["type"] == "doc" and adf["version"] == 1
+    assert types == ["heading", "heading", "paragraph", "bulletList", "rule", "paragraph"]
+    assert adf["content"][0]["attrs"]["level"] == 2   # '#'  -> h2
+    assert adf["content"][1]["attrs"]["level"] == 3   # '##' -> h3
+    # No literal markdown markup leaks into any text node.
+    for node in adf["content"]:
+        for child in node.get("content", []):
+            assert not child.get("text", "").startswith(("#", "-"))
+    assert len(adf["content"][3]["content"]) == 2      # two bullet items
 
 
 def test_jira_comment_draft_updates_status_and_log(tmp_path, monkeypatch):
@@ -2713,7 +2714,7 @@ def test_jira_comment_draft_updates_status_and_log(tmp_path, monkeypatch):
 # ---------------------------------------------------------------------------
 
 
-def _write_jira_comment_draft(tmp_path: Path, text: str = "# hrs-ai Analysis Summary\n\nIssue: HR-12345\n\nReady to post.") -> Path:
+def _write_jira_comment_draft(tmp_path: Path, text: str = "# bugpilot Analysis Summary\n\nIssue: HR-12345\n\nReady to post.") -> Path:
     issue_dir = tmp_path / ".ai" / "HR-12345"
     issue_dir.mkdir(parents=True, exist_ok=True)
     (issue_dir / "jira_comment_draft.md").write_text(text, encoding="utf-8")
@@ -2821,7 +2822,7 @@ def test_jira_comment_preview_does_not_require_env(tmp_path, monkeypatch):
 def test_jira_comment_execute_redacts_before_post(tmp_path, monkeypatch):
     _write_jira_comment_draft(
         tmp_path,
-        "# hrs-ai Analysis Summary\n\nIssue: HR-12345\n\ntoken=secret password=abc123 key=hidden",
+        "# bugpilot Analysis Summary\n\nIssue: HR-12345\n\ntoken=secret password=abc123 key=hidden",
     )
     _set_jira_env(monkeypatch)
     monkeypatch.chdir(tmp_path)

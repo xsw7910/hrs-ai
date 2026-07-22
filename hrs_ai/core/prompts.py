@@ -49,7 +49,7 @@ def _copilot_task(issue_key: str, branch: str, hint: str | None = None) -> str:
         f"{hint_block}"
         "## Execution Location\n\n"
         "- Run Copilot CLI from the target repo root (the target repository root).\n"
-        "- Do not run Copilot CLI from the hrs-ai tool source directory.\n"
+        "- Do not run Copilot CLI from the bugpilot tool source directory.\n"
         f"- `.ai/{issue_key}/` files are relative to the target repo root.\n\n"
         "## Team Instructions\n\n"
         "Before editing code, read:\n"
@@ -110,9 +110,9 @@ def _copilot_task(issue_key: str, branch: str, hint: str | None = None) -> str:
         "After writing the required result files, and BEFORE any commit:\n"
         "- Post one Jira comment that records the current work status and the analysis summary, so watchers are notified.\n"
         "- Run these two commands from the target repo root:\n"
-        f"  - `hrs-ai jira-comment-draft {issue_key}`\n"
-        f"  - `hrs-ai jira-comment {issue_key} --execute`\n"
-        "- The comment states the current work status (for example: fix implemented, tests run, ready for review) together with root cause, fix summary, changed files, and validation, drawn from the result files.\n"
+        f"  - `bugpilot jira-comment-draft {issue_key}`\n"
+        f"  - `bugpilot jira-comment {issue_key} --execute`\n"
+        "- Keep the comment short: the root cause and a brief summary of the changes (not the full diff), drawn from the result files.\n"
         "- Post exactly ONE comment. Do not transition the issue, assign it, or change any Jira field.\n"
         "- If the post fails (for example, no Jira access), continue to delivery and tell the developer the comment was not posted.\n"
         "- This is the only permitted Jira write; do it before asking about commit.\n\n"
@@ -142,10 +142,10 @@ def _copilot_handoff(issue_key: str) -> str:
         f"- `.ai/{issue_key}/copilot_team_instructions.md`\n\n"
         "## Reminder\n\n"
         "- Run Copilot CLI from the target repo root.\n"
-        "- Do not run from the hrs-ai tool repo.\n"
+        "- Do not run from the bugpilot tool repo.\n"
         "- Do not work directly on main/master.\n"
         "- Do not commit or push unless the developer explicitly approves after a delivery summary.\n"
-        "- Never push main/master, force push, merge, transition/assign/edit Jira fields, or commit `.ai/` or `.ai_memory/` (posting one status comment via hrs-ai is allowed).\n"
+        "- Never push main/master, force push, merge, transition/assign/edit Jira fields, or commit `.ai/` or `.ai_memory/` (posting one status comment via bugpilot is allowed).\n"
         f"- Generate the required result files under `.ai/{issue_key}/`.\n"
     )
 
@@ -220,13 +220,13 @@ This document gives Copilot CLI stable team rules for working in a legacy C++/Qt
 - Never push main/master.
 - Never force push.
 - Never commit .ai/ or .ai_memory/.
-- Never transition, assign, or edit Jira fields. You may post exactly one status comment via `hrs-ai jira-comment --execute` when the task instructions ask for it.
+- Never transition, assign, or edit Jira fields. You may post exactly one status comment via `bugpilot jira-comment --execute` when the task instructions ask for it.
 - Developer approval is required for any git commit or git push.
 - Always summarize changed files.
 
 ## Output Expectations
 
-When completing an hrs-ai Copilot task, generate:
+When completing a bugpilot Copilot task, generate:
 - .ai/<issue>/bug_analysis.md
 - .ai/<issue>/fix_summary.md
 - .ai/<issue>/test_result.md

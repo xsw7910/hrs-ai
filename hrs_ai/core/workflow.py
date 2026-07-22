@@ -72,7 +72,7 @@ def run_bug_workflow(
     effective_hint = hint if hint and hint.strip() else (hint_path.read_text(encoding="utf-8") if not fresh and hint_path.exists() else None)
     if effective_hint and effective_hint.strip():
         hint_path.write_text(effective_hint.strip() + "\n", encoding="utf-8")
-    command = f"hrs-ai bug {issue_key}"
+    command = f"bugpilot bug {issue_key}"
     if not fresh:
         command += " --resume"
     if include_memory:
@@ -387,7 +387,7 @@ def copilot_task_step(repo_root: Path, issue_key: str) -> None:
     target = _prepare_issue_dir(repo_root, issue_key)
     bug_context = target / "bug_context.md"
     if not bug_context.exists():
-        raise FileNotFoundError(f"Missing {bug_context}. Run: hrs-ai bug {issue_key}")
+        raise FileNotFoundError(f"Missing {bug_context}. Run: bugpilot bug {issue_key}")
     log(target, "[START] copilot_task")
     try:
         summary = _issue_summary(target)
@@ -608,7 +608,7 @@ def memory_update_step(repo_root: Path, issue_key: str) -> bool:
     summary_path = target / "result_summary.md"
     memory_path = repo_root / ".ai_memory" / "bugs" / f"{issue_key}.md"
     if not summary_path.exists():
-        log(target, f"[WARN] memory_update: missing .ai/{issue_key}/result_summary.md; run hrs-ai summarize-results {issue_key}")
+        log(target, f"[WARN] memory_update: missing .ai/{issue_key}/result_summary.md; run bugpilot summarize-results {issue_key}")
         _mark_step(repo_root, issue_key, "memory_update", "skipped")
         return False
 
@@ -643,9 +643,9 @@ def memory_add_step(repo_root: Path, issue_key: str) -> None:
 def jira_comment_draft_step(repo_root: Path, issue_key: str, strict: bool = False) -> Path:
     target = issue_dir(repo_root, issue_key)
     if not target.exists():
-        raise FileNotFoundError(f"No workflow package found for {issue_key}. Run: hrs-ai bug {issue_key}")
+        raise FileNotFoundError(f"No workflow package found for {issue_key}. Run: bugpilot bug {issue_key}")
     if not (target / "bug_context.md").exists() and not (target / "jira_parsed.md").exists():
-        raise FileNotFoundError(f"No core context found for {issue_key}. Run: hrs-ai bug {issue_key}")
+        raise FileNotFoundError(f"No core context found for {issue_key}. Run: bugpilot bug {issue_key}")
 
     log(target, "[START] jira_comment_draft")
     missing = check_result_files(repo_root, issue_key)
@@ -668,10 +668,10 @@ def jira_comment_draft_step(repo_root: Path, issue_key: str, strict: bool = Fals
 def jira_comment_step(repo_root: Path, issue_key: str, execute: bool = False) -> dict[str, object]:
     target = issue_dir(repo_root, issue_key)
     if not target.exists():
-        raise FileNotFoundError(f"No workflow package found for {issue_key}. Run: hrs-ai bug {issue_key}")
+        raise FileNotFoundError(f"No workflow package found for {issue_key}. Run: bugpilot bug {issue_key}")
     draft_path = target / "jira_comment_draft.md"
     if not draft_path.exists():
-        raise FileNotFoundError(f"Missing .ai/{issue_key}/jira_comment_draft.md. Run: hrs-ai jira-comment-draft {issue_key}")
+        raise FileNotFoundError(f"Missing .ai/{issue_key}/jira_comment_draft.md. Run: bugpilot jira-comment-draft {issue_key}")
 
     mode = "execute" if execute else "preview"
     log(target, f"[START] jira_comment {mode}")
@@ -715,7 +715,7 @@ def jira_comment_step(repo_root: Path, issue_key: str, execute: bool = False) ->
 def retry_prompt_step(repo_root: Path, issue_key: str) -> dict[str, Path]:
     target = issue_dir(repo_root, issue_key)
     if not target.exists():
-        raise FileNotFoundError(f"No workflow package found for {issue_key}. Run: hrs-ai bug {issue_key}")
+        raise FileNotFoundError(f"No workflow package found for {issue_key}. Run: bugpilot bug {issue_key}")
     log(target, "[START] retry_prompt")
     try:
         feedback_path = target / "user_feedback.md"
@@ -743,7 +743,7 @@ def retry_prompt_step(repo_root: Path, issue_key: str) -> dict[str, Path]:
 def manual_result_step(repo_root: Path, issue_key: str, overwrite: bool = False) -> dict[str, list[str]]:
     target = issue_dir(repo_root, issue_key)
     if not target.exists():
-        raise FileNotFoundError(f"No workflow package found for {issue_key}. Run: hrs-ai bug {issue_key}")
+        raise FileNotFoundError(f"No workflow package found for {issue_key}. Run: bugpilot bug {issue_key}")
     log(target, "[START] manual_result")
     created: list[str] = []
     preserved: list[str] = []
@@ -777,41 +777,21 @@ def _prepare_issue_dir(repo_root: Path, issue_key: str) -> Path:
 
 
 def _build_jira_comment_draft(repo_root: Path, issue_key: str, missing_results: list[str]) -> str:
+    # Keep the comment short: root cause + a summary of the changes — not the full
+    # diff or the internal search/validation/attachment detail.
+    del missing_results  # strict-mode gating happens in the caller; not shown here
     target = issue_dir(repo_root, issue_key)
-    status = _draft_status(target, missing_results)
-    summary = _draft_summary(target)
     root_cause = _artifact_or_missing(target, "bug_analysis.md", "No root cause analysis artifact found.")
-    fix = _artifact_or_missing(target, "fix_summary.md", "No fix summary artifact found.")
-    validation = _artifact_or_missing(target, "test_result.md", "No test result artifact found. Validation is pending.")
-    diff = _artifact_or_missing(target, "diff_summary.md", "No diff summary artifact found.")
-    search_quality = _search_quality_draft(target / "search_quality.json")
-    missing_info = _missing_information_draft(target / "jira_parsed.md")
-    missing_results_text = _missing_results_markdown(missing_results)
+    changes = _artifact_or_missing(target, "fix_summary.md", "No change summary artifact found.")
     draft = (
-        "# hrs-ai Analysis Summary\n\n"
+        "# bugpilot Analysis Summary\n\n"
         f"Issue: {issue_key}\n\n"
-        "## Status\n\n"
-        f"{status}\n\n"
-        "## Summary\n\n"
-        f"{summary}\n\n"
-        "## Root Cause / Investigation\n\n"
+        "## Root Cause\n\n"
         f"{root_cause}\n\n"
-        "## Fix Summary\n\n"
-        f"{fix}\n\n"
-        "## Validation\n\n"
-        f"{validation}\n\n"
-        "## Changed Files / Diff Summary\n\n"
-        f"{diff}\n\n"
-        "## Search Confidence\n\n"
-        f"{search_quality}\n\n"
-        "## Missing Information\n\n"
-        f"{missing_info}\n\n"
-        "## Missing Local Artifacts\n\n"
-        f"{missing_results_text}\n\n"
-        "## Attachment Note\n\n"
-        "hrs-ai did not download or inspect Jira attachment contents. Attachment metadata may have been included if available.\n\n"
-        "## Safety Note\n\n"
-        "This comment was generated from local hrs-ai artifacts and should be reviewed by a developer before posting to Jira.\n"
+        "## Summary of Changes\n\n"
+        f"{changes}\n\n"
+        "---\n"
+        "Generated from local bugpilot artifacts; review before relying on it.\n"
     )
     return _cap_text(sanitize_comment_text(draft), 12000)
 
@@ -976,7 +956,7 @@ def _comment_preview(comment_text: str, limit: int = 800) -> str:
     compact = comment_text.strip()
     if len(compact) <= limit:
         return compact
-    return compact[:limit].rstrip() + "\n\n[preview truncated by hrs-ai]"
+    return compact[:limit].rstrip() + "\n\n[preview truncated by bugpilot]"
 
 
 def _jira_comment_result_json(result: JiraCommentPostResult) -> dict[str, object]:
@@ -1003,7 +983,7 @@ def _jira_comment_post_summary(result: JiraCommentPostResult) -> str:
         "## Timestamp\n\n"
         f"{result.timestamp}\n\n"
         "## Safety Note\n\n"
-        "Only a Jira comment was added. hrs-ai did not update Jira fields, transition status, assign the issue, upload attachments, download attachments, modify source code, commit, push, merge, create a PR, or invoke Copilot.\n"
+        "Only a Jira comment was added. bugpilot did not update Jira fields, transition status, assign the issue, upload attachments, download attachments, modify source code, commit, push, merge, create a PR, or invoke Copilot.\n"
     )
 
 
@@ -1054,7 +1034,7 @@ def _cap_artifact(text: str) -> str:
 def _cap_text(text: str, limit: int) -> str:
     if len(text) <= limit:
         return text
-    return text[:limit].rstrip() + "\n\n[truncated by hrs-ai]"
+    return text[:limit].rstrip() + "\n\n[truncated by bugpilot]"
 
 
 def _diff_indicates_changes(diff_summary: str) -> bool:

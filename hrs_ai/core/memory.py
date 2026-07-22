@@ -24,7 +24,7 @@ def build_memory_entry(issue_key: str, parsed: dict[str, object], context_path: 
         f"- Context: {context_path}\n\n"
         "## Investigation State\n\n"
         "Prototype prepare-only workflow generated this memory entry during preparation. "
-        "No code fix has been attempted by hrs-ai.\n\n"
+        "No code fix has been attempted by bugpilot.\n\n"
         "## Code Search Summary\n\n"
         f"See `.ai/{issue_key}/code_search.md`.\n\n"
         "## Related Files\n\n"

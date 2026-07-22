@@ -1,16 +1,16 @@
 # Final Workflow Checklist
 
-Use this checklist before and after a real end-to-end hrs-ai workflow.
+Use this checklist before and after a real end-to-end bugpilot workflow.
 
 ## A. Before Running
 
 - [ ] You are in the target product repo root.
-- [ ] `hrs-ai doctor` passes or any warnings are understood.
+- [ ] `bugpilot doctor` passes or any warnings are understood.
 - [ ] Jira environment variables are present.
 - [ ] Working tree state is understood.
 - [ ] Issue key is confirmed.
 
-## B. After `hrs-ai bug`
+## B. After `bugpilot bug`
 
 - [ ] `jira_summary.md` shows `Data Source` as `jira`.
 - [ ] `Mock/demo Jira data` is `no`.
@@ -46,7 +46,7 @@ Use this checklist before and after a real end-to-end hrs-ai workflow.
 - [ ] Preview command has been run:
 
 ```powershell
-hrs-ai jira-comment HR-26307
+bugpilot jira-comment HR-26307
 ```
 
 ## E. After `jira-comment --execute`

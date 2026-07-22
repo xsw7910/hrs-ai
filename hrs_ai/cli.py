@@ -1,4 +1,4 @@
-"""Command line interface for hrs-ai."""
+"""Command line interface for bugpilot."""
 
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ from hrs_ai.core.prompts import generate_prompts
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="hrs-ai")
+    parser = argparse.ArgumentParser(prog="bugpilot")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     subparsers.add_parser("doctor", help="Check local environment readiness.")
@@ -52,7 +52,7 @@ def build_parser() -> argparse.ArgumentParser:
     jira_validate_parser = subparsers.add_parser("jira-validate", help="Validate Jira issue fetch and field mapping (requires real Jira credentials).")
     jira_validate_parser.add_argument("issue_key")
 
-    jira_comment_parser = subparsers.add_parser("jira-comment-draft", help="Generate a local Jira comment draft from existing hrs-ai artifacts.")
+    jira_comment_parser = subparsers.add_parser("jira-comment-draft", help="Generate a local Jira comment draft from existing bugpilot artifacts.")
     jira_comment_parser.add_argument("issue_key")
     jira_comment_parser.add_argument("--strict", action="store_true", help="Fail if Copilot result artifacts are missing.")
 
@@ -252,7 +252,7 @@ def main(argv: list[str] | None = None) -> int:
             workflow.copilot_task_step(repo_root, args.issue_key)
         except FileNotFoundError:
             print(f"Missing .ai/{args.issue_key}/bug_context.md.", file=sys.stderr)
-            print(f"Run: hrs-ai bug {args.issue_key}", file=sys.stderr)
+            print(f"Run: bugpilot bug {args.issue_key}", file=sys.stderr)
             return 1
         print(f"Regenerated Copilot task files for {args.issue_key}.")
         return 0
@@ -358,7 +358,7 @@ def main(argv: list[str] | None = None) -> int:
             if updated:
                 print(f"Updated shared memory entry for {args.issue_key}.")
             else:
-                print(f"WARN: missing .ai/{args.issue_key}/result_summary.md. Run: hrs-ai summarize-results {args.issue_key}")
+                print(f"WARN: missing .ai/{args.issue_key}/result_summary.md. Run: bugpilot summarize-results {args.issue_key}")
         elif args.memory_command == "search":
             issue_key = args.query if workflow.looks_like_issue_key(args.query) else None
             if issue_key:
@@ -379,7 +379,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.include_memory and args.resume:
             print("ERROR: --include-memory requires fresh mode and cannot be used with --resume.", file=sys.stderr)
             return 1
-        print(f"hrs-ai bug {args.issue_key}")
+        print(f"bugpilot bug {args.issue_key}")
         progress = _bug_progress_printer(args.issue_key)
         try:
             result = workflow.run_bug_workflow(
@@ -407,7 +407,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"Resuming existing workflow package for {args.issue_key}.")
             print("Previous artifacts were preserved.")
         _print_key_generated_artifacts(repo_root, args.issue_key)
-        print(f"Prepared hrs-ai workflow package for {args.issue_key}.")
+        print(f"Prepared bugpilot workflow package for {args.issue_key}.")
         print(f"Artifacts: .ai/{args.issue_key}")
         print("Next manual Copilot CLI instruction:")
         print(f"  Read .ai/{args.issue_key}/copilot_task.md and complete the workflow.")
@@ -427,7 +427,7 @@ def _print_status(repo_root: Path, issue_key: str) -> int:
     if not status_path.exists():
         print(f"No workflow status found for {issue_key}.", file=sys.stderr)
         print("Run:", file=sys.stderr)
-        print(f"  hrs-ai bug {issue_key}", file=sys.stderr)
+        print(f"  bugpilot bug {issue_key}", file=sys.stderr)
         return 1
 
     status = json.loads(status_path.read_text(encoding="utf-8"))
@@ -537,8 +537,8 @@ def _post_jira_comment_auto(repo_root: Path, issue_key: str) -> None:
     except (JiraCommentPostError, JiraFetchError) as exc:
         message = getattr(exc, "message", None) or getattr(getattr(exc, "result", None), "error_message", None) or str(exc)
         print(f"WARN: auto Jira comment not posted: {message}", file=sys.stderr)
-        print("Post manually when ready:  hrs-ai jira-comment-draft "
-              f"{issue_key}  then  hrs-ai jira-comment {issue_key} --execute", file=sys.stderr)
+        print("Post manually when ready:  bugpilot jira-comment-draft "
+              f"{issue_key}  then  bugpilot jira-comment {issue_key} --execute", file=sys.stderr)
         return
     except (FileNotFoundError, ValueError) as exc:
         print(f"WARN: auto Jira comment not posted: {exc}", file=sys.stderr)
@@ -566,7 +566,7 @@ def _print_notify_result(result: dict) -> None:
         print(f"Outlook-ready file: .ai/{issue_key}/notification.eml")
     if not result.get("execute"):
         print("Preview only. No email was sent.")
-        print(f"  To send automatically:  hrs-ai notify {issue_key} --execute   (needs SMTP or Graph configured)")
+        print(f"  To send automatically:  bugpilot notify {issue_key} --execute   (needs SMTP or Graph configured)")
         print(f"  To send via Outlook:    .\\scripts\\send-via-outlook.ps1 {issue_key}")
         return
     if result.get("sent"):

@@ -21,7 +21,7 @@ def build_context(repo_root: Path, issue_key: str, parsed: dict[str, object], ke
     return (
         f"# Bug Context: {issue_key}\n\n"
         "## Scope\n\n"
-        "Phase 2 prepares context only. hrs-ai does not modify source code, invoke Copilot automatically, "
+        "Phase 2 prepares context only. bugpilot does not modify source code, invoke Copilot automatically, "
         "create commits, push branches, update Jira, or create pull requests.\n\n"
         "## Issue\n\n"
         f"- Summary: {parsed.get('summary', '')}\n"

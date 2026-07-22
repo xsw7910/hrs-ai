@@ -36,6 +36,6 @@ def collect_doctor_report(repo_root: Path) -> dict[str, str | bool | None]:
 
 def print_doctor_report(repo_root: Path) -> None:
     report = collect_doctor_report(repo_root)
-    print("hrs-ai doctor")
+    print("bugpilot doctor")
     for key, value in report.items():
         print(f"{key}: {value}")

@@ -1,7 +1,7 @@
 """Optional, opt-in invocation of a coding agent to complete the workflow.
 
-hrs-ai stays prepare-only by default. When the developer passes --claude or
---copilot to `hrs-ai bug`, this module launches that agent interactively in the
+bugpilot stays prepare-only by default. When the developer passes --claude or
+--copilot to `bugpilot bug`, this module launches that agent interactively in the
 target repo with the standard handoff prompt so it reads copilot_task.md and
 completes the workflow (analyze, fix, write result files, post one Jira status
 comment). The agent still stops at the commit gate and asks before committing.

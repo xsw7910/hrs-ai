@@ -1,6 +1,6 @@
 # Final Validation
 
-Run from the target repository root after installing hrs-ai:
+Run from the target repository root after installing bugpilot:
 
 ```powershell
 python -m pip install -e .
