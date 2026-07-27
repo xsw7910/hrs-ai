@@ -19,7 +19,7 @@ from hrs_ai.core.jira_adf import adf_to_markdown
 from hrs_ai.core.keywords import extract_keywords
 from hrs_ai.core.memory import build_memory_entry, search_memory
 from hrs_ai.core.search import INCLUDE_GLOBS, _noise_flags, run_code_search
-from hrs_ai.core.workflow import git_context_step, run_bug_workflow
+from hrs_ai.core.workflow import copilot_task_step, git_context_step, run_bug_workflow
 
 
 @pytest.fixture(autouse=True)
@@ -270,6 +270,36 @@ def test_copilot_task_references_code_search(tmp_path):
     assert "Report Status to Jira (before commit)" in task
     assert "bugpilot jira-comment HR-12345 --execute" in task
     assert "Post exactly ONE comment" in task
+
+
+def test_no_jira_comment_omits_status_section(tmp_path):
+    run_bug_workflow(tmp_path, "HR-12345", allow_mock=True, jira_comment=False)
+    issue_dir = tmp_path / ".ai" / "HR-12345"
+    task = (issue_dir / "copilot_task.md").read_text()
+    handoff = (issue_dir / "copilot_handoff.md").read_text()
+
+    # The pre-commit Jira status section and its commands are gone.
+    assert "Report Status to Jira (before commit)" not in task
+    assert "jira-comment-draft" not in task
+    assert "--execute" not in task
+    # Forbidden Actions falls back to the blanket "Do not update Jira." rule.
+    assert "- Do not update Jira.\n" in task
+    assert "the only permitted Jira write" not in task
+    assert "the only permitted Jira write" not in handoff
+    # The marker persists so a standalone regeneration keeps the comment off.
+    assert (issue_dir / "jira_comment_off.flag").exists()
+    copilot_task_step(tmp_path, "HR-12345")
+    assert "Report Status to Jira (before commit)" not in (issue_dir / "copilot_task.md").read_text()
+
+
+def test_copilot_task_step_no_jira_comment_flag(tmp_path):
+    run_bug_workflow(tmp_path, "HR-12345", allow_mock=True)
+    issue_dir = tmp_path / ".ai" / "HR-12345"
+    assert "Report Status to Jira (before commit)" in (issue_dir / "copilot_task.md").read_text()
+
+    # Standalone regeneration can turn the status comment off after the fact.
+    copilot_task_step(tmp_path, "HR-12345", no_jira_comment=True)
+    assert "Report Status to Jira (before commit)" not in (issue_dir / "copilot_task.md").read_text()
 
 
 def test_copilot_task_branch_uses_jira_summary_slug(tmp_path):

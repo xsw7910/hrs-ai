@@ -25,9 +25,18 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers.add_parser("doctor", help="Check local environment readiness.")
     subparsers.add_parser("copilot-check", help="Check Copilot CLI readiness.")
 
-    for name in ("parse", "keywords", "search", "git-context", "context", "prompt", "status", "copilot-task", "copilot-instructions", "review-package", "delivery-check", "push-plan", "retry-prompt"):
+    for name in ("parse", "keywords", "search", "git-context", "context", "status", "copilot-instructions", "review-package", "delivery-check", "push-plan", "retry-prompt"):
         command = subparsers.add_parser(name, help=f"Run the {name} step.")
         command.add_argument("issue_key")
+
+    for name in ("prompt", "copilot-task"):
+        command = subparsers.add_parser(name, help=f"Run the {name} step.")
+        command.add_argument("issue_key")
+        command.add_argument(
+            "--no-jira-comment",
+            action="store_true",
+            help="Omit the pre-commit Jira status comment instruction from the generated copilot_task.md.",
+        )
 
     summarize_parser = subparsers.add_parser("summarize-results", help="Summarize Copilot results; optionally post a Jira comment so watchers are notified.")
     summarize_parser.add_argument("issue_key")
@@ -127,6 +136,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--hint",
         metavar="TEXT",
         help="Developer hint (e.g. fix location) injected into copilot_task.md so the agent goes straight to it.",
+    )
+    bug_parser.add_argument(
+        "--no-jira-comment",
+        action="store_true",
+        help="Omit the pre-commit Jira status comment instruction from the generated copilot_task.md.",
     )
     bug_mock = bug_parser.add_mutually_exclusive_group()
     bug_mock.add_argument("--allow-mock", action="store_true", help="Allow mock/demo fallback when Jira fetch fails.")
@@ -243,13 +257,13 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "prompt":
-        workflow.prompt_step(repo_root, args.issue_key)
+        workflow.prompt_step(repo_root, args.issue_key, no_jira_comment=args.no_jira_comment)
         print(f"Generated prompts for {args.issue_key}.")
         return 0
 
     if args.command == "copilot-task":
         try:
-            workflow.copilot_task_step(repo_root, args.issue_key)
+            workflow.copilot_task_step(repo_root, args.issue_key, no_jira_comment=args.no_jira_comment)
         except FileNotFoundError:
             print(f"Missing .ai/{args.issue_key}/bug_context.md.", file=sys.stderr)
             print(f"Run: bugpilot bug {args.issue_key}", file=sys.stderr)
@@ -391,6 +405,7 @@ def main(argv: list[str] | None = None) -> int:
                 allow_mock=_allow_mock(args),
                 progress=progress,
                 hint=args.hint,
+                jira_comment=not args.no_jira_comment,
             )
         except JiraFetchError as exc:
             print(f"[ERROR] Fetching Jira issue failed: {exc.result.error_message}", file=sys.stderr)

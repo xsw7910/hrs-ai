@@ -22,7 +22,7 @@ bugpilot is designed as a prepare-only and planning tool. The developer remains 
 - `retry-prompt` does not call Copilot; the developer runs Copilot manually.
 - `manual-result` does not inspect or modify product source code.
 - Generated Copilot instructions may offer optional assisted delivery, but Copilot must ask for explicit approval before any commit or push.
-- The generated `copilot_task.md` instructs Copilot/Claude to post one Jira status comment (via `bugpilot jira-comment --execute`) after writing the result files and before commit, so watchers are notified while the developer still controls the commit.
+- The generated `copilot_task.md` instructs Copilot/Claude to post one Jira status comment (via `bugpilot jira-comment --execute`) after writing the result files and before commit, so watchers are notified while the developer still controls the commit. Pass `--no-jira-comment` to `bugpilot bug` (or `copilot-task` / `prompt`) to omit that instruction entirely; the choice is recorded per issue and survives `--resume`.
 - Copilot must never push main/master, force push, commit `.ai/` or `.ai_memory/`, transition Jira, assign Jira, or change Jira fields. The single status comment above is the only permitted Jira write.
 - bugpilot does not download Jira attachments; it records attachment metadata only.
 - bugpilot does not create pull requests.

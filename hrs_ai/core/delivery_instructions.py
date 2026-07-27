@@ -7,11 +7,18 @@ def delivery_instructions_block(
     issue_key: str,
     branch: str | None = None,
     intro: str = "After completing code changes, focused tests, and all required result files",
+    jira_comment: bool = True,
 ) -> str:
     branch_line = (
         f"- If needed, ask whether to create or switch to `{branch}` before editing or delivery.\n"
         if branch
         else ""
+    )
+    jira_rule = (
+        "Do not merge, create PRs, transition Jira, assign Jira, or change Jira fields. "
+        "The one status comment (posted before commit) is the only permitted Jira write.\n\n"
+        if jira_comment
+        else "Do not merge, create PRs, update Jira, transition Jira, assign Jira, or change Jira fields.\n\n"
     )
     return (
         "## Optional Assisted Delivery\n\n"
@@ -37,6 +44,7 @@ def delivery_instructions_block(
         "- Do not add files containing `JIRA_TOKEN`, `password`, `api_key`, `secret`, `access_token`, `refresh_token`, or `key=...`.\n"
         "- Run `git commit` with the proposed message.\n"
         "- Run `git push -u origin <current-branch>`.\n\n"
-        "Do not push main/master. Do not force push. Do not use `--force` or `--force-with-lease`. Do not merge, create PRs, transition Jira, assign Jira, or change Jira fields. The one status comment (posted before commit) is the only permitted Jira write.\n\n"
+        "Do not push main/master. Do not force push. Do not use `--force` or `--force-with-lease`. "
+        f"{jira_rule}"
         "If on `main` or `master`, do not commit and do not push. Ask the developer whether to create or switch to the generated feature branch.\n\n"
     )

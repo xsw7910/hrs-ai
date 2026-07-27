@@ -8,22 +8,32 @@ from .delivery_instructions import delivery_instructions_block
 from .git_ops import branch_name
 
 
-def generate_prompts(issue_key: str, summary: str | None = None, hint: str | None = None) -> dict[str, str]:
+def generate_prompts(
+    issue_key: str,
+    summary: str | None = None,
+    hint: str | None = None,
+    jira_comment: bool = True,
+) -> dict[str, str]:
     # The full analysis/fix/review/test workflow lives inside copilot_task.md, so
     # the standalone per-phase prompt files are intentionally not generated.
     branch = branch_name(issue_key, summary)
     return {
-        "copilot_task.md": _copilot_task(issue_key, branch, hint),
-        "copilot_handoff.md": _copilot_handoff(issue_key),
+        "copilot_task.md": _copilot_task(issue_key, branch, hint, jira_comment),
+        "copilot_handoff.md": _copilot_handoff(issue_key, jira_comment),
         "copilot_team_instructions.md": copilot_team_instructions(),
     }
 
 
-def generate_copilot_task_files(issue_key: str, summary: str | None = None, hint: str | None = None) -> dict[str, str]:
+def generate_copilot_task_files(
+    issue_key: str,
+    summary: str | None = None,
+    hint: str | None = None,
+    jira_comment: bool = True,
+) -> dict[str, str]:
     branch = branch_name(issue_key, summary)
     return {
-        "copilot_task.md": _copilot_task(issue_key, branch, hint),
-        "copilot_handoff.md": _copilot_handoff(issue_key),
+        "copilot_task.md": _copilot_task(issue_key, branch, hint, jira_comment),
+        "copilot_handoff.md": _copilot_handoff(issue_key, jira_comment),
         "copilot_team_instructions.md": copilot_team_instructions(),
     }
 
@@ -35,7 +45,7 @@ def copilot_team_instructions() -> str:
     return _fallback_team_instructions()
 
 
-def _copilot_task(issue_key: str, branch: str, hint: str | None = None) -> str:
+def _copilot_task(issue_key: str, branch: str, hint: str | None = None, jira_comment: bool = True) -> str:
     hint_block = ""
     if hint and hint.strip():
         hint_block = (
@@ -44,6 +54,25 @@ def _copilot_task(issue_key: str, branch: str, hint: str | None = None) -> str:
             "Trust this hint. Go straight to the location it names and implement the fix there. "
             "Do not run broad exploration and do not spawn agents to re-locate what the hint already tells you.\n\n"
         )
+    jira_status_block = (
+        "## Report Status to Jira (before commit)\n\n"
+        "After writing the required result files, and BEFORE any commit:\n"
+        "- Post one Jira comment that records the current work status and the analysis summary, so watchers are notified.\n"
+        "- Run these two commands from the target repo root:\n"
+        f"  - `bugpilot jira-comment-draft {issue_key}`\n"
+        f"  - `bugpilot jira-comment {issue_key} --execute`\n"
+        "- Keep the comment short: the root cause and a brief summary of the changes (not the full diff), drawn from the result files.\n"
+        "- Post exactly ONE comment. Do not transition the issue, assign it, or change any Jira field.\n"
+        "- If the post fails (for example, no Jira access), continue to delivery and tell the developer the comment was not posted.\n"
+        "- This is the only permitted Jira write; do it before asking about commit.\n\n"
+        if jira_comment
+        else ""
+    )
+    forbidden_jira_line = (
+        "- Do not update Jira fields; posting the one status comment described above is allowed.\n"
+        if jira_comment
+        else "- Do not update Jira.\n"
+    )
     return (
         f"# Copilot CLI Task: {issue_key}\n\n"
         f"{hint_block}"
@@ -106,17 +135,8 @@ def _copilot_task(issue_key: str, branch: str, hint: str | None = None) -> str:
         f"- `.ai/{issue_key}/test_result.md`\n"
         f"- `.ai/{issue_key}/diff_summary.md`\n"
         f"- `.ai/{issue_key}/review_notes.md`\n\n"
-        "## Report Status to Jira (before commit)\n\n"
-        "After writing the required result files, and BEFORE any commit:\n"
-        "- Post one Jira comment that records the current work status and the analysis summary, so watchers are notified.\n"
-        "- Run these two commands from the target repo root:\n"
-        f"  - `bugpilot jira-comment-draft {issue_key}`\n"
-        f"  - `bugpilot jira-comment {issue_key} --execute`\n"
-        "- Keep the comment short: the root cause and a brief summary of the changes (not the full diff), drawn from the result files.\n"
-        "- Post exactly ONE comment. Do not transition the issue, assign it, or change any Jira field.\n"
-        "- If the post fails (for example, no Jira access), continue to delivery and tell the developer the comment was not posted.\n"
-        "- This is the only permitted Jira write; do it before asking about commit.\n\n"
-        f"{delivery_instructions_block(issue_key, branch)}"
+        f"{jira_status_block}"
+        f"{delivery_instructions_block(issue_key, branch, jira_comment=jira_comment)}"
         "## Forbidden Actions\n\n"
         "- Do not run `git reset --hard`.\n"
         "- Do not run `git clean -fd`.\n"
@@ -125,7 +145,7 @@ def _copilot_task(issue_key: str, branch: str, hint: str | None = None) -> str:
         "- Do not force push.\n"
         "- Do not use `--force` or `--force-with-lease`.\n"
         "- Do not merge.\n"
-        "- Do not update Jira fields; posting the one status comment described above is allowed.\n"
+        f"{forbidden_jira_line}"
         "- Do not transition Jira.\n"
         "- Do not assign Jira.\n"
         "- Do not change Jira fields.\n"
@@ -133,7 +153,12 @@ def _copilot_task(issue_key: str, branch: str, hint: str | None = None) -> str:
         "- Do not mass-format unrelated files.\n"
     )
 
-def _copilot_handoff(issue_key: str) -> str:
+def _copilot_handoff(issue_key: str, jira_comment: bool = True) -> str:
+    jira_reminder = (
+        "- Never push main/master, force push, merge, transition/assign/edit Jira fields, or commit `.ai/` or `.ai_memory/` (posting one status comment via bugpilot is allowed).\n"
+        if jira_comment
+        else "- Never push main/master, force push, merge, update Jira, or commit `.ai/` or `.ai_memory/`.\n"
+    )
     return (
         f"# Copilot Handoff: {issue_key}\n\n"
         f"Read `.ai/{issue_key}/copilot_task.md` and complete the workflow.\n\n"
@@ -145,7 +170,7 @@ def _copilot_handoff(issue_key: str) -> str:
         "- Do not run from the bugpilot tool repo.\n"
         "- Do not work directly on main/master.\n"
         "- Do not commit or push unless the developer explicitly approves after a delivery summary.\n"
-        "- Never push main/master, force push, merge, transition/assign/edit Jira fields, or commit `.ai/` or `.ai_memory/` (posting one status comment via bugpilot is allowed).\n"
+        f"{jira_reminder}"
         f"- Generate the required result files under `.ai/{issue_key}/`.\n"
     )
 

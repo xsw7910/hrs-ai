@@ -1,0 +1,390 @@
+# bugpilot — Architecture & Code Guide
+
+This guide explains how the codebase is put together: the layers, the two
+orchestrators, every core module, and the artifact pipeline that flows through
+`.ai/<issue>/`. It is aimed at a developer who needs to change bugpilot itself,
+not at an end user (see [usage_guide.md](usage_guide.md) for that).
+
+- Package name: `bugpilot` (`pyproject.toml`), version `0.1.0`.
+- Import name: `hrs_ai` (kept deliberately; the CLI/brand is `bugpilot`).
+- Console script: `bugpilot = hrs_ai.cli:main`.
+- Runtime dependencies: **none** — standard library only. `requires-python >= 3.10`.
+- External tools used at runtime (all optional, all degraded gracefully): `git`,
+  ripgrep (`rg`), and — only for opt-in agent invocation — the `claude` / `copilot` CLIs.
+
+---
+
+## 1. Design philosophy
+
+bugpilot is **prepare-only**. It never edits product source, never commits,
+pushes, merges, or opens PRs, and its only permitted Jira write is a single
+status comment (and only when explicitly executed). Everything the tool produces
+is a reviewable Markdown/JSON artifact under `.ai/<issue>/`; a human (or an
+opt-in agent the human launches) does the actual fixing and delivery.
+
+Three properties fall out of that philosophy and shape the code:
+
+1. **Deterministic, offline-friendly core.** ADF→Markdown conversion, field
+   parsing, keyword extraction, and code ranking are pure functions with no
+   network calls, so they are fully unit-testable.
+2. **Artifact-as-interface.** Modules rarely call each other at runtime; instead
+   each step writes files that later steps read. `context.py`, for example,
+   imports no other core module — it consumes the artifacts that jira/search/
+   memory/git steps already wrote. This keeps steps independently runnable and
+   `--resume`-able.
+3. **Credentials only from the environment.** No secret is ever read from a file
+   or persisted. `config.py` is the single place env vars enter the system
+   (the one exception, `HRS_AI_AUTO_JIRA_COMMENT`, is read in `cli.py`).
+
+---
+
+## 2. Entry points & packaging
+
+```
+bugpilot <command> [args]
+  └─ project.scripts → hrs_ai.cli:main
+python -m hrs_ai
+  └─ hrs_ai/__main__.py → cli.main
+```
+
+- `hrs_ai/__main__.py` — 5-line shim: `raise SystemExit(main())`.
+- `hrs_ai/cli.py` — argparse surface + per-command dispatch (the top-level
+  orchestrator for single-step commands).
+- `hrs_ai/core/workflow.py` — the pipeline orchestrator: `run_bug_workflow`
+  chains the steps, and each `*_step` function is also individually callable so
+  the matching subcommand can run just that stage.
+
+---
+
+## 3. Layered architecture
+
+Modules form a strict dependency direction (leaves import nothing from
+`hrs_ai.core`; orchestrators sit on top). Nothing below imports anything above it.
+
+```
+        cli.py                     ← argparse, dispatch, printing
+          │
+        workflow.py                ← step sequencing, artifact I/O, status/log
+          │
+   ┌──────┼───────────────┬──────────────┬───────────────┐
+   │      │               │              │               │
+ prompts  jira          search        memory          email_notify
+   │      │  \            │              │               │  \
+delivery  jira_adf  jira_parse       git_ops         config  jira(sanitize)
+_instr.   │                              │
+          └──────────── config ──────────┘
+```
+
+**Leaf modules** (no `hrs_ai.core` imports): `config`, `jira_adf`, `jira_parse`,
+`keywords`, `delivery_instructions`, `cleanup`, `logging_utils`, `git_ops`,
+`context`.
+
+**Consumer modules:** `jira` → (config, jira_adf, jira_parse); `search` →
+git_ops; `memory` → config; `prompts` → (delivery_instructions, git_ops);
+`agent_runner` → config; `copilot` → (config, git_ops); `doctor` → (config,
+git_ops); `email_notify` → (config, jira).
+
+`context.py` is a special case: it imports only `json`/`pathlib` and depends on
+the *outputs* of the other steps, not their code.
+
+---
+
+## 4. The two orchestrators
+
+### 4.1 `cli.py` — command surface
+
+`build_parser()` registers every subcommand; `main(argv)` dispatches on
+`args.command`. Commands fall into groups:
+
+| Group | Commands |
+| --- | --- |
+| Full pipeline | `bug` (fresh prepare by default; `--resume`, `--fresh`, `--include-memory`, `--hint`, `--no-jira-comment`, `--allow-mock`/`--no-mock`, and opt-in agent invocation `--copilot-fix` / `--claude` / `--copilot`) |
+| Jira | `fetch`, `jira-validate`, `jira-comment-draft`, `jira-comment [--execute]` |
+| Individual steps | `parse`, `keywords`, `search`, `git-context`, `context`, `prompt`, `copilot-task`, `copilot-instructions`, `status`, `review-package` |
+| Results | `check-results`, `summarize-results [--jira-comment/--no-jira-comment]`, `manual-result [--overwrite]` |
+| Memory | `memory add`, `memory update`, `memory search` |
+| Delivery | `delivery-check`, `commit-plan [--no-email]`, `push-plan` (and `commit` / `push` — placeholders that do **not** actually commit or push; delivery stays manual) |
+| Notify | `notify [--execute]` |
+| Diagnostics / housekeeping | `doctor`, `copilot-check`, `clean [--include-memory]` |
+
+Most single-step commands are thin: parse args → call the matching
+`workflow.*_step` → print a result. `bug` is the exception; it calls
+`run_bug_workflow` with a progress printer.
+
+### 4.2 `workflow.py` — pipeline
+
+`run_bug_workflow(repo_root, issue_key, *, fresh, include_memory, allow_mock,
+copilot_fix, progress, hint, jira_comment)` runs the fresh prepare sequence:
+
+```
+clean (if fresh) → doctor → fetch → parse → keywords → memory_search
+→ code_search → git_context → context → (drop intermediates) → prompt → memory_add
+```
+
+Key mechanics:
+
+- **Status & logging.** `_mark_step`/`_write_status` persist per-step pass/fail;
+  `logging_utils.log` appends a UTC-timestamped line to `.ai/<issue>/execution.log`.
+- **Fresh vs resume.** `fresh` first calls `cleanup.clean_issue_artifacts`;
+  `--resume` preserves prior artifacts. Marker files (`developer_hint.md`,
+  `jira_comment_off.flag`) are written once and read back on resume so
+  `--hint` / `--no-jira-comment` survive a resume and standalone regeneration.
+- **Intermediate cleanup.** `memory_search.md` and `git_context.md` are folded
+  into `bug_context.md`, then removed by `_remove_intermediate_files`.
+- **Canonical step list.** `config.WORKFLOW_STEPS` names all 24 phases used by
+  status tracking (a superset of the fresh-prepare path, since results/delivery
+  steps run later, on demand).
+
+The full `command → step function` map:
+
+| Subcommand | Step function |
+| --- | --- |
+| `fetch` | `fetch_step` |
+| `jira-validate` | `jira_validate_step` |
+| `parse` | `parse_step` |
+| `keywords` | `keywords_step` |
+| `memory search` | `memory_search_step` |
+| `search` | `code_search_step` |
+| `git-context` | `git_context_step` |
+| `context` | `context_step` |
+| `prompt` | `prompt_step` |
+| `copilot-task` | `copilot_task_step` |
+| `copilot-instructions` | `copilot_instructions_step` |
+| `check-results` | `check_results_step` |
+| `summarize-results` | `summarize_results_step` |
+| `review-package` | `review_package_step` |
+| `delivery-check` | `delivery_check_step` |
+| `commit-plan` | `commit_plan_step` |
+| `push-plan` | `push_plan_step` |
+| `notify` | `notify_step` |
+| `memory update` | `memory_update_step` |
+| `memory add` | `memory_add_step` |
+| `jira-comment-draft` | `jira_comment_draft_step` |
+| `jira-comment` | `jira_comment_step` |
+| `retry-prompt` | `retry_prompt_step` |
+| `manual-result` | `manual_result_step` |
+
+---
+
+## 5. Module reference
+
+Grouped by concern. Sizes are approximate and only signal where the complexity lives.
+
+### 5.1 Configuration & layout — `config.py` (~196 lines)
+
+The single env-var boundary. Frozen dataclasses:
+
+- `AppConfig` — repo root, Jira creds, `copilot`/`claude` commands + args;
+  `has_jira_credentials` is true only when base URL, email, and token are all set.
+- `EmailConfig` — SMTP settings; `is_configured`, `uses_auth`, `missing_fields()`.
+- `GraphConfig` — Microsoft Graph tenant/client/secret (the SMTP-less fallback
+  transport); `is_configured`, `missing_fields()`.
+
+Loaders: `load_config`, `load_email_config`, `load_graph_config`. Path helpers:
+`issue_dir(repo_root, key)` → `.ai/<key>`, `memory_dir(repo_root)` →
+`.ai_memory/bugs`. `WORKFLOW_STEPS` is the canonical phase list. Env parsing goes
+through `_clean_env` / `_env_int` / `_env_bool` / `_parse_recipients`.
+
+### 5.2 Jira ingestion — `jira.py`, `jira_adf.py`, `jira_parse.py`
+
+- **`jira.py` (~869 lines)** — the only networked Jira module. `fetch_issue` does
+  `GET /rest/api/3/issue/<key>?expand=renderedFields` with Basic auth over
+  **stdlib `urllib`** (not `requests`), classifies HTTP/timeout/network errors,
+  and can fall back to a synthetic `_mock_issue` when `allow_mock`. `parse_issue`
+  normalizes fields (`enrich_issue`, `normalize_core_fields`,
+  `normalize_comments`, `normalize_attachments`, `classify_attachment`) and calls
+  into the two deterministic helpers below. Renderers `jira_summary_markdown`,
+  `parsed_markdown`, `jira_field_report_markdown` produce the artifacts.
+  `post_jira_comment` is the *only* Jira write — it converts Markdown to ADF
+  (`_markdown_to_adf`) and POSTs one comment; `prepare_jira_comment_text` +
+  `sanitize_comment_text` truncate (`MAX_JIRA_COMMENT_LENGTH = 12000`) and redact
+  secrets. `sanitize_comment_text` is also reused by `email_notify`.
+- **`jira_adf.py` (~167 lines)** — pure ADF→Markdown. Single public entry
+  `adf_to_markdown(value)`; `_render` handles doc/paragraph/heading/lists/
+  codeBlock/blockquote/panel/rule/inlineCard/media, `_apply_marks` handles
+  strong/em/code/strike/link. No network, no state.
+- **`jira_parse.py` (~442 lines)** — pure structured extraction.
+  `extract_parsed_details(...)` pulls reproduction steps, actual/expected,
+  environment (`_ENV_PATTERNS`), error messages, stack traces, log/regression
+  signals, and a missing-info checklist, using section-alias matching and a set
+  of precompiled regexes.
+
+### 5.3 Analysis — `keywords.py`, `search.py`, `memory.py`, `git_ops.py`, `context.py`
+
+- **`keywords.py` (~41 lines)** — `extract_keywords(text, max_keywords=15)`
+  returns high-value (top 5), normal, and dropped keywords via a `STOP_WORDS`
+  set and `Counter`. `keywords_json` serializes.
+- **`search.py` (~483 lines)** — ripgrep-driven code search.
+  `run_code_search(repo_root, issue_key, keywords)` → `(markdown, related_files,
+  quality)`. It shells out to `rg --fixed-strings --ignore-case --line-number`
+  per keyword (guarded by `git_ops.command_available`, so a missing `rg` skips
+  gracefully), then scores/ranks files (`_rank_related_files`,
+  `_apply_header_implementation_bonus`, `_apply_path_adjustments`), flags noise
+  (`_noise_flags`, `NOISE_PATH_INDICATORS`), and assigns confidence
+  (`_assign_confidence`, `_overall_quality`). Caps keep artifacts bounded
+  (`MAX_TOTAL_RELATED_FILES = 10`, `MAX_TOTAL_CODE_SEARCH_LINES = 300`).
+- **`memory.py` (~124 lines)** — the `.ai_memory/bugs` store.
+  `build_memory_entry` / `add_memory_entry` write `<key>.md`; `search_memory`
+  scores prior entries by keyword overlap (reading `extracted_keywords.json`) and
+  writes `memory_search.md`.
+- **`git_ops.py` (~122 lines)** — thin git wrappers: `command_available`,
+  `run_command`, `inside_git_repo`, `current_branch`, `working_tree_status`,
+  plus `generate_git_context` (branch/status/per-file recent log) and
+  `branch_name(issue_key, description)` → `feature/<key>-<slug>` used by prompts.
+- **`context.py` (~183 lines)** — `build_context(...)` assembles `bug_context.md`
+  from every prior artifact and computes a 0–100 `_quality_score`. Imports no
+  other core module; depends purely on files on disk.
+
+### 5.4 Task generation — `prompts.py`, `delivery_instructions.py`
+
+- **`prompts.py` (~270 lines)** — builds the three handoff files.
+  `generate_prompts` / `generate_copilot_task_files` both return
+  `{copilot_task.md, copilot_handoff.md, copilot_team_instructions.md}`.
+  `_copilot_task` is the large template (branch/analysis/implementation/output/
+  forbidden sections, plus the optional pre-commit Jira-status block and the
+  shared delivery block). The `jira_comment` parameter threads through
+  `_copilot_task`, `_copilot_handoff`, and `delivery_instructions_block` to
+  include or omit the "Report Status to Jira (before commit)" instruction.
+  `copilot_team_instructions()` loads `docs/copilot_team_instructions.md` or a
+  `_fallback_team_instructions()` mirror.
+- **`delivery_instructions.py` (~50 lines)** — single source of the "Optional
+  Assisted Delivery" block: branch-name checks, the forbidden add-list
+  (`.ai/`, `.ai_memory/`, `jira.json`, secret-bearing files), and the
+  commit/push approval gate. `jira_comment` toggles the last Jira-rule sentence.
+
+### 5.5 Agent handoff — `agent_runner.py`, `copilot.py`
+
+- **`agent_runner.py` (~79 lines)** — opt-in launcher (behind `--claude` /
+  `--copilot`). `build_agent_command` builds argv from `config` command+args
+  (split with `shlex`); `run_agent` resolves the executable
+  (`_resolve_launch_command`, wrapping `.cmd`/`.bat` in `cmd /c` on Windows) and
+  runs it inheriting the terminal. `HANDOFF_PROMPT` is the seed instruction.
+- **`copilot.py` (~25 lines)** — `print_copilot_check` reports availability of
+  `copilot`/`gh`/`claude` and the current mode; `print_auto_invocation_not_implemented`
+  prints manual-run guidance.
+
+### 5.6 Delivery & notification — `email_notify.py`
+
+**`email_notify.py` (~328 lines)** — post-fix email. `build_email_draft`
+assembles subject/body from `result_summary.md` + `jira_summary.md` (sanitized,
+length-capped). Two transports: `send_notification` (SMTP via `smtplib`, SSL or
+STARTTLS) and `send_via_graph` (Microsoft Graph client-credentials token +
+`sendMail`, over stdlib `urllib`). `render_eml` produces a standalone RFC-822
+file. Errors are deliberately built to never echo secrets.
+
+### 5.7 Diagnostics & housekeeping — `doctor.py`, `cleanup.py`, `logging_utils.py`
+
+- **`doctor.py` (~41 lines)** — `collect_doctor_report` / `print_doctor_report`:
+  Python version, `git`/`rg` availability, repo state, and *presence* (never
+  values) of Jira/SMTP/Graph configuration.
+- **`cleanup.py` (~73 lines)** — `clean_issue_artifacts` deletes `.ai/<key>/`
+  (and optionally the memory file) behind `_ensure_child` containment guards so
+  it can never delete outside `.ai` / `.ai_memory/bugs`. `validate_issue_key`
+  enforces the `HR-12345` shape.
+- **`logging_utils.py` (~13 lines)** — `log(issue_dir, message)` appends a
+  UTC-timestamped line to `execution.log`.
+
+---
+
+## 6. The artifact pipeline (`.ai/<issue>/`)
+
+Artifacts *are* the interface between steps. Producer → consumer:
+
+| Artifact | Written by | Read by |
+| --- | --- | --- |
+| `jira.json` | `fetch_step` | parse, context, jira-comment |
+| `jira_summary.md` | `parse_step` | context, email |
+| `jira_parsed.md` | `parse_step` | context, prompts (input list) |
+| `jira_field_report.md` | `jira-validate` | (human) |
+| `extracted_keywords.json` | `keywords_step` | search, memory |
+| `memory_search.md` | `memory_search_step` | context *(intermediate — dropped)* |
+| `code_search.md` | `code_search_step` | context, copilot_task |
+| `related_files.json` | `code_search_step` | git_ops, context, copilot_task |
+| `search_quality.json` | `code_search_step` | context, copilot_task |
+| `git_context.md` | `git_context_step` | context *(intermediate — dropped)* |
+| `bug_context.md` | `context_step` | copilot_task, memory |
+| `copilot_task.md` / `copilot_handoff.md` / `copilot_team_instructions.md` | `prompt_step` | Copilot/Claude/human |
+| `developer_hint.md` | `--hint` | prompt/copilot-task regeneration |
+| `jira_comment_off.flag` | `--no-jira-comment` | prompt/copilot-task regeneration |
+| `bug_analysis.md`, `fix_summary.md`, `test_result.md`, `diff_summary.md`, `review_notes.md` | Copilot/human/`manual-result` | check-results, summarize, review-package, jira-comment-draft |
+| `user_feedback.md`, `copilot_retry_prompt.md` | `retry_prompt_step` | Copilot (2nd attempt) |
+| `result_summary.md`, `manual_validation.md` | `summarize_results_step` | review-package, email, jira-comment-draft |
+| `jira_comment_draft.md` | `jira_comment_draft_step` | jira-comment |
+| `jira_comment_post_result.json`, `jira_comment_post_summary.md` | `jira_comment_step --execute` | (audit) |
+| `execution.log`, status files | every step | status, debugging |
+| `.ai_memory/bugs/<issue>.md` | `memory_add`/`memory_update` | future `memory_search` |
+
+For the end-to-end stage narrative, see [workflow_overview.md](workflow_overview.md).
+
+---
+
+## 7. Configuration reference (environment variables)
+
+All read in `config.py` (except `HRS_AI_AUTO_JIRA_COMMENT`, read in `cli.py`).
+
+| Purpose | Variables | Notes |
+| --- | --- | --- |
+| Jira | `JIRA_BASE_URL`, `JIRA_EMAIL`, `JIRA_TOKEN` | All three required for real Jira; Basic auth = base64(`email:token`). |
+| Agent commands | `HRS_AI_COPILOT_COMMAND` (`copilot`), `HRS_AI_CLAUDE_COMMAND` (`claude`), `HRS_AI_CLAUDE_ARGS` (`--permission-mode acceptEdits`), `HRS_AI_COPILOT_ARGS` | Used by the opt-in `agent_runner`. |
+| SMTP | `SMTP_HOST`, `SMTP_PORT` (587), `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_USE_SSL` (false), `SMTP_USE_STARTTLS` (true), `HRS_AI_EMAIL_FROM`, `HRS_AI_EMAIL_TO` | `is_configured` needs host + sender + ≥1 recipient. |
+| Microsoft Graph | `GRAPH_TENANT_ID`, `GRAPH_CLIENT_ID`, `GRAPH_CLIENT_SECRET` | Fallback transport when SMTP auth is unavailable. |
+| Behavior | `HRS_AI_AUTO_JIRA_COMMENT` | Truthy → `summarize-results` auto-posts a Jira comment. |
+
+Secrets are read only from the process environment — never from a file, never
+persisted, never echoed in errors or the `doctor` report.
+
+---
+
+## 8. Safety model
+
+The prepare-only guarantees enforced across the code (see also [safety.md](safety.md)):
+
+- No product source is edited by bugpilot; no commit, push, merge, or PR.
+- The only Jira write is one status comment via `jira-comment --execute` (no
+  field edits, transitions, assignments, or attachment up/downloads).
+- Generated delivery instructions require explicit developer approval before any
+  commit/push and forbid pushing `main`/`master`, force-push, and adding
+  `.ai/` / `.ai_memory/` / `jira.json` / secret-bearing files.
+- `cleanup` cannot delete outside `.ai` / `.ai_memory/bugs`.
+- Secret redaction (`sanitize_comment_text`) runs on every outbound text
+  (Jira comment, email).
+
+---
+
+## 9. Testing
+
+- `pytest` (the only dev dependency; `pip install -e .[test]`).
+- Tests live under `tests/`, with `tests/test_workflow.py` covering the
+  end-to-end prepare pipeline via `run_bug_workflow(..., allow_mock=True)`.
+- Because the deterministic core (ADF, parse, keywords, ranking, context,
+  prompts) is side-effect-free, most behavior is unit-testable without Jira,
+  git, or `rg` present; `allow_mock=True` supplies synthetic Jira data.
+
+Run the suite:
+
+```bash
+python -m pytest -q
+```
+
+---
+
+## 10. Extending bugpilot
+
+To add a **new pipeline step**:
+
+1. Add a `<name>_step(repo_root, issue_key, ...)` in `workflow.py` that reads its
+   input artifacts, writes its output artifact(s), and calls `_mark_step` + `log`.
+2. If it belongs in the fresh-prepare path, call it from `run_bug_workflow` in
+   order and add a `_progress` tag; otherwise leave it on-demand.
+3. Add the phase name to `config.WORKFLOW_STEPS` if it participates in status.
+4. Register the subcommand in `cli.build_parser` and dispatch it in `cli.main`.
+5. Add a row to the artifact table above and to
+   [workflow_overview.md](workflow_overview.md).
+
+To add a **new configuration input**: put the env read in `config.py` (in the
+relevant dataclass loader), expose it via a property/`missing_fields`, and
+surface presence in `doctor.py`. Do not read env vars elsewhere.
+
+To add a **pure helper** (parsing, rendering, ranking): keep it a leaf module
+with no `hrs_ai.core` imports so it stays unit-testable, following `jira_adf.py`
+/ `jira_parse.py` / `keywords.py`.
