@@ -108,30 +108,25 @@
   <h2 id="install">1 · Install</h2>
 
   <div class="step">
-    <header><span class="num">1</span><h3>Install Python 3.10+ <span style="font-weight:400;color:var(--muted)">(skip if you already have one)</span></h3></header>
-    <p>Check it first: <code>python --version</code>. If it's missing or shows "not found":</p>
+    <header><span class="num">1</span><h3>Install Python 3.10+ <span style="font-weight:400;color:var(--muted)">(skip if you have one)</span></h3></header>
     <div class="term"><div class="bar"><span class="d"></span><span class="d"></span><span class="d"></span><span class="path">PowerShell</span><button class="copy">Copy</button></div><pre><span class="p">❯</span> winget install -e --id Python.Python.3.12 --scope user</pre></div>
-    <p>(No admin needed.) Or download from <code>python.org/downloads</code> and tick <b>“Add python.exe to PATH”</b>.
-      <b>Reopen the terminal</b> afterwards.</p>
+    <p>No admin needed. Then <b>reopen the terminal</b>.</p>
   </div>
 
   <div class="step">
     <header><span class="num">2</span><h3>Install bugpilot — double-click <code>install.cmd</code></h3></header>
-    <p>Unzip the package and double-click <b>install.cmd</b> — that's the only file you touch. Keep the
-      <code>installer\</code> folder next to it.</p>
+    <p>Keep the <code>installer\</code> folder next to it.</p>
     <div class="files">
       <b>install.cmd</b> &nbsp;·&nbsp; double-click this<br>
-      <b>installer\</b> &nbsp;·&nbsp; (folder) install.ps1 + bugpilot-*.whl — leave it alone
+      <b>installer\</b> &nbsp;·&nbsp; install.ps1 + wheel (leave alone)
     </div>
-    <div class="note tip"><div class="h">Notes</div><p>If Python is still missing, the installer offers to install it via
-      winget — say <b>Yes</b>, then reopen and double-click again. Security prompt → <b>Run</b>. "PATH changed" → reopen
-      your terminal. Command-line alternative: <code>powershell -ExecutionPolicy Bypass -File .\installer\install.ps1</code></p></div>
+    <div class="note tip"><div class="h">Notes</div><p>Security prompt → <b>Run</b>. "PATH changed" → reopen the terminal.
+      No Python? It offers to install one via winget.</p></div>
   </div>
 
-  <div class="note"><div class="h">Alternative: standalone bugpilot.exe (no Python)</div><p>If you can't install Python,
-    ask for the single <code>bugpilot.exe</code> instead: save it (e.g. <code>C:\tools\bugpilot\</code>), optionally add
-    that folder to PATH, and use the same <code>bugpilot setup</code> / <code>bugpilot &lt;issue&gt;</code> below. First run
-    may hit SmartScreen → <b>More info → Run anyway</b>.</p></div>
+  <div class="note"><div class="h">No Python? Use the standalone bugpilot.exe</div><p>Ask for the single
+    <code>bugpilot.exe</code>, save it (e.g. <code>C:\tools\bugpilot\</code>), optionally add to PATH — then the same
+    <code>bugpilot setup</code> / <code>bugpilot &lt;issue&gt;</code>. First run → SmartScreen → <b>Run anyway</b>.</p></div>
 
   <!-- ===================== SETUP ===================== -->
   <h2 id="setup">2 · First-time setup (Jira)</h2>
