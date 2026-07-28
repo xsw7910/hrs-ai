@@ -1,6 +1,6 @@
 # Safety
 
-bugpilot is designed as a prepare-only and planning tool. The developer remains in control of source changes and delivery.
+bugpilot prepares an AI-ready task package from a Jira bug and then hands it to a coding agent (Claude by default) that runs under the developer's supervision. bugpilot itself never commits, pushes, merges, or opens PRs; the agent stops at the commit gate; and the developer remains in control of source changes and delivery. Pass `--prepare-only` to stop after preparation and launch no agent.
 
 ## Rules
 - bugpilot does not modify product source code.
@@ -17,13 +17,14 @@ bugpilot is designed as a prepare-only and planning tool. The developer remains 
 - `commit-plan` sends the notification email at the commit gate only when a transport is configured through the environment; `--no-email` suppresses it.
 - The notification email contains only the fix summary (Jira item, original problem, root cause, changes made) assembled from local artifacts, is sanitized to redact secret-like values, and is sent only to `HRS_AI_EMAIL_TO`.
 - SMTP passwords and Graph client secrets are read from environment variables only; bugpilot never hardcodes, logs, or persists them, and error messages never include the secret.
+- `bugpilot setup` saves the Jira email and API token to `~/.bugpilot/config.toml` (the API token in plaintext for now, with file permissions tightened to `600` where the OS supports it). Environment variables (`JIRA_BASE_URL` / `JIRA_EMAIL` / `JIRA_TOKEN`) override the file. The fixed company Jira URL is never written to disk. Token storage is behind a seam so it can later move to the Windows Credential Manager.
 - Sending the notification email does not modify source code, Jira, or git state.
 - `retry-prompt` and `manual-result` generate local markdown artifacts only.
 - `retry-prompt` does not call Copilot; the developer runs Copilot manually.
 - `manual-result` does not inspect or modify product source code.
 - Generated Copilot instructions may offer optional assisted delivery, but Copilot must ask for explicit approval before any commit or push.
-- The generated `copilot_task.md` instructs Copilot/Claude to post one Jira status comment (via `bugpilot jira-comment --execute`) after writing the result files and before commit, so watchers are notified while the developer still controls the commit. Pass `--no-jira-comment` to `bugpilot bug` (or `copilot-task` / `prompt`) to omit that instruction entirely; the choice is recorded per issue and survives `--resume`.
-- Copilot must never push main/master, force push, commit `.ai/` or `.ai_memory/`, transition Jira, assign Jira, or change Jira fields. The single status comment above is the only permitted Jira write.
+- By default the generated `copilot_task.md` does NOT instruct the agent to write Jira. Pass `--jira-comment` to `bugpilot` (or `copilot-task` / `prompt`) to add an instruction to post one Jira status comment (via `bugpilot jira-comment --execute`) after writing the result files and before commit, so watchers are notified while the developer still controls the commit; the choice is recorded per issue and survives `--resume`.
+- Copilot must never push main/master, force push, commit `.ai/` or `.ai_memory/`, transition Jira, assign Jira, or change Jira fields. The only Jira write the agent may make is the single status comment above, and only when `--jira-comment` was requested.
 - bugpilot does not download Jira attachments; it records attachment metadata only.
 - bugpilot does not create pull requests.
 - bugpilot does not merge.
@@ -35,9 +36,9 @@ bugpilot is designed as a prepare-only and planning tool. The developer remains 
 - The developer reviews context, runs Copilot CLI manually, validates changes, and performs delivery actions manually.
 - `bugpilot clean <ISSUE>` deletes only `.ai/<issue>/`.
 - `bugpilot clean <ISSUE> --include-memory` also deletes only `.ai_memory/bugs/<issue>.md`.
-- `bugpilot bug <ISSUE>` performs the same scoped cleanup before running the prepare-only workflow.
-- `bugpilot bug <ISSUE> --resume` preserves existing `.ai/<issue>/` artifacts.
-- `bugpilot bug <ISSUE>` is prepare-only unless `--claude` or `--copilot` is passed; those flags launch that agent interactively to complete the workflow, and the agent stops at the commit gate. Agent-generated code must be reviewed before commit.
+- `bugpilot <ISSUE>` performs the same scoped cleanup before running the workflow.
+- `bugpilot <ISSUE> --resume` preserves existing `.ai/<issue>/` artifacts.
+- `bugpilot <ISSUE>` (the default command; `bugpilot bug <ISSUE>` still works) prepares the package and then launches Claude interactively to complete the workflow. Pass `--copilot` to use Copilot instead, or `--prepare-only` to stop after preparation with no agent. The agent stops at the commit gate, and agent-generated code must be reviewed before commit.
 - Mock/demo Jira fallback is disabled by default.
 - `--allow-mock` explicitly enables mock/demo fallback for demos and testing.
 - `--no-mock` is accepted for compatibility and matches the default real Jira-only behavior.
@@ -48,7 +49,7 @@ bugpilot is designed as a prepare-only and planning tool. The developer remains 
 - Both add exactly one Jira comment from the local analysis draft; neither transitions, assigns, or edits fields.
 - No other bugpilot command writes Jira, and the opt-in default is off.
 - No command transitions Jira issues, assigns issues, updates fields, uploads attachments, or downloads attachments.
-- `bugpilot bug` is prepare-only by default and invokes no agent. It launches a coding agent only when the developer explicitly passes `--claude` or `--copilot`; the agent runs interactively in the target repo, and bugpilot itself still never commits or pushes.
+- `bugpilot <ISSUE>` prepares the package and then launches a coding agent (Claude by default, or Copilot with `--copilot`) interactively in the target repo; `--prepare-only` stops after preparation with no agent. bugpilot itself still never commits or pushes, and the agent stops at the commit gate.
 - bugpilot does not run `git add`, `git commit`, `git push`, merge, or PR creation.
 - The only outbound network actions are the read-only Jira fetch, `jira-comment --execute` (one comment), and the notification email over SMTP or Microsoft Graph (`notify --execute` or a configured `commit-plan`). The email is sent only to the configured internal recipients and carries no credentials.
 
@@ -68,14 +69,18 @@ Clean and fresh-run commands validate issue keys and are scoped to those generat
 Copilot CLI should be run from the target product repository root. The generated `copilot_task.md` and `copilot_team_instructions.md` instruct Copilot to avoid destructive git commands, avoid unrelated refactoring, preserve legacy C++/Qt patterns, and generate result files before delivery planning.
 
 ## Jira Mock Fallback
-When mock fallback is used, generated Jira artifacts are clearly marked as mock/demo fallback. For real Jira-only usage, run:
+When mock fallback is used, generated Jira artifacts are clearly marked as mock/demo fallback. For real Jira-only preparation (no agent launch), run:
 
 ```powershell
-bugpilot bug HR-12345
+bugpilot HR-12345 --prepare-only
 ```
 
 For demo/testing fallback, run:
 
 ```powershell
-bugpilot bug HR-12345 --allow-mock
+bugpilot HR-12345 --prepare-only --allow-mock
 ```
+
+## First-time Setup
+
+`bugpilot setup` is an interactive command that collects the Jira email and API token, validates them against the fixed company Jira site, and saves them to `~/.bugpilot/config.toml`. It never writes the Jira URL (fixed) and stores the token in plaintext for now (permissions tightened to `600` where supported); environment variables override the file. See the credential-storage rule above.

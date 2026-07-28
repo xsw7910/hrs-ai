@@ -10,31 +10,36 @@ not at an end user (see [usage_guide.md](usage_guide.md) for that).
 - Console script: `bugpilot = hrs_ai.cli:main`.
 - Runtime dependencies: **none** — standard library only. `requires-python >= 3.10`.
 - External tools used at runtime (all optional, all degraded gracefully): `git`,
-  ripgrep (`rg`), and — only for opt-in agent invocation — the `claude` / `copilot` CLIs.
+  ripgrep (`rg`), and the `claude` / `copilot` CLIs (Claude is launched by
+  default after preparation; `--prepare-only` skips it).
 
 ---
 
 ## 1. Design philosophy
 
-bugpilot is **prepare-only**. It never edits product source, never commits,
-pushes, merges, or opens PRs, and its only permitted Jira write is a single
-status comment (and only when explicitly executed). Everything the tool produces
-is a reviewable Markdown/JSON artifact under `.ai/<issue>/`; a human (or an
-opt-in agent the human launches) does the actual fixing and delivery.
+bugpilot **prepares, then hands off**. The tool never commits, pushes, merges, or
+opens PRs; every preparation step produces a reviewable Markdown/JSON artifact
+under `.ai/<issue>/`; and a coding agent — Claude by default, or Copilot with
+`--copilot`, or none with `--prepare-only` — does the actual fixing, stopping at
+the commit gate for the developer to approve. The only Jira write is one optional
+status comment (opt-in via `--jira-comment`, executed explicitly).
 
-Three properties fall out of that philosophy and shape the code:
+Three properties shape the code:
 
 1. **Deterministic, offline-friendly core.** ADF→Markdown conversion, field
    parsing, keyword extraction, and code ranking are pure functions with no
-   network calls, so they are fully unit-testable.
+   network calls, so they are fully unit-testable. Preparation is deterministic;
+   only the agent step (and Jira/email I/O) is non-deterministic or networked.
 2. **Artifact-as-interface.** Modules rarely call each other at runtime; instead
    each step writes files that later steps read. `context.py`, for example,
    imports no other core module — it consumes the artifacts that jira/search/
    memory/git steps already wrote. This keeps steps independently runnable and
    `--resume`-able.
-3. **Credentials only from the environment.** No secret is ever read from a file
-   or persisted. `config.py` is the single place env vars enter the system
-   (the one exception, `HRS_AI_AUTO_JIRA_COMMENT`, is read in `cli.py`).
+3. **One credential boundary.** Jira/SMTP/Graph secrets enter through `config.py`
+   only. They come from environment variables first; the Jira email + token may
+   also come from `~/.bugpilot/config.toml` (written by `bugpilot setup`), with
+   env always winning. No secret is read anywhere else (the lone exception,
+   `HRS_AI_AUTO_JIRA_COMMENT`, is a behavior flag read in `cli.py`).
 
 ---
 
@@ -53,6 +58,9 @@ python -m hrs_ai
 - `hrs_ai/core/workflow.py` — the pipeline orchestrator: `run_bug_workflow`
   chains the steps, and each `*_step` function is also individually callable so
   the matching subcommand can run just that stage.
+- `install.ps1` (repo root) — a PowerShell installer that finds the newest
+  `bugpilot-*.whl` beside it and installs the console script via `pipx`, then
+  points the user at `bugpilot setup`.
 
 ---
 
@@ -98,9 +106,10 @@ the *outputs* of the other steps, not their code.
 
 | Group | Commands |
 | --- | --- |
-| Full pipeline | `bug` (fresh prepare by default; `--resume`, `--fresh`, `--include-memory`, `--hint`, `--no-jira-comment`, `--allow-mock`/`--no-mock`, and opt-in agent invocation `--copilot-fix` / `--claude` / `--copilot`) |
+| Full pipeline | `bug` — the **default command**, so `bugpilot HR-123` == `bugpilot bug HR-123`. Prepares, then launches Claude. Flags: `--copilot` (use Copilot) / `--prepare-only` (no agent), `--jira-comment` (add the pre-commit Jira status instruction, off by default), `--resume` / `--fresh`, `--include-memory`, `--hint`, `--allow-mock` / `--no-mock`, and the legacy `--copilot-fix` guidance printer. |
+| Setup | `setup` — interactive first-run config: collects Jira email + API token, validates them, writes `~/.bugpilot/config.toml`. |
 | Jira | `fetch`, `jira-validate`, `jira-comment-draft`, `jira-comment [--execute]` |
-| Individual steps | `parse`, `keywords`, `search`, `git-context`, `context`, `prompt`, `copilot-task`, `copilot-instructions`, `status`, `review-package` |
+| Individual steps | `parse`, `keywords`, `search`, `git-context`, `context`, `prompt [--jira-comment]`, `copilot-task [--jira-comment]`, `copilot-instructions`, `status`, `review-package` |
 | Results | `check-results`, `summarize-results [--jira-comment/--no-jira-comment]`, `manual-result [--overwrite]` |
 | Memory | `memory add`, `memory update`, `memory search` |
 | Delivery | `delivery-check`, `commit-plan [--no-email]`, `push-plan` (and `commit` / `push` — placeholders that do **not** actually commit or push; delivery stays manual) |
@@ -109,7 +118,9 @@ the *outputs* of the other steps, not their code.
 
 Most single-step commands are thin: parse args → call the matching
 `workflow.*_step` → print a result. `bug` is the exception; it calls
-`run_bug_workflow` with a progress printer.
+`run_bug_workflow` with a progress printer, then (unless `--prepare-only`)
+launches the agent. `main()` injects `bug` as the default when the first token
+isn't a known subcommand, which is what makes `bugpilot HR-123` work.
 
 ### 4.2 `workflow.py` — pipeline
 
@@ -127,8 +138,8 @@ Key mechanics:
   `logging_utils.log` appends a UTC-timestamped line to `.ai/<issue>/execution.log`.
 - **Fresh vs resume.** `fresh` first calls `cleanup.clean_issue_artifacts`;
   `--resume` preserves prior artifacts. Marker files (`developer_hint.md`,
-  `jira_comment_off.flag`) are written once and read back on resume so
-  `--hint` / `--no-jira-comment` survive a resume and standalone regeneration.
+  `jira_comment_on.flag`) are written once and read back on resume so
+  `--hint` / `--jira-comment` survive a resume and standalone regeneration.
 - **Intermediate cleanup.** `memory_search.md` and `git_context.md` are folded
   into `bug_context.md`, then removed by `_remove_intermediate_files`.
 - **Canonical step list.** `config.WORKFLOW_STEPS` names all 24 phases used by
@@ -139,6 +150,7 @@ The full `command → step function` map:
 
 | Subcommand | Step function |
 | --- | --- |
+| `setup` | `setup.run_setup` (interactive; not a `*_step`) |
 | `fetch` | `fetch_step` |
 | `jira-validate` | `jira_validate_step` |
 | `parse` | `parse_step` |
@@ -170,20 +182,31 @@ The full `command → step function` map:
 
 Grouped by concern. Sizes are approximate and only signal where the complexity lives.
 
-### 5.1 Configuration & layout — `config.py` (~196 lines)
+### 5.1 Configuration & layout — `config.py`, `user_config.py` (~196 / ~180 lines)
 
-The single env-var boundary. Frozen dataclasses:
+The credential boundary. Frozen dataclasses in `config.py`:
 
 - `AppConfig` — repo root, Jira creds, `copilot`/`claude` commands + args;
   `has_jira_credentials` is true only when base URL, email, and token are all set.
+  `load_config` resolves Jira creds as **env → user config → fixed URL**: env
+  vars win, else the `~/.bugpilot/config.toml` values, and `jira_base_url`
+  defaults to the fixed company site (`DEFAULT_JIRA_BASE_URL`).
 - `EmailConfig` — SMTP settings; `is_configured`, `uses_auth`, `missing_fields()`.
 - `GraphConfig` — Microsoft Graph tenant/client/secret (the SMTP-less fallback
   transport); `is_configured`, `missing_fields()`.
 
 Loaders: `load_config`, `load_email_config`, `load_graph_config`. Path helpers:
-`issue_dir(repo_root, key)` → `.ai/<key>`, `memory_dir(repo_root)` →
-`.ai_memory/bugs`. `WORKFLOW_STEPS` is the canonical phase list. Env parsing goes
-through `_clean_env` / `_env_int` / `_env_bool` / `_parse_recipients`.
+`issue_dir`, `memory_dir`. `WORKFLOW_STEPS` is the canonical phase list. Env
+parsing goes through `_clean_env` / `_env_int` / `_env_bool` / `_parse_recipients`.
+
+- **`user_config.py`** — the `~/.bugpilot/config.toml` store written by
+  `bugpilot setup`. `load_user_config` / `save_user_config` read/write
+  `jira_email` (+ token) via a minimal flat-TOML reader/writer (keeps the
+  zero-dependency, py3.10 contract). `DEFAULT_JIRA_BASE_URL` is the fixed company
+  URL (never persisted). The dir is overridable via `BUGPILOT_CONFIG_DIR` (used
+  to keep tests hermetic). Token persistence goes through a **`TokenStore`** seam
+  (`FileTokenStore` today) so it can later move to the Windows Credential Manager
+  without touching callers.
 
 ### 5.2 Jira ingestion — `jira.py`, `jira_adf.py`, `jira_parse.py`
 
@@ -199,6 +222,9 @@ through `_clean_env` / `_env_int` / `_env_bool` / `_parse_recipients`.
   (`_markdown_to_adf`) and POSTs one comment; `prepare_jira_comment_text` +
   `sanitize_comment_text` truncate (`MAX_JIRA_COMMENT_LENGTH = 12000`) and redact
   secrets. `sanitize_comment_text` is also reused by `email_notify`.
+  `validate_credentials(base_url, email, token)` (used by `bugpilot setup`)
+  checks an email + token against `/rest/api/3/myself`, reusing the shared
+  `_basic_auth_header` and `_http_error_type` classification.
 - **`jira_adf.py` (~167 lines)** — pure ADF→Markdown. Single public entry
   `adf_to_markdown(value)`; `_render` handles doc/paragraph/heading/lists/
   codeBlock/blockquote/panel/rule/inlineCard/media, `_apply_marks` handles
@@ -252,16 +278,21 @@ through `_clean_env` / `_env_int` / `_env_bool` / `_parse_recipients`.
   (`.ai/`, `.ai_memory/`, `jira.json`, secret-bearing files), and the
   commit/push approval gate. `jira_comment` toggles the last Jira-rule sentence.
 
-### 5.5 Agent handoff — `agent_runner.py`, `copilot.py`
+### 5.5 Agent handoff & setup — `agent_runner.py`, `copilot.py`, `setup.py`
 
-- **`agent_runner.py` (~79 lines)** — opt-in launcher (behind `--claude` /
-  `--copilot`). `build_agent_command` builds argv from `config` command+args
-  (split with `shlex`); `run_agent` resolves the executable
+- **`agent_runner.py` (~79 lines)** — the launcher run by default (Claude) or with
+  `--copilot`; `--prepare-only` skips it. `build_agent_command` builds argv from
+  `config` command+args (split with `shlex`); `run_agent` resolves the executable
   (`_resolve_launch_command`, wrapping `.cmd`/`.bat` in `cmd /c` on Windows) and
   runs it inheriting the terminal. `HANDOFF_PROMPT` is the seed instruction.
 - **`copilot.py` (~25 lines)** — `print_copilot_check` reports availability of
   `copilot`/`gh`/`claude` and the current mode; `print_auto_invocation_not_implemented`
   prints manual-run guidance.
+- **`setup.py`** — `run_setup()` drives `bugpilot setup`: prompts for the Jira
+  email and (hidden) API token, checks `git`/`rg`/`copilot` (missing tools warn,
+  they don't fail), validates the credentials via `jira.validate_credentials`,
+  and saves them with `user_config.save_user_config` only on success. Prompt,
+  secret, and output are injectable for testing.
 
 ### 5.6 Delivery & notification — `email_notify.py`
 
@@ -305,7 +336,7 @@ Artifacts *are* the interface between steps. Producer → consumer:
 | `bug_context.md` | `context_step` | copilot_task, memory |
 | `copilot_task.md` / `copilot_handoff.md` / `copilot_team_instructions.md` | `prompt_step` | Copilot/Claude/human |
 | `developer_hint.md` | `--hint` | prompt/copilot-task regeneration |
-| `jira_comment_off.flag` | `--no-jira-comment` | prompt/copilot-task regeneration |
+| `jira_comment_on.flag` | `--jira-comment` | prompt/copilot-task regeneration |
 | `bug_analysis.md`, `fix_summary.md`, `test_result.md`, `diff_summary.md`, `review_notes.md` | Copilot/human/`manual-result` | check-results, summarize, review-package, jira-comment-draft |
 | `user_feedback.md`, `copilot_retry_prompt.md` | `retry_prompt_step` | Copilot (2nd attempt) |
 | `result_summary.md`, `manual_validation.md` | `summarize_results_step` | review-package, email, jira-comment-draft |
@@ -318,36 +349,45 @@ For the end-to-end stage narrative, see [workflow_overview.md](workflow_overview
 
 ---
 
-## 7. Configuration reference (environment variables)
+## 7. Configuration reference
 
-All read in `config.py` (except `HRS_AI_AUTO_JIRA_COMMENT`, read in `cli.py`).
+Environment variables are read in `config.py` (except `HRS_AI_AUTO_JIRA_COMMENT`,
+read in `cli.py`); `BUGPILOT_CONFIG_DIR` is read in `user_config.py`.
 
 | Purpose | Variables | Notes |
 | --- | --- | --- |
-| Jira | `JIRA_BASE_URL`, `JIRA_EMAIL`, `JIRA_TOKEN` | All three required for real Jira; Basic auth = base64(`email:token`). |
-| Agent commands | `HRS_AI_COPILOT_COMMAND` (`copilot`), `HRS_AI_CLAUDE_COMMAND` (`claude`), `HRS_AI_CLAUDE_ARGS` (`--permission-mode acceptEdits`), `HRS_AI_COPILOT_ARGS` | Used by the opt-in `agent_runner`. |
+| Jira | `JIRA_BASE_URL`, `JIRA_EMAIL`, `JIRA_TOKEN` | Basic auth = base64(`email:token`). `JIRA_BASE_URL` defaults to the fixed company site; email/token fall back to `~/.bugpilot/config.toml`. |
+| Agent commands | `HRS_AI_COPILOT_COMMAND` (`copilot`), `HRS_AI_CLAUDE_COMMAND` (`claude`), `HRS_AI_CLAUDE_ARGS` (`--permission-mode acceptEdits`), `HRS_AI_COPILOT_ARGS` | Used by `agent_runner` when launching the agent. |
 | SMTP | `SMTP_HOST`, `SMTP_PORT` (587), `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_USE_SSL` (false), `SMTP_USE_STARTTLS` (true), `HRS_AI_EMAIL_FROM`, `HRS_AI_EMAIL_TO` | `is_configured` needs host + sender + ≥1 recipient. |
 | Microsoft Graph | `GRAPH_TENANT_ID`, `GRAPH_CLIENT_ID`, `GRAPH_CLIENT_SECRET` | Fallback transport when SMTP auth is unavailable. |
 | Behavior | `HRS_AI_AUTO_JIRA_COMMENT` | Truthy → `summarize-results` auto-posts a Jira comment. |
+| Config location | `BUGPILOT_CONFIG_DIR` | Overrides the `~/.bugpilot` directory (keeps tests hermetic). |
 
-Secrets are read only from the process environment — never from a file, never
-persisted, never echoed in errors or the `doctor` report.
+**User config file** (`~/.bugpilot/config.toml`, written by `bugpilot setup`):
+`jira_email` and — for now — `jira_token`. SMTP/Graph secrets are still
+environment-only. The token is stored in plaintext (perms `600` where the OS
+allows) behind the `TokenStore` seam, pending a move to the Windows Credential
+Manager. Nothing is echoed in errors or the `doctor` report.
 
 ---
 
 ## 8. Safety model
 
-The prepare-only guarantees enforced across the code (see also [safety.md](safety.md)):
+The guarantees enforced across the code (see also [safety.md](safety.md)):
 
-- No product source is edited by bugpilot; no commit, push, merge, or PR.
-- The only Jira write is one status comment via `jira-comment --execute` (no
-  field edits, transitions, assignments, or attachment up/downloads).
+- bugpilot never commits, pushes, merges, or opens PRs. It prepares artifacts and
+  then launches an agent that edits code but **stops at the commit gate** for the
+  developer to approve; `--prepare-only` launches no agent at all.
+- The only Jira write is one *optional* status comment via `jira-comment
+  --execute` (opt-in with `--jira-comment`; no field edits, transitions,
+  assignments, or attachment up/downloads).
 - Generated delivery instructions require explicit developer approval before any
   commit/push and forbid pushing `main`/`master`, force-push, and adding
   `.ai/` / `.ai_memory/` / `jira.json` / secret-bearing files.
 - `cleanup` cannot delete outside `.ai` / `.ai_memory/bugs`.
 - Secret redaction (`sanitize_comment_text`) runs on every outbound text
-  (Jira comment, email).
+  (Jira comment, email). The Jira API token saved by `setup` is stored in
+  plaintext for now (perms `600` where supported), behind a replaceable seam.
 
 ---
 

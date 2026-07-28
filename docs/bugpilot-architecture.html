@@ -158,12 +158,12 @@
 
     <section id="overview">
       <h1>bugpilot — Architecture &amp; Code Guide</h1>
-      <p class="sub">A deterministic, prepare-only CLI that turns a Jira bug into an AI-ready development package,
-        hands it to a coding agent, and keeps a human in control of what ships.</p>
+      <p class="sub">A CLI that turns a Jira bug into an AI-ready development package with a deterministic pipeline,
+        launches a coding agent to implement the fix, and keeps a human in control of what ships.</p>
       <div class="lead-chips">
         <span class="c">Python 3.10+ · standard library only</span>
         <span class="c">Legacy C++ / Qt · Jira Cloud</span>
-        <span class="c">~20 core modules · ~5k LOC</span>
+        <span class="c">~22 core modules · ~6k LOC</span>
       </div>
       <p>bugpilot runs from a <strong>target product repository</strong> and writes everything it produces under
         <code>.ai/&lt;issue&gt;/</code> (per-issue artifacts) and <code>.ai_memory/bugs/</code> (shared memory). It never
@@ -180,10 +180,11 @@
       <p>Steps 1–9 of the workflow are pure functions of their inputs — the same Jira issue produces the same package,
         cacheable and auditable. No LLM participates in preparation. The model is reserved for the one step that needs
         judgment.</p>
-      <h3>Prepare-only by default</h3>
-      <p><code>bugpilot bug &lt;ISSUE&gt;</code> only builds artifacts. Running an agent, sending email, and writing a Jira
-        comment are all <strong>opt-in</strong> and explicit. bugpilot itself never commits, pushes, merges, opens PRs, or
-        transitions Jira.</p>
+      <h3>Prepare, then hand off</h3>
+      <p><code>bugpilot &lt;ISSUE&gt;</code> builds the artifacts and then launches a coding agent — Claude by default,
+        Copilot with <code>--copilot</code>, or none with <code>--prepare-only</code>. bugpilot itself never commits,
+        pushes, merges, opens PRs, or transitions Jira; the agent stops at the commit gate. Sending email and writing a
+        Jira comment stay <strong>opt-in</strong> and explicit.</p>
       <h3>Artifact-first</h3>
       <p>Every stage writes a file you can open and read (<code>bug_context.md</code>, <code>code_search.md</code>,
         <code>search_quality.json</code>, <code>copilot_task.md</code>, …). The hand-off to an agent is a plain task
@@ -192,15 +193,18 @@
       <p>Claude and Copilot consume the same package; nothing is vendor-locked. The runtime uses only the Python
         standard library — <code>urllib</code> for Jira/Graph, <code>subprocess</code> for git/ripgrep/agents,
         <code>smtplib</code> for email — so there is no third-party dependency surface to manage.</p>
-      <h3>Secrets from the environment</h3>
-      <p>Jira, SMTP, and Graph credentials are read from environment variables only, never hardcoded, logged, or
-        written into artifacts; generated text is sanitized to redact secret-like values before it leaves the machine.</p>
+      <h3>One credential boundary</h3>
+      <p>Jira/SMTP/Graph secrets enter through <code>config.py</code> only. They come from environment variables first;
+        the Jira email + token may also come from <code>~/.bugpilot/config.toml</code> (written by <code>bugpilot
+        setup</code>), with env always winning. SMTP/Graph secrets stay environment-only. Generated text is sanitized to
+        redact secret-like values before it leaves the machine.</p>
     </section>
 
     <section id="pipeline">
       <h2>3 · The pipeline</h2>
-      <p>The wrapper <code>bugpilot bug</code> runs ten prepare-only steps in order. Each writes its own artifact and reads
-        the previous one's output, so any step can also be run standalone.</p>
+      <p><code>bugpilot &lt;ISSUE&gt;</code> (the default command; <code>bug</code> keyword optional) runs ten prepare
+        steps in order, then launches the agent unless <code>--prepare-only</code>. Each step writes its own artifact and
+        reads the previous one's output, so any step can also be run standalone.</p>
       <div class="pipe">
         <span class="pstep"><b>1</b> doctor</span><span class="sep">›</span>
         <span class="pstep"><b>2</b> fetch</span><span class="sep">›</span>
@@ -213,9 +217,9 @@
         <span class="pstep"><b>9</b> prompt</span><span class="sep">›</span>
         <span class="pstep"><b>10</b> memory&nbsp;add</span>
       </div>
-      <p>After preparation, the opt-in downstream lifecycle continues — each is a separate command:</p>
+      <p>After preparation the agent runs (by default), then the downstream lifecycle continues — each is a separate command:</p>
       <div class="pipe">
-        <span class="pstep">agent (Claude/Copilot)</span><span class="sep">›</span>
+        <span class="pstep">agent (Claude by default)</span><span class="sep">›</span>
         <span class="pstep">check-results</span><span class="sep">›</span>
         <span class="pstep">summarize-results</span><span class="sep">›</span>
         <span class="pstep">review-package</span><span class="sep">›</span>
@@ -235,10 +239,11 @@
         <table>
           <thead><tr><th>Command</th><th>Key flags</th><th>What it does</th></tr></thead>
           <tbody>
-            <tr><td><span class="m">bug &lt;issue&gt;</span></td><td><code>--resume</code> · <code>--fresh</code> · <code>--include-memory</code> · <code>--hint</code> · <code>--no-jira-comment</code> · <code>--allow-mock</code>/<code>--no-mock</code> · <code>--copilot-fix</code>/<code>--claude</code>/<code>--copilot</code></td><td>Run the full fresh-prepare pipeline; optionally invoke an agent at the end.</td></tr>
+            <tr><td><span class="m">&lt;issue&gt;</span> <span class="mono" style="color:var(--muted)">(bug)</span></td><td><code>--copilot</code>/<code>--prepare-only</code> · <code>--jira-comment</code> · <code>--resume</code>/<code>--fresh</code> · <code>--include-memory</code> · <code>--hint</code> · <code>--allow-mock</code>/<code>--no-mock</code></td><td>Default command: run the prepare pipeline, then launch Claude (or Copilot, or nothing with <code>--prepare-only</code>).</td></tr>
+            <tr><td><span class="m">setup</span></td><td>—</td><td>Interactive first-run config: collect Jira email + token, validate, write <code>~/.bugpilot/config.toml</code>.</td></tr>
             <tr><td><span class="m">fetch</span> · <span class="m">jira-validate</span></td><td><code>--allow-mock</code>/<code>--no-mock</code></td><td>Fetch a Jira issue; validate real field mapping without running code search.</td></tr>
             <tr><td><span class="m">parse</span> · <span class="m">keywords</span> · <span class="m">search</span> · <span class="m">git-context</span> · <span class="m">context</span></td><td>—</td><td>Individual prepare steps, runnable standalone against an existing <code>.ai/&lt;issue&gt;/</code>.</td></tr>
-            <tr><td><span class="m">prompt</span> · <span class="m">copilot-task</span></td><td><code>--no-jira-comment</code></td><td>(Re)generate the agent hand-off package.</td></tr>
+            <tr><td><span class="m">prompt</span> · <span class="m">copilot-task</span></td><td><code>--jira-comment</code></td><td>(Re)generate the agent hand-off package.</td></tr>
             <tr><td><span class="m">copilot-instructions</span> · <span class="m">copilot-check</span> · <span class="m">doctor</span></td><td>—</td><td>Emit team instructions; report agent + environment readiness.</td></tr>
             <tr><td><span class="m">check-results</span> · <span class="m">summarize-results</span> · <span class="m">manual-result</span></td><td><code>--strict</code> · <code>--jira-comment</code>/<code>--no-jira-comment</code> · <code>--overwrite</code></td><td>Verify agent output files; build the result summary; or seed manual-fix templates.</td></tr>
             <tr><td><span class="m">review-package</span> · <span class="m">retry-prompt</span></td><td>—</td><td>Build the final review prompt; build a second-attempt prompt with developer feedback.</td></tr>
@@ -276,8 +281,8 @@
             <span class="chip">jira</span><span class="chip">jira_adf</span><span class="chip">jira_parse</span>
             <span class="chip">keywords</span><span class="chip">search</span>
             <span class="chip">context</span><span class="chip">prompts</span><span class="chip">memory</span>
-            <span class="chip">email_notify</span><span class="chip">agent_runner</span><span class="chip">copilot</span><span class="chip">delivery_instructions</span>
-            <span class="chip">config</span><span class="chip">git_ops</span><span class="chip">cleanup</span><span class="chip">doctor</span><span class="chip">logging_utils</span>
+            <span class="chip">email_notify</span><span class="chip">agent_runner</span><span class="chip">copilot</span><span class="chip">setup</span><span class="chip">delivery_instructions</span>
+            <span class="chip">config</span><span class="chip">user_config</span><span class="chip">git_ops</span><span class="chip">cleanup</span><span class="chip">doctor</span><span class="chip">logging_utils</span>
           </div>
         </div>
         <div class="layarrow">↓</div>
@@ -299,7 +304,9 @@
           <tbody>
             <tr><td><span class="m">cli.py</span></td><td class="loc">668</td><td>Argparse CLI: defines every subcommand and its flags, dispatches to <code>workflow</code> step functions, prints results and hints. Thin — no business logic.</td></tr>
             <tr><td><span class="m">core/workflow.py</span></td><td class="loc">1467</td><td>The orchestrator. <code>run_bug_workflow</code> plus every <code>*_step</code>; writes <code>workflow_status.json</code>; builds result summaries, review prompts, commit/push plans, the Jira comment draft, and drives notify/agent/memory.</td></tr>
-            <tr><td><span class="m">core/config.py</span></td><td class="loc">196</td><td>Environment-driven config: <code>AppConfig</code> (Jira + agent commands), <code>EmailConfig</code> (SMTP), <code>GraphConfig</code> (Graph); the canonical <code>WORKFLOW_STEPS</code> list and <code>issue_dir()</code> path helpers.</td></tr>
+            <tr><td><span class="m">core/config.py</span></td><td class="loc">196</td><td>Config &amp; credential boundary: <code>AppConfig</code> (Jira creds resolved env → user config → fixed URL), <code>EmailConfig</code> (SMTP), <code>GraphConfig</code> (Graph); the canonical <code>WORKFLOW_STEPS</code> list and path helpers.</td></tr>
+            <tr><td><span class="m">core/user_config.py</span></td><td class="loc">180</td><td>The <code>~/.bugpilot/config.toml</code> store written by <code>bugpilot setup</code> (minimal flat-TOML, zero deps). Holds <code>jira_email</code> + token behind a replaceable <code>TokenStore</code> seam; never writes the fixed Jira URL.</td></tr>
+            <tr><td><span class="m">core/setup.py</span></td><td class="loc">130</td><td><code>run_setup()</code> for <code>bugpilot setup</code>: prompt email + hidden token, check tools, validate against Jira, save on success. Injectable I/O for tests.</td></tr>
             <tr><td><span class="m">core/jira.py</span></td><td class="loc">869</td><td>Jira fetch over <code>urllib</code>, HTTP-error classification, controlled mock fallback, field normalization, summary/parsed/field-report markdown, comment posting as ADF, and secret redaction.</td></tr>
             <tr><td><span class="m">core/jira_adf.py</span></td><td class="loc">167</td><td>Deterministic Atlassian Document Format → Markdown (for reading Jira descriptions/comments).</td></tr>
             <tr><td><span class="m">core/jira_parse.py</span></td><td class="loc">442</td><td>Deterministic extraction of reproduction steps, actual/expected results, environment, error messages, stack traces, signals, and a missing-information checklist.</td></tr>
@@ -307,8 +314,8 @@
             <tr><td><span class="m">core/search.py</span></td><td class="loc">483</td><td>ripgrep-based code search, file scoring/ranking, per-file confidence (High/Med/Low), and overall search-quality assessment.</td></tr>
             <tr><td><span class="m">core/memory.py</span></td><td class="loc">124</td><td>Shared markdown memory: build an entry, add/update it, and search by keyword across <code>.ai_memory/bugs/</code>.</td></tr>
             <tr><td><span class="m">core/context.py</span></td><td class="loc">183</td><td>Assemble <code>bug_context.md</code> from Jira, keywords, search, memory, and git; compute a context-quality score.</td></tr>
-            <tr><td><span class="m">core/prompts.py</span></td><td class="loc">270</td><td>Generate the agent hand-off package (<code>copilot_task.md</code>, <code>copilot_handoff.md</code>, <code>copilot_team_instructions.md</code>); inject the optional developer hint and the opt-out Jira-comment block.</td></tr>
-            <tr><td><span class="m">core/agent_runner.py</span></td><td class="loc">79</td><td>Opt-in launch of Claude/Copilot: build the command, resolve the executable (Windows <code>.cmd</code> via <code>cmd /c</code>), run it interactively in the repo.</td></tr>
+            <tr><td><span class="m">core/prompts.py</span></td><td class="loc">270</td><td>Generate the agent hand-off package (<code>copilot_task.md</code>, <code>copilot_handoff.md</code>, <code>copilot_team_instructions.md</code>); inject the optional developer hint and the opt-in (<code>--jira-comment</code>) Jira-comment block.</td></tr>
+            <tr><td><span class="m">core/agent_runner.py</span></td><td class="loc">79</td><td>Launch Claude (default) or Copilot: build the command, resolve the executable (Windows <code>.cmd</code> via <code>cmd /c</code>), run it interactively in the repo. Skipped by <code>--prepare-only</code>.</td></tr>
             <tr><td><span class="m">core/email_notify.py</span></td><td class="loc">328</td><td>Build the notification draft and <code>.eml</code>; send via SMTP or Microsoft Graph; gate on config; sanitize the body.</td></tr>
             <tr><td><span class="m">core/copilot.py</span></td><td class="loc">25</td><td>Copilot/Claude availability checks and manual-handoff messaging.</td></tr>
             <tr><td><span class="m">core/delivery_instructions.py</span></td><td class="loc">50</td><td>Shared "assisted delivery" instruction text embedded in task and retry prompts.</td></tr>
@@ -328,7 +335,7 @@
         <div class="layer">
           <div class="lh"><b>Leaves</b><span>no core imports</span></div>
           <div class="chips">
-            <span class="chip">config</span><span class="chip">jira_adf</span><span class="chip">jira_parse</span><span class="chip">keywords</span>
+            <span class="chip">user_config</span><span class="chip">jira_adf</span><span class="chip">jira_parse</span><span class="chip">keywords</span>
             <span class="chip">git_ops</span><span class="chip">delivery_instructions</span><span class="chip">cleanup</span><span class="chip">logging_utils</span><span class="chip">context</span>
           </div>
         </div>
@@ -336,13 +343,14 @@
         <div class="layer accent-band">
           <div class="lh"><b>Consumers</b><span>compose the leaves</span></div>
           <div class="chips">
+            <span class="chip">config → user_config</span>
             <span class="chip">jira → config, jira_adf, jira_parse</span>
             <span class="chip">search → git_ops</span>
             <span class="chip">memory → config</span>
             <span class="chip">prompts → delivery_instructions, git_ops</span>
             <span class="chip">email_notify → config, jira</span>
             <span class="chip">doctor / copilot → config, git_ops</span>
-            <span class="chip">agent_runner → config</span>
+            <span class="chip">setup → git_ops, jira, user_config</span>
           </div>
         </div>
       </div>
@@ -394,12 +402,13 @@
         less.</p>
 
       <h3 id="deep-agent">6.5 Agent invocation</h3>
-      <p><code>bugpilot bug --claude</code> / <code>--copilot</code> is the only path that runs an agent, and it is opt-in.
-        <code>agent_runner.py</code> builds the command from <code>HRS_AI_CLAUDE_COMMAND</code>/<code>_ARGS</code>,
-        resolves the real executable with <code>shutil.which</code> (wrapping Windows <code>.cmd</code> shims through
-        <code>cmd /c</code>), and runs it <strong>interactively in the target repo</strong> so you can watch it. The agent
-        reads <code>copilot_task.md</code>, implements the smallest safe fix, writes result files, posts one status
-        comment, and stops at the commit gate.</p>
+      <p>After preparation, <code>bugpilot &lt;ISSUE&gt;</code> launches Claude by default (<code>--copilot</code> switches
+        to Copilot; <code>--prepare-only</code> launches nothing). <code>agent_runner.py</code> builds the command from
+        <code>HRS_AI_CLAUDE_COMMAND</code>/<code>_ARGS</code>, resolves the real executable with <code>shutil.which</code>
+        (wrapping Windows <code>.cmd</code> shims through <code>cmd /c</code>), and runs it <strong>interactively in the
+        target repo</strong> so you can watch it. The agent reads <code>copilot_task.md</code>, implements the smallest
+        safe fix, writes result files, and stops at the commit gate (it posts a Jira status comment only when
+        <code>--jira-comment</code> was requested).</p>
       <div class="note warn"><div class="h">Permissions</div><p>Default <code>--permission-mode acceptEdits</code> auto-accepts
         file edits but still prompts for shell commands. For an unattended demo, set
         <code>HRS_AI_CLAUDE_ARGS="--dangerously-skip-permissions"</code> — understand it removes the safety net; always
@@ -425,9 +434,9 @@
       <div class="kv">
         <dt>developer_hint.md</dt><dd><code>--hint "…"</code> steers the agent straight to a fix location. An explicit hint
           wins; otherwise a hint from a prior run is reused on resume.</dd>
-        <dt>jira_comment_off.flag</dt><dd><code>--no-jira-comment</code> omits the "Report Status to Jira (before commit)"
-          block from <code>copilot_task.md</code>. Its presence flips the generated instructions; <code>--fresh</code>
-          clears it back to the default.</dd>
+        <dt>jira_comment_on.flag</dt><dd>The pre-commit "Report Status to Jira" block is omitted by default;
+          <code>--jira-comment</code> writes this marker to add it to <code>copilot_task.md</code>. Its presence flips the
+          generated instructions; <code>--fresh</code> clears it back to the default.</dd>
       </div>
       <p>The same idea drives the intermediate fold: <code>memory_search.md</code> and <code>git_context.md</code> exist
         only long enough for <code>context.py</code> to absorb them into <code>bug_context.md</code>, then
@@ -458,7 +467,7 @@
       <ul>
         <li><strong>Never automatic:</strong> no commit, push, merge, PR, or Jira field/status/assignee change — by bugpilot or the agent.</li>
         <li><strong>Only two Jira writes,</strong> both opt-in: one comment via <code>jira-comment --execute</code>, or one via <code>summarize-results</code> when enabled.</li>
-        <li><strong>Email and agent runs are opt-in</strong> and configured per-run; secrets stay in the environment.</li>
+        <li><strong>The agent runs by default</strong> (Claude), but stops at the commit gate; <code>--prepare-only</code> skips it. Email is opt-in. Secrets stay in the environment, except the Jira token <code>setup</code> saves to <code>~/.bugpilot/config.toml</code> (plaintext for now, behind a replaceable seam).</li>
         <li><strong>Cleanup is scoped:</strong> <code>clean</code> validates the issue key and deletes only <code>.ai/&lt;issue&gt;/</code> (and the memory file with <code>--include-memory</code>). It never touches product source.</li>
         <li><strong>Agent output is third-party code:</strong> the task stops at the commit gate; a person reviews and approves.</li>
       </ul>
@@ -481,7 +490,7 @@
             <tr><td><span class="m">code_search.md</span> · <span class="m">related_files.json</span> · <span class="m">search_quality.json</span></td><td>search</td><td>Matches, ranked files, confidence.</td></tr>
             <tr><td><span class="m">bug_context.md</span></td><td>context</td><td>The aggregated agent input (folds in memory + git).</td></tr>
             <tr><td><span class="m">copilot_task.md</span> · <span class="m">copilot_handoff.md</span> · <span class="m">copilot_team_instructions.md</span></td><td>prompt</td><td>The agent hand-off package.</td></tr>
-            <tr><td><span class="m">developer_hint.md</span> · <span class="m">jira_comment_off.flag</span></td><td>--hint / --no-jira-comment</td><td>Persisted per-run choices that survive <code>--resume</code>.</td></tr>
+            <tr><td><span class="m">developer_hint.md</span> · <span class="m">jira_comment_on.flag</span></td><td>--hint / --jira-comment</td><td>Persisted per-run choices that survive <code>--resume</code>.</td></tr>
             <tr><td><span class="m">.ai_memory/bugs/&lt;issue&gt;.md</span></td><td>memory add</td><td>Shared, long-lived memory entry.</td></tr>
           </tbody>
         </table>
@@ -494,10 +503,12 @@
 
     <section id="config">
       <h2>9 · Configuration</h2>
-      <p>All configuration is environment variables, resolved in <code>config.py</code>. Nothing is required for a
-        <code>--allow-mock</code> demo; real use needs Jira, and the optional features need their own vars.</p>
-      <pre># Jira (real fetch + comments)
-JIRA_BASE_URL   JIRA_EMAIL   JIRA_TOKEN
+      <p>Configuration is environment variables, resolved in <code>config.py</code>. For Jira, the friendly path is
+        <code>bugpilot setup</code>, which writes <code>~/.bugpilot/config.toml</code>; env vars still override it, and
+        <code>JIRA_BASE_URL</code> defaults to the fixed company site.</p>
+      <pre># Jira — set by `bugpilot setup` (~/.bugpilot/config.toml), or via env:
+JIRA_BASE_URL   JIRA_EMAIL   JIRA_TOKEN        # env overrides the config file
+BUGPILOT_CONFIG_DIR                            # override ~/.bugpilot (tests, relocation)
 
 # Auto Jira comment
 HRS_AI_AUTO_JIRA_COMMENT=true
@@ -511,14 +522,15 @@ SMTP_USE_STARTTLS=true   SMTP_USE_SSL=false
 # Agent invocation
 HRS_AI_CLAUDE_COMMAND=claude   HRS_AI_CLAUDE_ARGS="--permission-mode acceptEdits"
 HRS_AI_COPILOT_COMMAND=copilot HRS_AI_COPILOT_ARGS=""</pre>
-      <div class="note"><div class="h">One boundary for env</div><p>Every variable above is read inside
-        <code>config.py</code> — the single exception is <code>HRS_AI_AUTO_JIRA_COMMENT</code>, read in <code>cli.py</code>.
-        No other module touches the environment, so credentials have exactly one entry point and never reach an artifact.</p></div>
+      <div class="note"><div class="h">One credential boundary</div><p>Jira/SMTP/Graph secrets enter through
+        <code>config.py</code> only (env, plus the Jira email/token from <code>~/.bugpilot/config.toml</code>). The lone
+        other env reads are the <code>HRS_AI_AUTO_JIRA_COMMENT</code> flag in <code>cli.py</code> and
+        <code>BUGPILOT_CONFIG_DIR</code> in <code>user_config.py</code>. Secrets never reach an artifact.</p></div>
     </section>
 
     <section id="testing">
       <h2>10 · Testing</h2>
-      <p>The suite (pytest, ~210 tests) is fully deterministic and offline. External calls are mocked at the seam:
+      <p>The suite (pytest, ~228 tests) is fully deterministic and offline. External calls are mocked at the seam:
         <code>urllib.request.urlopen</code> for Jira/Graph, <code>subprocess.run</code> for git/ripgrep/agents,
         <code>smtplib.SMTP</code> for email. Tests use <code>tmp_path</code> as a throwaway repo and assert on the exact
         artifacts and status written. Because preparation is deterministic, most tests just run a step and diff its
