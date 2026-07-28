@@ -9,7 +9,15 @@
 .NOTES
     Runs on Windows PowerShell 5.1 and PowerShell 7+.
     Place this script in the same folder as a bugpilot-*.whl file and run it.
+
+.PARAMETER InstallPython
+    If Python 3.10+ is missing, install it via winget without prompting
+    (per-user, no admin). Without this switch you are asked first.
 #>
+
+param(
+    [switch]$InstallPython
+)
 
 $ErrorActionPreference = 'Stop'
 
@@ -42,16 +50,59 @@ function Invoke-Native {
     }
 }
 
-# Return the first working Python 3 launcher ('python' or 'py'), or $null.
+# True if $Exe reports Python 3.10 or newer.
+function Test-PythonVersion {
+    param([string]$Exe)
+    try { $out = & $Exe --version 2>&1 } catch { return $false }
+    return ($LASTEXITCODE -eq 0 -and ($out -match 'Python 3\.(1[0-9]|[2-9][0-9])'))
+}
+
+# Resolve a usable Python 3.10+ interpreter to an absolute path, or $null.
+# Skips the Windows "App execution alias" stubs under \WindowsApps\ (those are
+# Store placeholders, not real Python).
 function Resolve-Python {
-    foreach ($candidate in @('python', 'py')) {
-        if (-not (Get-Command $candidate -ErrorAction SilentlyContinue)) { continue }
-        $version = & $candidate --version 2>&1
-        if ($LASTEXITCODE -eq 0 -and $version -match 'Python 3') {
-            return $candidate
+    # Prefer the py launcher (never the Store alias); resolve it to a real exe.
+    if (Get-Command py -ErrorAction SilentlyContinue) {
+        $exe = & py -3 -c "import sys; print(sys.executable)" 2>$null
+        if ($LASTEXITCODE -eq 0 -and $exe -and (Test-Path $exe) -and (Test-PythonVersion $exe)) {
+            return $exe
+        }
+    }
+    foreach ($name in @('python', 'python3')) {
+        foreach ($cmd in @(Get-Command $name -All -ErrorAction SilentlyContinue)) {
+            $src = $cmd.Source
+            if (-not $src) { continue }
+            if ($src -like '*\WindowsApps\*') { continue }
+            if (Test-PythonVersion $src) { return $src }
         }
     }
     return $null
+}
+
+# True if `python` on PATH is only the Windows Store App-execution-alias stub.
+function Test-PythonAliasOnly {
+    $cmd = Get-Command python -ErrorAction SilentlyContinue
+    return ($cmd -and $cmd.Source -like '*\WindowsApps\*')
+}
+
+# Try to install Python via winget (per-user, no admin). Returns $true on success.
+function Install-PythonViaWinget {
+    if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
+        Write-Note "winget is not available, so Python can't be installed automatically here."
+        return $false
+    }
+    $proceed = $script:InstallPython
+    if (-not $proceed) {
+        Write-Host ""
+        try { $answer = Read-Host "    Install Python 3.12 now with winget (per-user, no admin)? [Y/n]" }
+        catch { $answer = 'n' }
+        $proceed = ($answer -eq '' -or $answer -match '^[Yy]')
+    }
+    if (-not $proceed) { return $false }
+
+    Write-Step "Installing Python 3.12 via winget..."
+    winget install -e --id Python.Python.3.12 --scope user --accept-source-agreements --accept-package-agreements
+    return ($LASTEXITCODE -eq 0)
 }
 
 # --- installation -----------------------------------------------------------
@@ -63,13 +114,27 @@ try {
     Write-Step "Checking for Python..."
     $python = Resolve-Python
     if (-not $python) {
-        Write-Fail "Python 3 was not found on your PATH."
-        Write-Fail "Install Python 3.10 or newer from https://www.python.org/downloads/"
-        Write-Fail "(during install, tick 'Add python.exe to PATH'), then re-run this script."
+        Write-Note "No usable Python 3.10+ was found."
+        if (Test-PythonAliasOnly) {
+            Write-Note "Your 'python' command is a Windows Store placeholder (App execution alias), not real Python."
+            Write-Note "It just prints 'Python was not found ...'. Install real Python below (or delete the stub at"
+            Write-Note "%LOCALAPPDATA%\Microsoft\WindowsApps\python.exe)."
+        }
+        if (Install-PythonViaWinget) {
+            Write-Ok "Python installed."
+            Write-Host ""
+            Write-Note "PATH won't refresh in this window. Close it, open a NEW terminal, and run install.cmd again."
+            exit 0
+        }
+        Write-Fail "Python 3.10 or newer is required."
+        Write-Fail "Install it from https://www.python.org/downloads/ (tick 'Add python.exe to PATH'),"
+        Write-Fail "or run:  winget install -e --id Python.Python.3.12"
+        Write-Fail "Then open a new terminal and run install.cmd again."
         exit 1
     }
     $pythonVersion = (& $python --version 2>&1).Trim()
-    Write-Ok "Found $pythonVersion ($python)"
+    Write-Ok "Found $pythonVersion"
+    Write-Ok "$python"
 
     # 2. pipx ---------------------------------------------------------------
     Write-Step "Checking for pipx..."
