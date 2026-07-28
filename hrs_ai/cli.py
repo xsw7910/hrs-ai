@@ -22,7 +22,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="bugpilot")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    subparsers.add_parser("setup", help="Interactively configure BugPilot (Jira email + API token).")
+    setup_parser = subparsers.add_parser("setup", help="Interactively configure BugPilot (Jira email + API token).")
+    setup_parser.add_argument("--hide-token", action="store_true", help="Hide the API token while typing (default: shown so you can verify the paste).")
     subparsers.add_parser("doctor", help="Check local environment readiness.")
     subparsers.add_parser("copilot-check", help="Check Copilot CLI readiness.")
 
@@ -168,7 +169,7 @@ def main(argv: list[str] | None = None) -> int:
     repo_root = Path.cwd()
 
     if args.command == "setup":
-        return setup.run_setup()
+        return setup.run_setup(hide_token=args.hide_token)
 
     if args.command == "doctor":
         doctor.print_doctor_report(repo_root)

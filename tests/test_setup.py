@@ -138,11 +138,11 @@ def test_run_setup_success_saves_config(monkeypatch):
         "hrs_ai.core.jira.validate_credentials",
         lambda base_url, email, token, timeout=30: JiraValidationResult(ok=True, account_email=email),
     )
-    emails = iter(["shiwei.xing@geosoftware.com"])
-    tokens = iter(["tok-123"])
+    # Token is shown by default, so both email and token come from `prompt`.
+    answers = iter(["shiwei.xing@geosoftware.com", "tok-123"])
     out = []
 
-    rc = run_setup(prompt=lambda p: next(emails), prompt_secret=lambda p: next(tokens), out=out.append)
+    rc = run_setup(prompt=lambda p: next(answers), out=out.append)
 
     text = "\n".join(out)
     assert rc == 0
@@ -157,15 +157,35 @@ def test_run_setup_success_saves_config(monkeypatch):
     assert cfg.jira_token == "tok-123"
 
 
+def test_run_setup_hidden_token_uses_secret_reader(monkeypatch):
+    _all_tools_present(monkeypatch)
+    monkeypatch.setattr(
+        "hrs_ai.core.jira.validate_credentials",
+        lambda *a, **k: JiraValidationResult(ok=True),
+    )
+    out = []
+    # With hide_token=True the token is read from prompt_secret, not prompt.
+    rc = run_setup(
+        prompt=lambda p: "e@x.com",
+        prompt_secret=lambda p: "hidden-tok",
+        out=out.append,
+        hide_token=True,
+    )
+    assert rc == 0
+    assert "input is hidden" in "\n".join(out)
+    assert load_user_config().jira_token == "hidden-tok"
+
+
 def test_run_setup_auth_failure_does_not_save(monkeypatch):
     _all_tools_present(monkeypatch)
     monkeypatch.setattr(
         "hrs_ai.core.jira.validate_credentials",
         lambda *a, **k: JiraValidationResult(ok=False, error_type="auth_or_permission", error_message="x"),
     )
+    answers = iter(["e@x.com", "bad"])
     out = []
 
-    rc = run_setup(prompt=lambda p: "e@x.com", prompt_secret=lambda p: "bad", out=out.append)
+    rc = run_setup(prompt=lambda p: next(answers), out=out.append)
 
     text = "\n".join(out)
     assert rc == 1
@@ -183,9 +203,10 @@ def test_run_setup_warns_when_copilot_missing(monkeypatch):
         "hrs_ai.core.jira.validate_credentials",
         lambda *a, **k: JiraValidationResult(ok=True),
     )
+    answers = iter(["e@x.com", "t"])
     out = []
 
-    rc = run_setup(prompt=lambda p: "e@x.com", prompt_secret=lambda p: "t", out=out.append)
+    rc = run_setup(prompt=lambda p: next(answers), out=out.append)
 
     text = "\n".join(out)
     assert rc == 0
@@ -210,12 +231,24 @@ def test_run_setup_aborts_when_email_abandoned(monkeypatch):
 
 
 def test_setup_subcommand_dispatches(monkeypatch):
-    called = {}
+    captured = {}
 
-    def spy():
-        called["ran"] = True
+    def spy(hide_token=False):
+        captured["hide_token"] = hide_token
         return 0
 
     monkeypatch.setattr("hrs_ai.core.setup.run_setup", spy)
     assert main(["setup"]) == 0
-    assert called.get("ran") is True
+    assert captured["hide_token"] is False
+
+
+def test_setup_hide_token_flag(monkeypatch):
+    captured = {}
+
+    def spy(hide_token=False):
+        captured["hide_token"] = hide_token
+        return 0
+
+    monkeypatch.setattr("hrs_ai.core.setup.run_setup", spy)
+    assert main(["setup", "--hide-token"]) == 0
+    assert captured["hide_token"] is True

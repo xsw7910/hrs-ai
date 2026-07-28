@@ -26,8 +26,13 @@ def run_setup(
     prompt: PromptFn = input,
     prompt_secret: PromptFn = getpass.getpass,
     out: OutFn = print,
+    hide_token: bool = False,
 ) -> int:
-    """Run the interactive setup. Returns a process exit code (0 = success)."""
+    """Run the interactive setup. Returns a process exit code (0 = success).
+
+    The API token is shown as you type by default (paste is visible); pass
+    ``hide_token=True`` (CLI ``--hide-token``) to read it hidden via getpass.
+    """
     _enable_unicode_output()
     base_url = user_config.DEFAULT_JIRA_BASE_URL
 
@@ -54,7 +59,10 @@ def run_setup(
         out("  https://id.atlassian.com/manage-profile/security/api-tokens")
         out("")
         out("Create a new API token and paste it below.")
-        token = _read_required(prompt_secret, "Jira API Token:", out)
+        if hide_token:
+            out("(input is hidden; paste it and press Enter)")
+        token_reader = prompt_secret if hide_token else prompt
+        token = _read_required(token_reader, "Jira API Token:", out)
         if token is None:
             return _abort(out, "No Jira API token provided.")
     except KeyboardInterrupt:
