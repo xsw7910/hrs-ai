@@ -12,7 +12,7 @@ def generate_prompts(
     issue_key: str,
     summary: str | None = None,
     hint: str | None = None,
-    jira_comment: bool = True,
+    jira_comment: bool = False,
 ) -> dict[str, str]:
     # The full analysis/fix/review/test workflow lives inside copilot_task.md, so
     # the standalone per-phase prompt files are intentionally not generated.
@@ -28,7 +28,7 @@ def generate_copilot_task_files(
     issue_key: str,
     summary: str | None = None,
     hint: str | None = None,
-    jira_comment: bool = True,
+    jira_comment: bool = False,
 ) -> dict[str, str]:
     branch = branch_name(issue_key, summary)
     return {

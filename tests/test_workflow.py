@@ -10,6 +10,7 @@ import pytest
 
 from hrs_ai.core import workflow
 from hrs_ai.cli import main
+from hrs_ai.core.agent_runner import AgentRunResult
 from hrs_ai.core.context import _code_search_summary
 from hrs_ai.core.git_ops import branch_name, summary_slug
 from hrs_ai.core.jira import JiraFetchError, classify_attachment, fetch_issue
@@ -27,6 +28,19 @@ def clear_jira_env(monkeypatch):
     monkeypatch.delenv("JIRA_BASE_URL", raising=False)
     monkeypatch.delenv("JIRA_EMAIL", raising=False)
     monkeypatch.delenv("JIRA_TOKEN", raising=False)
+
+
+@pytest.fixture(autouse=True)
+def stub_agent_launch(monkeypatch):
+    # `bug` launches Claude by default; stub the launch so prepare-focused tests
+    # here don't spawn a real agent process. Agent-launch behavior is covered
+    # explicitly in test_agent_runner.py.
+    monkeypatch.setattr(
+        "hrs_ai.core.agent_runner.run_agent",
+        lambda repo_root, issue_key, agent, config=None: AgentRunResult(
+            agent=agent, ran=True, command=[agent], returncode=0
+        ),
+    )
 
 
 def test_output_directory_creation(tmp_path, monkeypatch):
@@ -117,6 +131,19 @@ def test_bug_command_runs_in_temporary_directory(tmp_path, monkeypatch):
     assert exit_code == 0
     assert (tmp_path / ".ai" / "HR-12345" / "jira_summary.md").is_file()
     assert (tmp_path / ".ai" / "HR-12345" / "workflow_status.json").is_file()
+
+
+def test_bug_is_the_default_command(tmp_path, monkeypatch):
+    # `bugpilot HR-12345` behaves as `bugpilot bug HR-12345`.
+    _set_jira_env(monkeypatch)
+    monkeypatch.setattr(
+        "hrs_ai.core.jira.urllib.request.urlopen",
+        lambda request, timeout: _good_jira_response()(),
+    )
+    monkeypatch.chdir(tmp_path)
+
+    assert main(["HR-12345"]) == 0
+    assert (tmp_path / ".ai" / "HR-12345" / "jira_summary.md").is_file()
 
 
 def test_bug_command_prints_progress_and_key_artifacts(tmp_path, monkeypatch, capsys):
@@ -266,40 +293,50 @@ def test_copilot_task_references_code_search(tmp_path):
     assert "Do not add `.ai/`" in task
     assert "Do not add `.ai_memory/`" in task
     assert "Do not update Jira" in task
-    # Before commit, Copilot posts one Jira status comment.
-    assert "Report Status to Jira (before commit)" in task
-    assert "bugpilot jira-comment HR-12345 --execute" in task
-    assert "Post exactly ONE comment" in task
+    # By default the pre-commit Jira status comment is omitted.
+    assert "Report Status to Jira (before commit)" not in task
+    assert "- Do not update Jira.\n" in task
 
 
-def test_no_jira_comment_omits_status_section(tmp_path):
-    run_bug_workflow(tmp_path, "HR-12345", allow_mock=True, jira_comment=False)
+def test_default_omits_jira_status_section(tmp_path):
+    run_bug_workflow(tmp_path, "HR-12345", allow_mock=True)
     issue_dir = tmp_path / ".ai" / "HR-12345"
     task = (issue_dir / "copilot_task.md").read_text()
     handoff = (issue_dir / "copilot_handoff.md").read_text()
 
-    # The pre-commit Jira status section and its commands are gone.
+    # No pre-commit Jira status section, and no marker, by default.
     assert "Report Status to Jira (before commit)" not in task
     assert "jira-comment-draft" not in task
     assert "--execute" not in task
-    # Forbidden Actions falls back to the blanket "Do not update Jira." rule.
     assert "- Do not update Jira.\n" in task
     assert "the only permitted Jira write" not in task
     assert "the only permitted Jira write" not in handoff
-    # The marker persists so a standalone regeneration keeps the comment off.
-    assert (issue_dir / "jira_comment_off.flag").exists()
-    copilot_task_step(tmp_path, "HR-12345")
-    assert "Report Status to Jira (before commit)" not in (issue_dir / "copilot_task.md").read_text()
+    assert not (issue_dir / "jira_comment_on.flag").exists()
 
 
-def test_copilot_task_step_no_jira_comment_flag(tmp_path):
-    run_bug_workflow(tmp_path, "HR-12345", allow_mock=True)
+def test_jira_comment_opt_in_includes_status_section(tmp_path):
+    run_bug_workflow(tmp_path, "HR-12345", allow_mock=True, jira_comment=True)
     issue_dir = tmp_path / ".ai" / "HR-12345"
+    task = (issue_dir / "copilot_task.md").read_text()
+
+    # --jira-comment adds the pre-commit status section and its commands.
+    assert "Report Status to Jira (before commit)" in task
+    assert "bugpilot jira-comment HR-12345 --execute" in task
+    assert "Post exactly ONE comment" in task
+    # The marker persists so a standalone regeneration keeps the comment on.
+    assert (issue_dir / "jira_comment_on.flag").exists()
+    copilot_task_step(tmp_path, "HR-12345")
     assert "Report Status to Jira (before commit)" in (issue_dir / "copilot_task.md").read_text()
 
-    # Standalone regeneration can turn the status comment off after the fact.
-    copilot_task_step(tmp_path, "HR-12345", no_jira_comment=True)
+
+def test_copilot_task_step_jira_comment_flag(tmp_path):
+    run_bug_workflow(tmp_path, "HR-12345", allow_mock=True)
+    issue_dir = tmp_path / ".ai" / "HR-12345"
     assert "Report Status to Jira (before commit)" not in (issue_dir / "copilot_task.md").read_text()
+
+    # Standalone regeneration can turn the status comment on after the fact.
+    copilot_task_step(tmp_path, "HR-12345", jira_comment=True)
+    assert "Report Status to Jira (before commit)" in (issue_dir / "copilot_task.md").read_text()
 
 
 def test_copilot_task_branch_uses_jira_summary_slug(tmp_path):

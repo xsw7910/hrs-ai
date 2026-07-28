@@ -100,27 +100,27 @@ def _spy_run_agent(monkeypatch, captured):
     monkeypatch.setattr("hrs_ai.core.agent_runner.run_agent", spy)
 
 
-def test_bug_without_run_flag_does_not_invoke_agent(tmp_path, monkeypatch):
+def test_bug_launches_claude_by_default(tmp_path, monkeypatch, capsys):
     captured = {}
     _spy_run_agent(monkeypatch, captured)
     monkeypatch.chdir(tmp_path)
 
     assert main(["bug", "HR-12345", "--allow-mock"]) == 0
-    assert captured == {}
-
-
-def test_bug_claude_flag_launches_agent(tmp_path, monkeypatch, capsys):
-    captured = {}
-    _spy_run_agent(monkeypatch, captured)
-    monkeypatch.chdir(tmp_path)
-
-    assert main(["bug", "HR-12345", "--claude", "--allow-mock"]) == 0
     out = capsys.readouterr().out
 
     assert "Launching claude to complete the workflow" in out
     assert captured["agent"] == "claude"
     assert captured["issue_key"] == "HR-12345"
     assert Path(captured["repo_root"]) == tmp_path
+
+
+def test_bug_prepare_only_does_not_invoke_agent(tmp_path, monkeypatch):
+    captured = {}
+    _spy_run_agent(monkeypatch, captured)
+    monkeypatch.chdir(tmp_path)
+
+    assert main(["bug", "HR-12345", "--prepare-only", "--allow-mock"]) == 0
+    assert captured == {}
 
 
 def test_bug_copilot_flag_launches_copilot(tmp_path, monkeypatch):
@@ -132,11 +132,11 @@ def test_bug_copilot_flag_launches_copilot(tmp_path, monkeypatch):
     assert captured["agent"] == "copilot"
 
 
-def test_bug_claude_flag_missing_binary_warns(tmp_path, monkeypatch, capsys):
+def test_bug_missing_binary_warns(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr("hrs_ai.core.agent_runner.shutil.which", lambda c: None)
     monkeypatch.chdir(tmp_path)
 
-    assert main(["bug", "HR-12345", "--claude", "--allow-mock"]) == 1
+    assert main(["bug", "HR-12345", "--allow-mock"]) == 1
     err = capsys.readouterr().err
     assert "could not launch claude" in err
     assert "Read .ai/HR-12345/copilot_task.md" in err

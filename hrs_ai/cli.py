@@ -33,9 +33,9 @@ def build_parser() -> argparse.ArgumentParser:
         command = subparsers.add_parser(name, help=f"Run the {name} step.")
         command.add_argument("issue_key")
         command.add_argument(
-            "--no-jira-comment",
+            "--jira-comment",
             action="store_true",
-            help="Omit the pre-commit Jira status comment instruction from the generated copilot_task.md.",
+            help="Include the pre-commit Jira status comment instruction in the generated copilot_task.md (omitted by default).",
         )
 
     summarize_parser = subparsers.add_parser("summarize-results", help="Summarize Copilot results; optionally post a Jira comment so watchers are notified.")
@@ -107,14 +107,14 @@ def build_parser() -> argparse.ArgumentParser:
     )
     bug_run = bug_parser.add_mutually_exclusive_group()
     bug_run.add_argument(
-        "--claude",
-        action="store_true",
-        help="After preparation, launch Claude in the target repo to complete the workflow.",
-    )
-    bug_run.add_argument(
         "--copilot",
         action="store_true",
-        help="After preparation, launch Copilot CLI in the target repo to complete the workflow.",
+        help="Use Copilot CLI instead of Claude to complete the workflow after preparation.",
+    )
+    bug_run.add_argument(
+        "--prepare-only",
+        action="store_true",
+        help="Only prepare artifacts; do not launch an agent. By default Claude is launched after preparation.",
     )
     bug_mode = bug_parser.add_mutually_exclusive_group()
     bug_mode.add_argument(
@@ -138,9 +138,9 @@ def build_parser() -> argparse.ArgumentParser:
         help="Developer hint (e.g. fix location) injected into copilot_task.md so the agent goes straight to it.",
     )
     bug_parser.add_argument(
-        "--no-jira-comment",
+        "--jira-comment",
         action="store_true",
-        help="Omit the pre-commit Jira status comment instruction from the generated copilot_task.md.",
+        help="Include the pre-commit Jira status comment instruction in the generated copilot_task.md (omitted by default).",
     )
     bug_mock = bug_parser.add_mutually_exclusive_group()
     bug_mock.add_argument("--allow-mock", action="store_true", help="Allow mock/demo fallback when Jira fetch fails.")
@@ -149,8 +149,21 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _subcommand_names(parser: argparse.ArgumentParser) -> set[str]:
+    for action in parser._actions:
+        if isinstance(action, argparse._SubParsersAction):
+            return set(action.choices)
+    return set()
+
+
 def main(argv: list[str] | None = None) -> int:
-    args = build_parser().parse_args(argv)
+    parser = build_parser()
+    argv = list(sys.argv[1:] if argv is None else argv)
+    # `bug` is the default command: `bugpilot HR-123` is treated as `bugpilot bug HR-123`.
+    # Only inject when the first token is neither a known subcommand nor an option.
+    if argv and not argv[0].startswith("-") and argv[0] not in _subcommand_names(parser):
+        argv = ["bug", *argv]
+    args = parser.parse_args(argv)
     repo_root = Path.cwd()
 
     if args.command == "doctor":
@@ -257,13 +270,13 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "prompt":
-        workflow.prompt_step(repo_root, args.issue_key, no_jira_comment=args.no_jira_comment)
+        workflow.prompt_step(repo_root, args.issue_key, jira_comment=args.jira_comment)
         print(f"Generated prompts for {args.issue_key}.")
         return 0
 
     if args.command == "copilot-task":
         try:
-            workflow.copilot_task_step(repo_root, args.issue_key, no_jira_comment=args.no_jira_comment)
+            workflow.copilot_task_step(repo_root, args.issue_key, jira_comment=args.jira_comment)
         except FileNotFoundError:
             print(f"Missing .ai/{args.issue_key}/bug_context.md.", file=sys.stderr)
             print(f"Run: bugpilot bug {args.issue_key}", file=sys.stderr)
@@ -405,7 +418,7 @@ def main(argv: list[str] | None = None) -> int:
                 allow_mock=_allow_mock(args),
                 progress=progress,
                 hint=args.hint,
-                jira_comment=not args.no_jira_comment,
+                jira_comment=args.jira_comment,
             )
         except JiraFetchError as exc:
             print(f"[ERROR] Fetching Jira issue failed: {exc.result.error_message}", file=sys.stderr)
@@ -424,15 +437,17 @@ def main(argv: list[str] | None = None) -> int:
         _print_key_generated_artifacts(repo_root, args.issue_key)
         print(f"Prepared bugpilot workflow package for {args.issue_key}.")
         print(f"Artifacts: .ai/{args.issue_key}")
-        print("Next manual Copilot CLI instruction:")
-        print(f"  Read .ai/{args.issue_key}/copilot_task.md and complete the workflow.")
-        if args.copilot_fix:
-            copilot.print_copilot_check()
-            copilot.print_auto_invocation_not_implemented(args.issue_key)
-        if args.claude or args.copilot:
-            agent = "claude" if args.claude else "copilot"
-            return _run_agent_after_prepare(repo_root, args.issue_key, agent)
-        return 0
+        # By default an agent (Claude) is launched after preparation. --prepare-only
+        # stops here with artifacts only; --copilot-fix prints legacy guidance instead.
+        if args.prepare_only or args.copilot_fix:
+            print("Next manual Copilot CLI instruction:")
+            print(f"  Read .ai/{args.issue_key}/copilot_task.md and complete the workflow.")
+            if args.copilot_fix:
+                copilot.print_copilot_check()
+                copilot.print_auto_invocation_not_implemented(args.issue_key)
+            return 0
+        agent = "copilot" if args.copilot else "claude"
+        return _run_agent_after_prepare(repo_root, args.issue_key, agent)
 
     return 1
 
@@ -469,8 +484,8 @@ def _allow_mock(args) -> bool:
 def _run_agent_after_prepare(repo_root: Path, issue_key: str, agent: str) -> int:
     print()
     print(f"Launching {agent} to complete the workflow for {issue_key}.")
-    print("The agent will analyze, implement the smallest safe fix, write result files,")
-    print("and post ONE Jira status comment. It stops at the commit gate and asks before committing.")
+    print("The agent will analyze, implement the smallest safe fix, and write result files.")
+    print("It stops at the commit gate and asks before committing.")
     print("Review its changes as third-party code before you commit.")
     result = agent_runner.run_agent(repo_root, issue_key, agent)
     if not result.ran:

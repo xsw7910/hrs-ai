@@ -57,7 +57,7 @@ def run_bug_workflow(
     allow_mock: bool = False,
     progress: Callable[[str], None] | None = None,
     hint: str | None = None,
-    jira_comment: bool = True,
+    jira_comment: bool = False,
 ) -> WorkflowResult:
     clean_result = None
     if fresh:
@@ -73,10 +73,10 @@ def run_bug_workflow(
     effective_hint = hint if hint and hint.strip() else (hint_path.read_text(encoding="utf-8") if not fresh and hint_path.exists() else None)
     if effective_hint and effective_hint.strip():
         hint_path.write_text(effective_hint.strip() + "\n", encoding="utf-8")
-    # Suppress the pre-commit Jira status comment for this issue. Written once and
+    # Opt in to the pre-commit Jira status comment for this issue. Written once and
     # honored by prompt_step below; the marker survives --resume (fresh clears it).
-    if not jira_comment:
-        _set_jira_comment_off(target)
+    if jira_comment:
+        _set_jira_comment_on(target)
     command = f"bugpilot bug {issue_key}"
     if not fresh:
         command += " --resume"
@@ -84,8 +84,8 @@ def run_bug_workflow(
         command += " --include-memory"
     if allow_mock:
         command += " --allow-mock"
-    if not jira_comment:
-        command += " --no-jira-comment"
+    if jira_comment:
+        command += " --jira-comment"
     log(target, f"[START] command: {command}")
     log(target, f"[INFO] effective mode: fresh={str(fresh).lower()}, allow_mock={str(allow_mock).lower()}")
     if allow_mock:
@@ -374,10 +374,10 @@ def context_step(repo_root: Path, issue_key: str) -> None:
         raise
 
 
-def prompt_step(repo_root: Path, issue_key: str, no_jira_comment: bool = False) -> None:
+def prompt_step(repo_root: Path, issue_key: str, jira_comment: bool = False) -> None:
     target = _prepare_issue_dir(repo_root, issue_key)
-    if no_jira_comment:
-        _set_jira_comment_off(target)
+    if jira_comment:
+        _set_jira_comment_on(target)
     log(target, "[START] prompt")
     try:
         summary = _issue_summary(target)
@@ -393,13 +393,13 @@ def prompt_step(repo_root: Path, issue_key: str, no_jira_comment: bool = False) 
         raise
 
 
-def copilot_task_step(repo_root: Path, issue_key: str, no_jira_comment: bool = False) -> None:
+def copilot_task_step(repo_root: Path, issue_key: str, jira_comment: bool = False) -> None:
     target = _prepare_issue_dir(repo_root, issue_key)
     bug_context = target / "bug_context.md"
     if not bug_context.exists():
-        raise FileNotFoundError(f"Missing {bug_context}. Run: bugpilot bug {issue_key}")
-    if no_jira_comment:
-        _set_jira_comment_off(target)
+        raise FileNotFoundError(f"Missing {bug_context}. Run: bugpilot {issue_key}")
+    if jira_comment:
+        _set_jira_comment_on(target)
     log(target, "[START] copilot_task")
     try:
         summary = _issue_summary(target)
@@ -1040,19 +1040,20 @@ def _read_artifact(target: Path, file_name: str) -> str:
     return path.read_text(encoding="utf-8", errors="replace").strip()
 
 
-# Presence of this marker suppresses the "Report Status to Jira (before commit)"
-# instruction in the generated copilot_task.md / copilot_handoff.md. It is written
-# once (by --no-jira-comment) and read back by prompt_step / copilot_task_step so
-# the choice survives --resume and standalone regeneration.
-_JIRA_COMMENT_OFF_MARKER = "jira_comment_off.flag"
+# Presence of this marker enables the "Report Status to Jira (before commit)"
+# instruction in the generated copilot_task.md / copilot_handoff.md. The default is
+# to omit that instruction; the marker is written once (by --jira-comment) and read
+# back by prompt_step / copilot_task_step so the opt-in survives --resume and
+# standalone regeneration.
+_JIRA_COMMENT_ON_MARKER = "jira_comment_on.flag"
 
 
-def _set_jira_comment_off(target: Path) -> None:
-    (target / _JIRA_COMMENT_OFF_MARKER).write_text("", encoding="utf-8")
+def _set_jira_comment_on(target: Path) -> None:
+    (target / _JIRA_COMMENT_ON_MARKER).write_text("", encoding="utf-8")
 
 
 def _jira_comment_enabled(target: Path) -> bool:
-    return not (target / _JIRA_COMMENT_OFF_MARKER).exists()
+    return (target / _JIRA_COMMENT_ON_MARKER).exists()
 
 
 def _cap_artifact(text: str) -> str:
