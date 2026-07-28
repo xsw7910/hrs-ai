@@ -20,6 +20,11 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+# PowerShell 7.4+ makes native commands that exit non-zero throw when
+# ErrorActionPreference is 'Stop'. We check $LASTEXITCODE ourselves (e.g. the
+# "is pipx installed?" probe expects a non-zero exit), so turn that off. This
+# variable does not exist on Windows PowerShell 5.1 — assigning it is harmless.
+$PSNativeCommandUseErrorActionPreference = $false
 
 # --- output helpers ---------------------------------------------------------
 
