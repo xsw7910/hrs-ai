@@ -156,23 +156,27 @@
   <div class="step">
     <header><span class="num">5</span><h3>From your product repo, run one command</h3></header>
     <p>Run from your <b>product repo</b> root.</p>
-    <div class="term"><div class="bar"><span class="d"></span><span class="d"></span><span class="d"></span><span class="path">C:\sandbox\monorepo</span><button class="copy">Copy</button></div><pre><span class="p">❯</span> cd C:\path\to\your-product-repo  <span class="o">#C:\sandbox\monorepo</span>
+    <div class="term"><div class="bar"><span class="d"></span><span class="d"></span><span class="d"></span><span class="path">your-product-repo</span><button class="copy">Copy</button></div><pre><span class="p">❯</span> cd C:\path\to\your-product-repo  <span class="o">#C:\sandbox\monorepo</span>
 <span class="p">❯</span> bugpilot HR-26609</pre></div>
     <p>Prepares the package, then <b>launches Claude</b> to make the fix. It stops at the commit gate — you review and
       commit. bugpilot never commits or pushes.</p>
-    <div class="term"><div class="bar"><span class="d"></span><span class="d"></span><span class="d"></span><span class="path">variations</span><button class="copy">Copy</button></div><pre><span class="p">❯</span> bugpilot HR-26609 <span class="f">--prepare-only</span>   <span class="o"># just build artifacts, don't launch an agent</span>
+  </div>
+
+  <!-- ===================== OPTIONS ===================== -->
+  <h2 id="options">4 · Options</h2>
+  <p class="sub" style="margin-bottom:14px">Flags for <code>bugpilot &lt;issue&gt;</code> — replace <code>HR-26609</code> with your issue key.</p>
+  <div class="term"><div class="bar"><span class="d"></span><span class="d"></span><span class="d"></span><span class="path">bugpilot &lt;issue&gt; options</span><button class="copy">Copy</button></div><pre><span class="p">❯</span> bugpilot HR-26609 <span class="f">--prepare-only</span>   <span class="o"># just build artifacts, don't launch an agent</span>
 <span class="p">❯</span> bugpilot HR-26609 <span class="f">--copilot</span>        <span class="o"># use Copilot CLI instead of Claude</span>
 <span class="p">❯</span> bugpilot HR-26609 <span class="f">--hint</span> <span class="o">"Fix in FooWidget.cxx: keep selection on tab switch"</span>
 <span class="p">❯</span> bugpilot HR-26609 <span class="f">--jira-comment</span>   <span class="o"># also post one Jira status comment</span>
 <span class="p">❯</span> bugpilot HR-26609 <span class="f">--resume</span>         <span class="o"># keep existing .ai/HR-26609/ artifacts</span>
 <span class="p">❯</span> bugpilot HR-26609 <span class="f">--allow-mock</span>     <span class="o"># demo without Jira credentials</span></pre></div>
-    <div class="note"><div class="h">Defaults</div><p><b>Claude</b> launches by default (<code>--prepare-only</code> to skip).
-      <b>Jira comment off</b> by default (<code>--jira-comment</code> to enable). Runs are <b>fresh</b>
-      (<code>--resume</code> to keep artifacts).</p></div>
-  </div>
+  <div class="note"><div class="h">Defaults</div><p><b>Claude</b> launches by default (<code>--prepare-only</code> to skip).
+    <b>Jira comment off</b> by default (<code>--jira-comment</code> to enable). Runs are <b>fresh</b>
+    (<code>--resume</code> to keep artifacts).</p></div>
 
   <!-- ===================== COMMAND REFERENCE ===================== -->
-  <h2 id="reference">4 · All commands (reference)</h2>
+  <h2 id="reference">5 · All commands (reference)</h2>
   <p class="sub" style="margin-bottom:14px">Every command, grouped. Base commands are copy-ready; comments note the
     useful flags. Replace <code>HR-26609</code> with your issue key.</p>
 
@@ -223,7 +227,7 @@
   <div class="term"><div class="bar"><span class="d"></span><span class="d"></span><span class="d"></span><span class="path">cleanup</span><button class="copy">Copy</button></div><pre><span class="p">❯</span> bugpilot clean HR-26609                <span class="o"># delete .ai/HR-26609/  (--include-memory also removes memory)</span></pre></div>
 
   <!-- ===================== CONFIG ===================== -->
-  <h2 id="config">5 · Configuration</h2>
+  <h2 id="config">6 · Configuration</h2>
   <div class="step">
     <header><h3>Where settings come from</h3></header>
     <p>Jira credentials resolve in this order: <b>environment variables → <code>~/.bugpilot/config.toml</code> → fixed
@@ -244,7 +248,7 @@
   </div>
 
   <!-- ===================== TROUBLESHOOTING ===================== -->
-  <h2 id="troubleshooting">6 · Troubleshooting</h2>
+  <h2 id="troubleshooting">7 · Troubleshooting</h2>
   <div class="step">
     <ul>
       <li><b>“bugpilot is not recognized”</b> — close and reopen PowerShell (PATH was updated during install). Still
@@ -264,7 +268,7 @@
     </ul>
   </div>
 
-  <h2 id="update">7 · Update / uninstall</h2>
+  <h2 id="update">8 · Update / uninstall</h2>
   <div class="step">
     <p><b>Update:</b> re-run <code>install.cmd</code> with the newer <code>bugpilot-*.whl</code> (it reinstalls in place).
       exe users: replace <code>bugpilot.exe</code> with the new one. Your <code>~/.bugpilot/config.toml</code> is kept.</p>
