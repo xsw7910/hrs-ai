@@ -27,10 +27,21 @@ python -m pip install -e .
 ```
 
 **End users (recommended):** install Python 3.10+ (e.g. `winget install -e --id
-Python.Python.3.12 --scope user`, no admin), then run the installer — the
-`install.cmd` double-click wrapper next to the wheel (it installs via pipx and can
-install Python via winget if it's missing). **Alternative — no Python:** use the
-standalone `bugpilot.exe` (see **Building & Distributing the Standalone Executable** below).
+Python.Python.3.12 --scope user`, no admin), then run the installer. The
+distribution package is:
+
+```text
+BugPilot/
+  install.cmd            <- double-click this
+  installer/
+    install.ps1
+    bugpilot-<version>-py3-none-any.whl
+```
+
+`install.cmd` runs `installer\install.ps1`, which installs bugpilot via pipx (and
+can install Python via winget if it's missing), then offers to run `bugpilot setup`.
+**Alternative — no Python:** use the standalone `bugpilot.exe` (see **Building &
+Distributing the Standalone Executable** below).
 
 ## Building & Distributing the Standalone Executable
 Package the CLI into one self-contained `bugpilot.exe` (it embeds a Python runtime, so

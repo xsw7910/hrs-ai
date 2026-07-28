@@ -117,15 +117,15 @@
 
   <div class="step">
     <header><span class="num">2</span><h3>Install bugpilot — double-click <code>install.cmd</code></h3></header>
-    <p>Keep all <b>three files</b> in one folder, then double-click <b>install.cmd</b>.</p>
+    <p>Unzip the package and double-click <b>install.cmd</b> — that's the only file you touch. Keep the
+      <code>installer\</code> folder next to it.</p>
     <div class="files">
       <b>install.cmd</b> &nbsp;·&nbsp; double-click this<br>
-      <b>install.ps1</b><br>
-      <b>bugpilot-0.1.0-py3-none-any.whl</b>
+      <b>installer\</b> &nbsp;·&nbsp; (folder) install.ps1 + bugpilot-*.whl — leave it alone
     </div>
     <div class="note tip"><div class="h">Notes</div><p>If Python is still missing, the installer offers to install it via
       winget — say <b>Yes</b>, then reopen and double-click again. Security prompt → <b>Run</b>. "PATH changed" → reopen
-      your terminal. Command-line alternative: <code>powershell -ExecutionPolicy Bypass -File .\install.ps1</code></p></div>
+      your terminal. Command-line alternative: <code>powershell -ExecutionPolicy Bypass -File .\installer\install.ps1</code></p></div>
   </div>
 
   <div class="step">
@@ -255,8 +255,8 @@
         missing? <code>python -m pipx ensurepath</code>, then reopen. (exe users: add its folder to PATH or use the full path.)</li>
       <li><b>“Python was not found” / installer says no Python</b> — let install.cmd install it via winget (say <b>Yes</b>),
         or install Python 3.12 yourself (Install step 1) and reopen the terminal.</li>
-      <li><b>Installer can't find a wheel</b> — the <code>bugpilot-*.whl</code> must sit in the <b>same folder</b> as
-        <code>install.cmd</code> / <code>install.ps1</code>.</li>
+      <li><b>Installer can't find a wheel</b> — the <code>bugpilot-*.whl</code> must sit in the <code>installer\</code>
+        folder, next to <code>install.ps1</code>.</li>
       <li><b>“running scripts is disabled” / a security prompt</b> — use <b>install.cmd</b> (double-click); it handles the
         execution policy. exe first run → SmartScreen → <b>More info → Run anyway</b>.</li>
       <li><b>setup: “Authentication failed”</b> — wrong email or token, or the token was revoked. Create a fresh token and
