@@ -67,9 +67,13 @@ function Test-PythonVersion {
 # Store placeholders, not real Python).
 function Resolve-Python {
     # Prefer the py launcher (never the Store alias); resolve it to a real exe.
+    # try/catch: `py -3` can fail with redirected stderr, which is terminating on
+    # Windows PowerShell 5.1 under ErrorActionPreference=Stop.
     if (Get-Command py -ErrorAction SilentlyContinue) {
-        $exe = & py -3 -c "import sys; print(sys.executable)" 2>$null
-        if ($LASTEXITCODE -eq 0 -and $exe -and (Test-Path $exe) -and (Test-PythonVersion $exe)) {
+        $exe = $null
+        try { $exe = (& py -3 -c "import sys; print(sys.executable)" 2>$null | Select-Object -First 1) } catch { $exe = $null }
+        if ($exe) { $exe = "$exe".Trim() }
+        if ($exe -and (Test-Path $exe) -and (Test-PythonVersion $exe)) {
             return $exe
         }
     }
@@ -143,8 +147,12 @@ try {
 
     # 2. pipx ---------------------------------------------------------------
     Write-Step "Checking for pipx..."
-    & $python -m pipx --version *> $null
-    $pipxInstalled = ($LASTEXITCODE -eq 0)
+    # Detect pipx WITHOUT relying on a non-zero exit or stderr: Windows PowerShell
+    # 5.1 turns a native command's redirected stderr into a terminating error under
+    # ErrorActionPreference=Stop, so "pipx --version" failing would abort the script.
+    # This one-liner always exits 0 and prints 1 (present) or 0 (absent).
+    $pipxProbe = & $python -c "import importlib.util as u; print(1 if u.find_spec('pipx') else 0)"
+    $pipxInstalled = ("$pipxProbe".Trim() -eq '1')
     $pathMayHaveChanged = $false
 
     if ($pipxInstalled) {
@@ -181,8 +189,11 @@ try {
     Write-Step "Verifying installation..."
     # pipx's bin dir may not be on PATH in this session yet; add it so the
     # verification below can find the freshly installed 'bugpilot' command.
-    $pipxBin = & $python -m pipx environment --value PIPX_BIN_DIR 2>$null
-    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($pipxBin)) {
+    # try/catch: on Windows PowerShell 5.1 a native command's redirected stderr
+    # under ErrorActionPreference=Stop is terminating, so probe defensively.
+    $pipxBin = $null
+    try { $pipxBin = (& $python -m pipx environment --value PIPX_BIN_DIR 2>$null | Select-Object -First 1) } catch { $pipxBin = $null }
+    if ([string]::IsNullOrWhiteSpace($pipxBin)) {
         $pipxBin = Join-Path $env:USERPROFILE '.local\bin'
     }
     if (Test-Path $pipxBin) {
