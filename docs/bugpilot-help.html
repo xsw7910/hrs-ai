@@ -128,12 +128,6 @@
       your terminal. Command-line alternative: <code>powershell -ExecutionPolicy Bypass -File .\installer\install.ps1</code></p></div>
   </div>
 
-  <div class="step">
-    <header><span class="num">3</span><h3>Verify</h3></header>
-    <div class="term"><div class="bar"><span class="d"></span><span class="d"></span><span class="d"></span><span class="path">new PowerShell window</span><button class="copy">Copy</button></div><pre><span class="p">❯</span> bugpilot --help</pre></div>
-    <p>See the command list? You're installed. Next: configure Jira once.</p>
-  </div>
-
   <div class="note"><div class="h">Alternative: standalone bugpilot.exe (no Python)</div><p>If you can't install Python,
     ask for the single <code>bugpilot.exe</code> instead: save it (e.g. <code>C:\tools\bugpilot\</code>), optionally add
     that folder to PATH, and use the same <code>bugpilot setup</code> / <code>bugpilot &lt;issue&gt;</code> below. First run
@@ -143,7 +137,7 @@
   <h2 id="setup">2 · First-time setup (Jira)</h2>
 
   <div class="step">
-    <header><span class="num">4</span><h3>Run <code>bugpilot setup</code></h3></header>
+    <header><span class="num">3</span><h3>Run <code>bugpilot setup</code></h3></header>
     <div class="term"><div class="bar"><span class="d"></span><span class="d"></span><span class="d"></span><span class="path">PowerShell</span><button class="copy">Copy</button></div><pre><span class="p">❯</span> bugpilot setup</pre></div>
     <p>Enter your <b>Jira email</b> and <b>API token</b> (shown as you type). Create a token at
       <code>id.atlassian.com/manage-profile/security/api-tokens</code>. On <b>✓ Login successful</b> it saves to
@@ -154,12 +148,18 @@
   <h2 id="usage">3 · Run it</h2>
 
   <div class="step">
-    <header><span class="num">5</span><h3>From your product repo, run one command</h3></header>
+    <header><span class="num">4</span><h3>From your product repo, run one command</h3></header>
     <p>Run from your <b>product repo</b> root.</p>
     <div class="term"><div class="bar"><span class="d"></span><span class="d"></span><span class="d"></span><span class="path">your-product-repo</span><button class="copy">Copy</button></div><pre><span class="p">❯</span> cd C:\path\to\your-product-repo  <span class="o">#C:\sandbox\monorepo</span>
 <span class="p">❯</span> bugpilot HR-26609</pre></div>
     <p>Prepares the package, then <b>launches Claude</b> to make the fix. It stops at the commit gate — you review and
       commit. bugpilot never commits or pushes.</p>
+  </div>
+
+  <div class="step">
+    <header><span class="num">5</span><h3>Verify</h3></header>
+    <div class="term"><div class="bar"><span class="d"></span><span class="d"></span><span class="d"></span><span class="path">new PowerShell window</span><button class="copy">Copy</button></div><pre><span class="p">❯</span> bugpilot --help</pre></div>
+    <p>See the command list? You're installed.</p>
   </div>
 
   <!-- ===================== OPTIONS ===================== -->
