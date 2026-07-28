@@ -20,9 +20,42 @@ Jira issue -> code search -> memory search -> bug_context.md -> Copilot CLI task
 bugpilot prepares files under `.ai/<issue>/` and shared memory under `.ai_memory/bugs/<issue>.md`. Jira Cloud ADF descriptions and comments are converted into readable Markdown for the issue package, and Jira attachment metadata is surfaced without downloading attachment content. Code search includes a confidence assessment so low-confidence false positives are visible before Copilot edits anything. Copilot CLI remains a manual handoff step, with reusable team instructions for legacy C++/Qt work.
 
 ## Installation
+
+**Developers (working on bugpilot itself):** editable install, so source edits are live.
 ```powershell
 python -m pip install -e .
 ```
+
+**End users:** run the standalone `bugpilot.exe` — no Python needed. See
+**Building & Distributing the Standalone Executable** below.
+
+## Building & Distributing the Standalone Executable
+Package the CLI into one self-contained `bugpilot.exe` (it embeds a Python runtime, so
+the target machine needs no Python, pipx, or PATH setup). This is the recommended way to
+hand bugpilot to teammates — especially when their only Python is a toolchain one
+(e.g. vcpkg), which an editable/pipx install would fragilely depend on.
+
+Build from the repo root, with any Python 3.10+ that has pip:
+```powershell
+python -m pip install --user pyinstaller
+python -m PyInstaller --onefile --name bugpilot --collect-submodules hrs_ai --paths . pyi_entry.py
+```
+Output: `dist\bugpilot.exe` (~9 MB). `pyi_entry.py` is the packaging entry point (a
+top-level absolute-import shim, because `hrs_ai/__main__.py` uses a package-relative
+import that PyInstaller can't use directly). Build artifacts (`dist/`, `build/`, `*.spec`,
+`*.whl`) are gitignored.
+
+Distribute: give teammates the single `dist\bugpilot.exe`. They save it (e.g.
+`C:\tools\bugpilot\`), optionally add that folder to PATH, then:
+```powershell
+bugpilot setup        # one-time: Jira email + API token -> %USERPROFILE%\.bugpilot\config.toml
+bugpilot HR-12345     # prepare, then launch the agent
+```
+The first run may trip SmartScreen ("Windows protected your PC") because the exe is
+unsigned — choose **More info -> Run anyway**.
+
+Note: the packaged exe can't read `docs/copilot_team_instructions.md` from the repo, so it
+uses the built-in fallback team instructions (same content).
 
 ## Jira Configuration
 For real Jira fetches, set:
