@@ -26,8 +26,11 @@ bugpilot prepares files under `.ai/<issue>/` and shared memory under `.ai_memory
 python -m pip install -e .
 ```
 
-**End users:** run the standalone `bugpilot.exe` — no Python needed. See
-**Building & Distributing the Standalone Executable** below.
+**End users (recommended):** install Python 3.10+ (e.g. `winget install -e --id
+Python.Python.3.12 --scope user`, no admin), then run the installer — the
+`install.cmd` double-click wrapper next to the wheel (it installs via pipx and can
+install Python via winget if it's missing). **Alternative — no Python:** use the
+standalone `bugpilot.exe` (see **Building & Distributing the Standalone Executable** below).
 
 ## Building & Distributing the Standalone Executable
 Package the CLI into one self-contained `bugpilot.exe` (it embeds a Python runtime, so

@@ -98,8 +98,8 @@
     package, then launches a coding agent to implement the fix — with you in control of what ships. Every command block
     has a <b>Copy</b> button.</p>
   <div class="meta">
-    <span class="chip">Windows</span>
-    <span class="chip">Single .exe · no Python needed</span>
+    <span class="chip">Windows · PowerShell</span>
+    <span class="chip">Python 3.10+</span>
     <span class="chip">Jira Cloud</span>
     <span class="chip">Run from the target repo root</span>
   </div>
@@ -108,21 +108,24 @@
   <h2 id="install">1 · Install</h2>
 
   <div class="step">
-    <header><span class="num">1</span><h3>Save <code>bugpilot.exe</code></h3></header>
-    <p>You get a <b>single file</b> — no Python, no installer. Put it in a folder you'll keep, e.g.
-      <code>C:\tools\bugpilot\</code>.</p>
-    <div class="files">
-      <b>bugpilot.exe</b> &nbsp;·&nbsp; the whole tool (self-contained)
-    </div>
+    <header><span class="num">1</span><h3>Install Python 3.10+ <span style="font-weight:400;color:var(--muted)">(skip if you already have one)</span></h3></header>
+    <p>Check it first: <code>python --version</code>. If it's missing or shows "not found":</p>
+    <div class="term"><div class="bar"><span class="d"></span><span class="d"></span><span class="d"></span><span class="path">PowerShell</span><button class="copy">Copy</button></div><pre><span class="p">❯</span> winget install -e --id Python.Python.3.12 --scope user</pre></div>
+    <p>(No admin needed.) Or download from <code>python.org/downloads</code> and tick <b>“Add python.exe to PATH”</b>.
+      <b>Reopen the terminal</b> afterwards.</p>
   </div>
 
   <div class="step">
-    <header><span class="num">2</span><h3>Make it runnable from anywhere <span style="font-weight:400;color:var(--muted)">(recommended)</span></h3></header>
-    <p>Add that folder to your PATH once, then <b>reopen the terminal</b>:</p>
-    <div class="term"><div class="bar"><span class="d"></span><span class="d"></span><span class="d"></span><span class="path">PowerShell</span><button class="copy">Copy</button></div><pre><span class="p">❯</span> [Environment]::SetEnvironmentVariable("Path", [Environment]::GetEnvironmentVariable("Path","User") + ";C:\tools\bugpilot", "User")</pre></div>
-    <div class="note warn"><div class="h">First run: “Windows protected your PC”</div><p>SmartScreen may warn because the
-      exe is an unsigned internal tool. Click <b>More info → Run anyway</b>. (Skipping PATH is fine too — just call it by
-      path: <code>C:\tools\bugpilot\bugpilot.exe …</code>)</p></div>
+    <header><span class="num">2</span><h3>Install bugpilot — double-click <code>install.cmd</code></h3></header>
+    <p>Keep all <b>three files</b> in one folder, then double-click <b>install.cmd</b>.</p>
+    <div class="files">
+      <b>install.cmd</b> &nbsp;·&nbsp; double-click this<br>
+      <b>install.ps1</b><br>
+      <b>bugpilot-0.1.0-py3-none-any.whl</b>
+    </div>
+    <div class="note tip"><div class="h">Notes</div><p>If Python is still missing, the installer offers to install it via
+      winget — say <b>Yes</b>, then reopen and double-click again. Security prompt → <b>Run</b>. "PATH changed" → reopen
+      your terminal. Command-line alternative: <code>powershell -ExecutionPolicy Bypass -File .\install.ps1</code></p></div>
   </div>
 
   <div class="step">
@@ -130,6 +133,11 @@
     <div class="term"><div class="bar"><span class="d"></span><span class="d"></span><span class="d"></span><span class="path">new PowerShell window</span><button class="copy">Copy</button></div><pre><span class="p">❯</span> bugpilot --help</pre></div>
     <p>See the command list? You're installed. Next: configure Jira once.</p>
   </div>
+
+  <div class="note"><div class="h">Alternative: standalone bugpilot.exe (no Python)</div><p>If you can't install Python,
+    ask for the single <code>bugpilot.exe</code> instead: save it (e.g. <code>C:\tools\bugpilot\</code>), optionally add
+    that folder to PATH, and use the same <code>bugpilot setup</code> / <code>bugpilot &lt;issue&gt;</code> below. First run
+    may hit SmartScreen → <b>More info → Run anyway</b>.</p></div>
 
   <!-- ===================== SETUP ===================== -->
   <h2 id="setup">2 · First-time setup (Jira)</h2>
@@ -239,10 +247,14 @@
   <h2 id="troubleshooting">6 · Troubleshooting</h2>
   <div class="step">
     <ul>
-      <li><b>“bugpilot is not recognized”</b> — the folder isn't on PATH. Add it (Install step 2) and reopen the
-        terminal, or call it by full path: <code>C:\tools\bugpilot\bugpilot.exe …</code></li>
-      <li><b>“Windows protected your PC” (SmartScreen)</b> — expected for an unsigned internal tool. Click
-        <b>More info → Run anyway</b> the first time.</li>
+      <li><b>“bugpilot is not recognized”</b> — close and reopen PowerShell (PATH was updated during install). Still
+        missing? <code>python -m pipx ensurepath</code>, then reopen. (exe users: add its folder to PATH or use the full path.)</li>
+      <li><b>“Python was not found” / installer says no Python</b> — let install.cmd install it via winget (say <b>Yes</b>),
+        or install Python 3.12 yourself (Install step 1) and reopen the terminal.</li>
+      <li><b>Installer can't find a wheel</b> — the <code>bugpilot-*.whl</code> must sit in the <b>same folder</b> as
+        <code>install.cmd</code> / <code>install.ps1</code>.</li>
+      <li><b>“running scripts is disabled” / a security prompt</b> — use <b>install.cmd</b> (double-click); it handles the
+        execution policy. exe first run → SmartScreen → <b>More info → Run anyway</b>.</li>
       <li><b>setup: “Authentication failed”</b> — wrong email or token, or the token was revoked. Create a fresh token and
         re-run <code>bugpilot setup</code>.</li>
       <li><b>Jira “not found or not accessible”</b> — the issue key is wrong, or your account can't view that project.
@@ -254,10 +266,10 @@
 
   <h2 id="update">7 · Update / uninstall</h2>
   <div class="step">
-    <p><b>Update:</b> replace <code>bugpilot.exe</code> with the new one (same folder). Your settings in
-      <code>~/.bugpilot/config.toml</code> are kept.</p>
-    <p><b>Uninstall:</b> delete <code>bugpilot.exe</code> (and <code>~/.bugpilot/config.toml</code> if you want your
-      saved Jira credentials gone). Remove the folder from PATH if you added it.</p>
+    <p><b>Update:</b> re-run <code>install.cmd</code> with the newer <code>bugpilot-*.whl</code> (it reinstalls in place).
+      exe users: replace <code>bugpilot.exe</code> with the new one. Your <code>~/.bugpilot/config.toml</code> is kept.</p>
+    <p><b>Uninstall:</b> <code>pipx uninstall bugpilot</code> (or delete <code>bugpilot.exe</code>). Delete
+      <code>~/.bugpilot/config.toml</code> too if you want your saved Jira credentials gone.</p>
   </div>
 
   <p class="foot">bugpilot is prepare-and-hand-off: it builds a reviewable package and launches an agent that stops at the
