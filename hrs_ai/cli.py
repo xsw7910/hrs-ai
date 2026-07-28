@@ -8,7 +8,7 @@ import os
 import sys
 from pathlib import Path
 
-from hrs_ai.core import agent_runner, copilot, doctor, workflow
+from hrs_ai.core import agent_runner, copilot, doctor, setup, workflow
 from hrs_ai.core.cleanup import clean_issue_artifacts
 from hrs_ai.core.context import build_context
 from hrs_ai.core.email_notify import EmailSendError
@@ -22,6 +22,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="bugpilot")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
+    subparsers.add_parser("setup", help="Interactively configure BugPilot (Jira email + API token).")
     subparsers.add_parser("doctor", help="Check local environment readiness.")
     subparsers.add_parser("copilot-check", help="Check Copilot CLI readiness.")
 
@@ -165,6 +166,9 @@ def main(argv: list[str] | None = None) -> int:
         argv = ["bug", *argv]
     args = parser.parse_args(argv)
     repo_root = Path.cwd()
+
+    if args.command == "setup":
+        return setup.run_setup()
 
     if args.command == "doctor":
         doctor.print_doctor_report(repo_root)

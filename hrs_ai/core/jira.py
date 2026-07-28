@@ -46,6 +46,15 @@ class JiraCommentPostResult:
     timestamp: str
 
 
+@dataclass
+class JiraValidationResult:
+    ok: bool
+    error_type: str | None = None
+    error_message: str | None = None
+    account_email: str | None = None
+    display_name: str | None = None
+
+
 class JiraFetchError(Exception):
     def __init__(self, result: JiraFetchResult):
         super().__init__(result.error_message or "Unexpected Jira error.")
@@ -131,6 +140,58 @@ def fetch_issue(repo_root: Path, issue_key: str, allow_mock: bool = True) -> Jir
     except Exception:
         failure = _failure(issue_key, "unknown_error")
         return _fallback_or_raise(failure, allow_mock)
+
+
+def _basic_auth_header(email: str, token: str) -> str:
+    return "Basic " + base64.b64encode(f"{email}:{token}".encode()).decode()
+
+
+def validate_credentials(base_url: str, email: str, token: str, timeout: int = 30) -> JiraValidationResult:
+    """Check a Jira email + API token against ``/rest/api/3/myself``.
+
+    Does not read env or config; the caller passes the values to test. Returns a
+    :class:`JiraValidationResult` with ``ok`` and, on failure, a classified
+    ``error_type`` / ``error_message`` drawn from the shared ``ERROR_MESSAGES``.
+    """
+    url = f"{base_url.rstrip('/')}/rest/api/3/myself"
+    request = urllib.request.Request(
+        url,
+        headers={
+            "Authorization": _basic_auth_header(email, token),
+            "Accept": "application/json",
+            "User-Agent": "bugpilot-prototype/0.1",
+        },
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+        if not isinstance(payload, dict):
+            return _validation_failure("invalid_response")
+        return JiraValidationResult(
+            ok=True,
+            account_email=payload.get("emailAddress"),
+            display_name=payload.get("displayName"),
+        )
+    except urllib.error.HTTPError as exc:
+        return _validation_failure(_http_error_type(exc.code))
+    except (TimeoutError, socket.timeout):
+        return _validation_failure("timeout")
+    except urllib.error.URLError as exc:
+        if isinstance(exc.reason, (TimeoutError, socket.timeout)):
+            return _validation_failure("timeout")
+        return _validation_failure("network_error")
+    except json.JSONDecodeError:
+        return _validation_failure("invalid_response")
+    except Exception:
+        return _validation_failure("unknown_error")
+
+
+def _validation_failure(error_type: str) -> JiraValidationResult:
+    return JiraValidationResult(
+        ok=False,
+        error_type=error_type,
+        error_message=ERROR_MESSAGES.get(error_type, ERROR_MESSAGES["unknown_error"]),
+    )
 
 
 def post_jira_comment(repo_root: Path, issue_key: str, comment_text: str) -> JiraCommentPostResult:

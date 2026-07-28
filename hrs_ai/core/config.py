@@ -6,6 +6,8 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
+from .user_config import DEFAULT_JIRA_BASE_URL, load_user_config
+
 
 WORKFLOW_STEPS = [
     "doctor",
@@ -119,11 +121,15 @@ class GraphConfig:
 
 
 def load_config(repo_root: Path) -> AppConfig:
+    # Precedence for Jira credentials: environment variables first (power users /
+    # CI), then the `bugpilot setup` config file (~/.bugpilot/config.toml). The
+    # base URL is the fixed company site unless JIRA_BASE_URL overrides it.
+    user = load_user_config()
     return AppConfig(
         repo_root=repo_root,
-        jira_base_url=os.getenv("JIRA_BASE_URL"),
-        jira_email=os.getenv("JIRA_EMAIL"),
-        jira_token=os.getenv("JIRA_TOKEN"),
+        jira_base_url=_clean_env("JIRA_BASE_URL") or DEFAULT_JIRA_BASE_URL,
+        jira_email=_clean_env("JIRA_EMAIL") or user.jira_email,
+        jira_token=_clean_env("JIRA_TOKEN") or user.jira_token,
         copilot_command=os.getenv("HRS_AI_COPILOT_COMMAND", "copilot"),
         claude_command=os.getenv("HRS_AI_CLAUDE_COMMAND", "claude"),
         # Interactive by default, but auto-accept file edits so the agent is not
