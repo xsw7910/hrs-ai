@@ -13,10 +13,15 @@
 .PARAMETER InstallPython
     If Python 3.10+ is missing, install it via winget without prompting
     (per-user, no admin). Without this switch you are asked first.
+
+.PARAMETER Setup
+    Run 'bugpilot setup' automatically after install, without asking. Without
+    this switch you are prompted (default Yes) at the end.
 #>
 
 param(
-    [switch]$InstallPython
+    [switch]$InstallPython,
+    [switch]$Setup
 )
 
 $ErrorActionPreference = 'Stop'
@@ -214,14 +219,33 @@ try {
     Write-Host ""
     Write-Host "Installation completed successfully!" -ForegroundColor Green
     Write-Host ""
-    if ($pathMayHaveChanged) {
-        Write-Note "PATH was updated. Restart PowerShell before using 'bugpilot' in a new window."
+
+    # 7. Configure now (bugpilot setup). Called by full path because PATH isn't
+    # refreshed in this session yet. Interactive; skipped if we can't prompt.
+    $runSetup = $Setup
+    if (-not $runSetup) {
+        try { $answer = Read-Host "Configure Jira now with 'bugpilot setup'? [Y/n]" }
+        catch { $answer = 'n' }
+        $runSetup = ($answer -eq '' -or $answer -match '^[Yy]')
+    }
+    if ($runSetup) {
+        Write-Host ""
+        & $bugpilotExe setup
+        Write-Host ""
+        if ($pathMayHaveChanged) {
+            Write-Note "PATH was updated during install. Open a NEW terminal before using 'bugpilot'."
+        }
+    }
+    else {
+        if ($pathMayHaveChanged) {
+            Write-Note "PATH was updated. Restart PowerShell before using 'bugpilot' in a new window."
+            Write-Host ""
+        }
+        Write-Host "Next step:" -ForegroundColor White
+        Write-Host ""
+        Write-Host "    bugpilot setup" -ForegroundColor Cyan
         Write-Host ""
     }
-    Write-Host "Next step:" -ForegroundColor White
-    Write-Host ""
-    Write-Host "    bugpilot setup" -ForegroundColor Cyan
-    Write-Host ""
 }
 catch {
     Write-Host ""
