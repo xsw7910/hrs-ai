@@ -120,6 +120,7 @@ def run_code_search(repo_root: Path, issue_key: str, keywords: dict[str, object]
     high_value = _keyword_list(keywords.get("high_value_keywords", []))
     normal = _keyword_list(keywords.get("normal_keywords", []))
     phrases = _keyword_list(keywords.get("phrase_keywords", []))
+    expanded = _keyword_list(keywords.get("expanded_keywords", []))
 
     if not command_available("rg"):
         quality = _overall_quality([], ["rg is unavailable; code search was skipped."])
@@ -128,6 +129,7 @@ def run_code_search(repo_root: Path, issue_key: str, keywords: dict[str, object]
             high_value,
             normal,
             phrases,
+            expanded,
             [],
             ["rg is unavailable; code search was skipped."],
             quality,
@@ -144,6 +146,9 @@ def run_code_search(repo_root: Path, issue_key: str, keywords: dict[str, object]
         all_matches.extend(_rg_keyword(repo_root, keyword, "high_value", warnings))
     for keyword in normal:
         all_matches.extend(_rg_keyword(repo_root, keyword, "normal", warnings))
+    # Sub-tokens split from compound identifiers — low-weight, for recall only.
+    for keyword in expanded:
+        all_matches.extend(_rg_keyword(repo_root, keyword, "expanded", warnings))
 
     ranked = _rank_related_files(all_matches, high_value, normal)
     if not ranked:
@@ -151,7 +156,7 @@ def run_code_search(repo_root: Path, issue_key: str, keywords: dict[str, object]
 
     related = _related_files(ranked)
     quality = _overall_quality(related, warnings)
-    markdown = _render_markdown(issue_key, high_value, normal, phrases, ranked, warnings, quality)
+    markdown = _render_markdown(issue_key, high_value, normal, phrases, expanded, ranked, warnings, quality)
     return markdown, related, quality
 
 
@@ -260,6 +265,10 @@ def _rank_related_files(matches: list[Match], high_value: list[str], normal: lis
             item.keyword_quality_counts["high"] += 1
             if "exact phrase match" not in item.reasons:
                 item.reasons.append("exact phrase match")
+        elif match.tier == "expanded":
+            # Sub-token split from a compound identifier — recall only, low weight.
+            item.score += 1
+            item.keyword_quality_counts["low"] += 1
         else:
             keyword = match.keyword.lower()
             quality = _keyword_quality(match.keyword, keyword in high_set, keyword in normal_set)
@@ -421,6 +430,7 @@ def _render_markdown(
     high_value: list[str],
     normal: list[str],
     phrases: list[str],
+    expanded: list[str],
     ranked: list[FileScore],
     warnings: list[str],
     quality: dict[str, object],
@@ -448,6 +458,7 @@ def _render_markdown(
             f"- High value: {', '.join(high_value) or '_None_'}",
             f"- Normal: {', '.join(normal) or '_None_'}",
             f"- Phrases: {phrase_str}",
+            f"- Expanded: {', '.join(expanded) or '_None_'}",
             "",
         ]
     )

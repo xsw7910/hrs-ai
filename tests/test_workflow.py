@@ -385,11 +385,21 @@ def test_copilot_task_branch_uses_normalized_summary_fallback(tmp_path):
 def test_keyword_schema_matches_phase_2_plan():
     keywords = extract_keywords("EmployeeSearch stale filter query cache actual expected cache")
 
-    assert set(keywords) == {"high_value_keywords", "normal_keywords", "dropped_keywords", "phrase_keywords"}
-    assert isinstance(keywords["high_value_keywords"], list)
-    assert isinstance(keywords["normal_keywords"], list)
-    assert isinstance(keywords["dropped_keywords"], list)
-    assert isinstance(keywords["phrase_keywords"], list)
+    assert set(keywords) == {
+        "high_value_keywords", "normal_keywords", "dropped_keywords",
+        "phrase_keywords", "expanded_keywords",
+    }
+    for key in keywords:
+        assert isinstance(keywords[key], list)
+
+
+def test_keywords_expand_compound_identifiers():
+    kw = extract_keywords("Fix HrsQtProcessWidget in hrs_process_manager.cxx")
+    expanded = {w.lower() for w in kw["expanded_keywords"]}
+    # Specific middle token is surfaced for recall...
+    assert "process" in expanded
+    # ...but generic framework/structural parts are not.
+    assert expanded.isdisjoint({"qt", "hrs", "widget", "manager", "class"})
 
 
 def test_keywords_extract_quoted_phrases():

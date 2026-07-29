@@ -55,6 +55,21 @@ _CODE_EXT = {
     "cmake", "js", "ts", "java", "cs", "go", "rs",
 }
 
+# Structural / framework parts of compound identifiers that are too generic to
+# search on their own (they'd match half the codebase). Used only to filter the
+# lower-tier "expanded" sub-tokens, never the primary keywords.
+_GENERIC_PARTS = {
+    "qt", "hrs", "widget", "dialog", "window", "view", "model", "base", "impl",
+    "item", "data", "info", "util", "utils", "helper", "manager", "controller",
+    "handler", "factory", "service", "object", "page", "panel", "form", "list",
+    "table", "tree", "button", "label", "edit", "box", "bar", "menu", "action",
+    "event", "type", "name", "value", "index", "count", "size", "flag", "mode",
+    "state", "node", "proxy", "wrapper", "class", "struct", "enum", "config",
+}
+
+# Split a compound identifier into words: on . :: _ - and camelCase humps.
+_SPLIT_RE = re.compile(r"[A-Z]+(?=[A-Z][a-z])|[A-Z]?[a-z]+|[A-Z]+|\d+")
+
 # A token: a qualified/scope-resolved/file name (Foo::bar, module.func,
 # widget.cpp) OR a plain word (length >= 3).
 _TOKEN_RE = re.compile(
@@ -119,6 +134,37 @@ def _file_stem(token: str) -> str | None:
     return None
 
 
+def _split_identifier(token: str) -> list[str]:
+    parts: list[str] = []
+    for chunk in re.split(r"[.:_\-]+", token):
+        parts.extend(_SPLIT_RE.findall(chunk))
+    return parts
+
+
+def _expanded_keywords(compounds: list[str], existing: set[str], max_expanded: int = 8) -> list[str]:
+    """Lower-tier sub-tokens split out of compound identifiers, for recall.
+
+    E.g. HrsQtProcessWidget -> Process (Qt/Hrs/Widget are dropped as generic).
+    Excludes anything already a primary keyword, generic structural parts, and
+    stop words; kept short so it broadens recall without swamping precision.
+    """
+    picked: dict[str, str] = {}
+    for token in compounds:
+        parts = _split_identifier(token)
+        if len(parts) < 2:
+            continue
+        for part in parts:
+            low = part.lower()
+            if len(part) < 4 or not part.isalpha():
+                continue
+            if low in _GENERIC_PARTS or low in STOP_WORDS or low in existing or low in picked:
+                continue
+            picked[low] = part
+            if len(picked) >= max_expanded:
+                return list(picked.values())
+    return list(picked.values())
+
+
 def extract_keywords(text: str, max_keywords: int = 15) -> dict[str, object]:
     best: dict[str, str] = {}   # lowercased key -> best original casing seen
     freq: Counter[str] = Counter()
@@ -144,11 +190,13 @@ def extract_keywords(text: str, max_keywords: int = 15) -> dict[str, object]:
 
     ranked = sorted(best, key=lambda low: (_identifier_score(best[low]), freq[low]), reverse=True)
     keywords = [best[low] for low in ranked]
+    compounds = [best[low] for low in ranked if _identifier_score(best[low]) >= 5]
     return {
         "high_value_keywords": keywords[:5],
         "normal_keywords": keywords[5:max_keywords],
         "dropped_keywords": keywords[max_keywords:],
         "phrase_keywords": _extract_phrases(text),
+        "expanded_keywords": _expanded_keywords(compounds, existing=set(best)),
     }
 
 
