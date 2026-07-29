@@ -393,6 +393,19 @@ def test_keyword_schema_matches_phase_2_plan():
         assert isinstance(keywords[key], list)
 
 
+def test_keywords_boost_stack_trace_identifiers():
+    text = "The list refreshes slowly and users complain about the SlowThing widget."
+    priority = "Traceback: at HrsProcess::commitTransaction (hrs_txn.cxx:88)"
+    kw = extract_keywords(text, priority_text=priority)
+    top = kw["high_value_keywords"][:3]
+
+    # Identifiers from the stack trace lead, ahead of ordinary description tokens.
+    assert "HrsProcess::commitTransaction" in top
+    assert "hrs_txn.cxx" in top
+    assert kw["high_value_keywords"].index("HrsProcess::commitTransaction") < \
+        kw["high_value_keywords"].index("SlowThing")
+
+
 def test_keywords_expand_compound_identifiers():
     kw = extract_keywords("Fix HrsQtProcessWidget in hrs_process_manager.cxx")
     expanded = {w.lower() for w in kw["expanded_keywords"]}

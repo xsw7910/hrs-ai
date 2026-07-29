@@ -48,6 +48,10 @@ STOP_WORDS = {
     "environment", "screenshot", "attached", "attachment",
     "when", "where", "what", "which", "how", "why", "also", "still", "than",
     "very", "just", "only", "there", "here", "again",
+    # stack-trace / log framing words (never a useful search term)
+    "traceback", "stacktrace", "exception", "raised", "caused", "recent",
+    "call", "called", "calls", "line", "trace", "warning", "info", "debug",
+    "last", "most", "first", "next",
 }
 
 _CODE_EXT = {
@@ -69,6 +73,10 @@ _GENERIC_PARTS = {
 
 # Split a compound identifier into words: on . :: _ - and camelCase humps.
 _SPLIT_RE = re.compile(r"[A-Z]+(?=[A-Z][a-z])|[A-Z]?[a-z]+|[A-Z]+|\d+")
+
+# Rank boost for tokens found in stack traces / error messages (the highest-
+# signal source of real class/function/file names).
+_PRIORITY_BOOST = 8
 
 # A token: a qualified/scope-resolved/file name (Foo::bar, module.func,
 # widget.cpp) OR a plain word (length >= 3).
@@ -125,6 +133,14 @@ def _extract_phrases(text: str, max_phrases: int = 5) -> list[str]:
     return list(seen.values())
 
 
+def _is_identifier_shaped(token: str) -> bool:
+    """True if the token has a *structural* code signal (not merely length):
+    a qualifier/scope/underscore, or an internal camelCase hump."""
+    if "::" in token or "." in token or "_" in token:
+        return True
+    return any(c.isupper() for c in token[1:]) and any(c.islower() for c in token)
+
+
 def _file_stem(token: str) -> str | None:
     """For a file-name token (widget.cpp) return its stem (widget), else None."""
     if "." in token:
@@ -165,30 +181,45 @@ def _expanded_keywords(compounds: list[str], existing: set[str], max_expanded: i
     return list(picked.values())
 
 
-def extract_keywords(text: str, max_keywords: int = 15) -> dict[str, object]:
+def extract_keywords(text: str, max_keywords: int = 15, priority_text: str = "") -> dict[str, object]:
+    """Rank keywords from ``text``. Tokens that also appear in ``priority_text``
+    (stack traces / error messages) are boosted so they lead the ranking."""
     best: dict[str, str] = {}   # lowercased key -> best original casing seen
     freq: Counter[str] = Counter()
+    priority: set[str] = set()
 
-    def add(token: str) -> None:
+    def add(token: str, is_priority: bool = False) -> None:
         base = token.strip("._:-")
         if len(base) < 3:
             return
         low = base.lower()
-        if low in STOP_WORDS and _identifier_score(base) == 0:
+        if low in STOP_WORDS and not _is_identifier_shaped(base):
             return
         freq[low] += 1
         prev = best.get(low)
         # Prefer a variant that carries case information (an identifier signal).
         if prev is None or (any(c.isupper() for c in base) and not any(c.isupper() for c in prev)):
             best[low] = base
+        if is_priority:
+            priority.add(low)
 
     for token in _TOKEN_RE.findall(text):
         add(token)
         stem = _file_stem(token)
         if stem:
             add(stem)  # also search the class/name, not just the file reference
+    # Identifiers from stack traces / error messages are the strongest signal.
+    for token in _TOKEN_RE.findall(priority_text):
+        add(token, is_priority=True)
+        stem = _file_stem(token)
+        if stem:
+            add(stem, is_priority=True)
 
-    ranked = sorted(best, key=lambda low: (_identifier_score(best[low]), freq[low]), reverse=True)
+    def sort_key(low: str) -> tuple[int, int]:
+        boost = _PRIORITY_BOOST if low in priority else 0
+        return (_identifier_score(best[low]) + boost, freq[low])
+
+    ranked = sorted(best, key=sort_key, reverse=True)
     keywords = [best[low] for low in ranked]
     compounds = [best[low] for low in ranked if _identifier_score(best[low]) >= 5]
     return {

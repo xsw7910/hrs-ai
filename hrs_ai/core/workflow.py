@@ -304,7 +304,19 @@ def keywords_step(repo_root: Path, issue_key: str) -> None:
     log(target, "[START] keywords")
     try:
         parsed = parse_issue(_read_json(target / "jira.json"))
-        keywords = extract_keywords(str(parsed.get("combined_text", "")))
+        # Boost keywords found in stack traces / error messages — the richest
+        # source of real class/function/file names.
+        priority_parts: list[str] = []
+        for field in ("stack_traces", "error_messages", "log_signals"):
+            value = parsed.get(field)
+            if isinstance(value, list):
+                priority_parts.extend(str(item) for item in value)
+            elif value:
+                priority_parts.append(str(value))
+        keywords = extract_keywords(
+            str(parsed.get("combined_text", "")),
+            priority_text="\n".join(priority_parts),
+        )
         (target / "extracted_keywords.json").write_text(keywords_json(keywords), encoding="utf-8")
         _mark_step(repo_root, issue_key, "keywords", "pass")
         log(target, "[END] keywords: pass")
