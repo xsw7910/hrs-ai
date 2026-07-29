@@ -266,7 +266,7 @@
         single-purpose service modules; external systems are reached only through the standard library.</p>
       <div class="layers">
         <div class="layer accent-band">
-          <div class="lh"><b>Interface</b><span>hrs_ai/cli.py · __main__.py</span></div>
+          <div class="lh"><b>Interface</b><span>bugpilot/cli.py · __main__.py</span></div>
           <div class="chips"><span class="chip">argparse subcommands</span><span class="chip">dispatch → workflow</span><span class="chip">human-readable output</span></div>
         </div>
         <div class="layarrow">↓</div>
@@ -329,7 +329,7 @@
 
       <h3 id="deps">5.1 Dependency direction</h3>
       <p>Imports flow strictly downward: nothing a module depends on ever imports it back. Most modules are
-        <strong>leaves</strong> — pure helpers with no <code>hrs_ai.core</code> imports, which is what makes them
+        <strong>leaves</strong> — pure helpers with no <code>bugpilot.core</code> imports, which is what makes them
         unit-testable in isolation. A handful of <strong>consumers</strong> compose them.</p>
       <div class="layers">
         <div class="layer">
@@ -557,7 +557,7 @@ HRS_AI_COPILOT_COMMAND=copilot HRS_AI_COPILOT_ARGS=""</pre>
       </ol>
       <p>New service logic goes in its own <code>core/</code> module and is called by the step — keep <code>cli.py</code>
         thin and side-effect-free beyond dispatch. Reads of the environment belong in <code>config.py</code>; a new pure
-        helper (parsing, rendering, ranking) should stay a leaf with no <code>hrs_ai.core</code> imports so it remains
+        helper (parsing, rendering, ranking) should stay a leaf with no <code>bugpilot.core</code> imports so it remains
         unit-testable.</p>
     </section>
 

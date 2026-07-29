@@ -52,10 +52,10 @@ hand bugpilot to teammates — especially when their only Python is a toolchain 
 Build from the repo root, with any Python 3.10+ that has pip:
 ```powershell
 python -m pip install --user pyinstaller
-python -m PyInstaller --onefile --name bugpilot --collect-submodules hrs_ai --paths . pyi_entry.py
+python -m PyInstaller --onefile --name bugpilot --collect-submodules bugpilot --paths . pyi_entry.py
 ```
 Output: `dist\bugpilot.exe` (~9 MB). `pyi_entry.py` is the packaging entry point (a
-top-level absolute-import shim, because `hrs_ai/__main__.py` uses a package-relative
+top-level absolute-import shim, because `bugpilot/__main__.py` uses a package-relative
 import that PyInstaller can't use directly). Build artifacts (`dist/`, `build/`, `*.spec`,
 `*.whl`) are gitignored.
 

@@ -4,9 +4,9 @@ from pathlib import Path
 
 import pytest
 
-from hrs_ai.cli import main
-from hrs_ai.core.agent_runner import AgentRunResult, build_agent_command, run_agent
-from hrs_ai.core.config import load_config
+from bugpilot.cli import main
+from bugpilot.core.agent_runner import AgentRunResult, build_agent_command, run_agent
+from bugpilot.core.config import load_config
 
 HANDOFF = "Read .ai/HR-12345/copilot_task.md and complete the workflow."
 
@@ -45,10 +45,10 @@ def test_build_agent_command_respects_env(tmp_path, monkeypatch):
 
 
 def test_run_agent_skips_when_binary_missing(tmp_path, monkeypatch):
-    monkeypatch.setattr("hrs_ai.core.agent_runner.shutil.which", lambda c: None)
+    monkeypatch.setattr("bugpilot.core.agent_runner.shutil.which", lambda c: None)
     called = {"v": False}
     monkeypatch.setattr(
-        "hrs_ai.core.agent_runner.subprocess.run",
+        "bugpilot.core.agent_runner.subprocess.run",
         lambda *a, **k: called.__setitem__("v", True),
     )
     result = run_agent(tmp_path, "HR-12345", "claude")
@@ -58,7 +58,7 @@ def test_run_agent_skips_when_binary_missing(tmp_path, monkeypatch):
 
 
 def test_run_agent_invokes_subprocess_in_repo_root(tmp_path, monkeypatch):
-    monkeypatch.setattr("hrs_ai.core.agent_runner.shutil.which", lambda c: "/usr/bin/claude")
+    monkeypatch.setattr("bugpilot.core.agent_runner.shutil.which", lambda c: "/usr/bin/claude")
     calls = {}
 
     def fake_run(cmd, cwd=None):
@@ -66,7 +66,7 @@ def test_run_agent_invokes_subprocess_in_repo_root(tmp_path, monkeypatch):
         calls["cwd"] = cwd
         return _Done()
 
-    monkeypatch.setattr("hrs_ai.core.agent_runner.subprocess.run", fake_run)
+    monkeypatch.setattr("bugpilot.core.agent_runner.subprocess.run", fake_run)
     result = run_agent(tmp_path, "HR-12345", "claude")
     assert result.ran is True
     assert result.returncode == 0
@@ -76,15 +76,15 @@ def test_run_agent_invokes_subprocess_in_repo_root(tmp_path, monkeypatch):
 
 
 def test_run_agent_wraps_windows_cmd_shim(tmp_path, monkeypatch):
-    monkeypatch.setattr("hrs_ai.core.agent_runner.sys.platform", "win32")
-    monkeypatch.setattr("hrs_ai.core.agent_runner.shutil.which", lambda c: r"C:\npm\claude.cmd")
+    monkeypatch.setattr("bugpilot.core.agent_runner.sys.platform", "win32")
+    monkeypatch.setattr("bugpilot.core.agent_runner.shutil.which", lambda c: r"C:\npm\claude.cmd")
     calls = {}
 
     def fake_run(cmd, cwd=None):
         calls["cmd"] = cmd
         return _Done()
 
-    monkeypatch.setattr("hrs_ai.core.agent_runner.subprocess.run", fake_run)
+    monkeypatch.setattr("bugpilot.core.agent_runner.subprocess.run", fake_run)
     run_agent(tmp_path, "HR-12345", "claude")
     assert calls["cmd"][:3] == ["cmd", "/c", r"C:\npm\claude.cmd"]
     assert calls["cmd"][-1] == HANDOFF
@@ -97,7 +97,7 @@ def _spy_run_agent(monkeypatch, captured):
         captured["agent"] = agent
         return AgentRunResult(agent=agent, ran=True, command=[agent, HANDOFF], returncode=0)
 
-    monkeypatch.setattr("hrs_ai.core.agent_runner.run_agent", spy)
+    monkeypatch.setattr("bugpilot.core.agent_runner.run_agent", spy)
 
 
 def test_bug_launches_claude_by_default(tmp_path, monkeypatch, capsys):
@@ -133,7 +133,7 @@ def test_bug_copilot_flag_launches_copilot(tmp_path, monkeypatch):
 
 
 def test_bug_missing_binary_warns(tmp_path, monkeypatch, capsys):
-    monkeypatch.setattr("hrs_ai.core.agent_runner.shutil.which", lambda c: None)
+    monkeypatch.setattr("bugpilot.core.agent_runner.shutil.which", lambda c: None)
     monkeypatch.chdir(tmp_path)
 
     assert main(["bug", "HR-12345", "--allow-mock"]) == 1

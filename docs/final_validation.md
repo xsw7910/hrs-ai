@@ -5,26 +5,26 @@ Run from the target repository root after installing bugpilot:
 ```powershell
 python -m pip install -e .
 python -m pytest
-python -m hrs_ai bug HR-12345
-python -m hrs_ai status HR-12345
-python -m hrs_ai summarize-results HR-12345
-python -m hrs_ai memory update HR-12345
-python -m hrs_ai review-package HR-12345
-python -m hrs_ai delivery-check HR-12345
-python -m hrs_ai commit-plan HR-12345
-python -m hrs_ai push-plan HR-12345
-python -m hrs_ai clean HR-12345
-python -m hrs_ai status HR-12345
-python -m hrs_ai bug HR-12345
-python -m hrs_ai status HR-12345
-python -m hrs_ai bug HR-12345 --resume
-python -m hrs_ai clean HR-12345 --include-memory
-python -m hrs_ai bug HR-12345 --include-memory
-python -m hrs_ai bug HR-12345 --allow-mock
-python -m hrs_ai clean HR-12345
-python -m hrs_ai bug HR-12345 --fresh --no-mock
-python -m hrs_ai fetch HR-12345 --allow-mock
-python -m hrs_ai fetch HR-12345
+python -m bugpilot bug HR-12345
+python -m bugpilot status HR-12345
+python -m bugpilot summarize-results HR-12345
+python -m bugpilot memory update HR-12345
+python -m bugpilot review-package HR-12345
+python -m bugpilot delivery-check HR-12345
+python -m bugpilot commit-plan HR-12345
+python -m bugpilot push-plan HR-12345
+python -m bugpilot clean HR-12345
+python -m bugpilot status HR-12345
+python -m bugpilot bug HR-12345
+python -m bugpilot status HR-12345
+python -m bugpilot bug HR-12345 --resume
+python -m bugpilot clean HR-12345 --include-memory
+python -m bugpilot bug HR-12345 --include-memory
+python -m bugpilot bug HR-12345 --allow-mock
+python -m bugpilot clean HR-12345
+python -m bugpilot bug HR-12345 --fresh --no-mock
+python -m bugpilot fetch HR-12345 --allow-mock
+python -m bugpilot fetch HR-12345
 ```
 
 Expected outcomes:

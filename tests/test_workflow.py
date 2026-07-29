@@ -8,19 +8,19 @@ from subprocess import CompletedProcess
 
 import pytest
 
-from hrs_ai.core import workflow
-from hrs_ai.cli import main
-from hrs_ai.core.agent_runner import AgentRunResult
-from hrs_ai.core.context import _code_search_summary
-from hrs_ai.core.git_ops import branch_name, summary_slug
-from hrs_ai.core.jira import JiraFetchError, classify_attachment, fetch_issue
-from hrs_ai.core.jira import jira_field_report_markdown, jira_summary_markdown, normalize_core_fields, normalize_attachments, parse_issue, parsed_markdown
-from hrs_ai.core.jira_parse import extract_parsed_details
-from hrs_ai.core.jira_adf import adf_to_markdown
-from hrs_ai.core.keywords import extract_keywords
-from hrs_ai.core.memory import build_memory_entry, search_memory
-from hrs_ai.core.search import INCLUDE_GLOBS, _noise_flags, run_code_search
-from hrs_ai.core.workflow import copilot_task_step, git_context_step, run_bug_workflow
+from bugpilot.core import workflow
+from bugpilot.cli import main
+from bugpilot.core.agent_runner import AgentRunResult
+from bugpilot.core.context import _code_search_summary
+from bugpilot.core.git_ops import branch_name, summary_slug
+from bugpilot.core.jira import JiraFetchError, classify_attachment, fetch_issue
+from bugpilot.core.jira import jira_field_report_markdown, jira_summary_markdown, normalize_core_fields, normalize_attachments, parse_issue, parsed_markdown
+from bugpilot.core.jira_parse import extract_parsed_details
+from bugpilot.core.jira_adf import adf_to_markdown
+from bugpilot.core.keywords import extract_keywords
+from bugpilot.core.memory import build_memory_entry, search_memory
+from bugpilot.core.search import INCLUDE_GLOBS, _noise_flags, run_code_search
+from bugpilot.core.workflow import copilot_task_step, git_context_step, run_bug_workflow
 
 
 @pytest.fixture(autouse=True)
@@ -36,7 +36,7 @@ def stub_agent_launch(monkeypatch):
     # here don't spawn a real agent process. Agent-launch behavior is covered
     # explicitly in test_agent_runner.py.
     monkeypatch.setattr(
-        "hrs_ai.core.agent_runner.run_agent",
+        "bugpilot.core.agent_runner.run_agent",
         lambda repo_root, issue_key, agent, config=None: AgentRunResult(
             agent=agent, ran=True, command=[agent], returncode=0
         ),
@@ -122,7 +122,7 @@ def test_workflow_status_json_generation(tmp_path):
 def test_bug_command_runs_in_temporary_directory(tmp_path, monkeypatch):
     _set_jira_env(monkeypatch)
     monkeypatch.setattr(
-        "hrs_ai.core.jira.urllib.request.urlopen",
+        "bugpilot.core.jira.urllib.request.urlopen",
         lambda request, timeout: _good_jira_response()(),
     )
     monkeypatch.chdir(tmp_path)
@@ -137,7 +137,7 @@ def test_bug_is_the_default_command(tmp_path, monkeypatch):
     # `bugpilot HR-12345` behaves as `bugpilot bug HR-12345`.
     _set_jira_env(monkeypatch)
     monkeypatch.setattr(
-        "hrs_ai.core.jira.urllib.request.urlopen",
+        "bugpilot.core.jira.urllib.request.urlopen",
         lambda request, timeout: _good_jira_response()(),
     )
     monkeypatch.chdir(tmp_path)
@@ -149,7 +149,7 @@ def test_bug_is_the_default_command(tmp_path, monkeypatch):
 def test_bug_command_prints_progress_and_key_artifacts(tmp_path, monkeypatch, capsys):
     _set_jira_env(monkeypatch)
     monkeypatch.setattr(
-        "hrs_ai.core.jira.urllib.request.urlopen",
+        "bugpilot.core.jira.urllib.request.urlopen",
         lambda request, timeout: _good_jira_response()(),
     )
     monkeypatch.chdir(tmp_path)
@@ -194,7 +194,7 @@ def test_bug_command_fetch_failure_prints_clear_error(tmp_path, monkeypatch, cap
 def test_bug_command_progress_does_not_print_jira_token(tmp_path, monkeypatch, capsys):
     _set_jira_env(monkeypatch)
     monkeypatch.setattr(
-        "hrs_ai.core.jira.urllib.request.urlopen",
+        "bugpilot.core.jira.urllib.request.urlopen",
         lambda request, timeout: _good_jira_response()(),
     )
     monkeypatch.chdir(tmp_path)
@@ -540,8 +540,8 @@ def test_rg_subprocess_uses_utf8_replace_and_include_globs(tmp_path, monkeypatch
         calls.append((args, kwargs))
         return CompletedProcess(args, 0, stdout="employee_search.py:1:EmployeeSearch cache\n", stderr="")
 
-    monkeypatch.setattr("hrs_ai.core.search.command_available", lambda command: command == "rg")
-    monkeypatch.setattr("hrs_ai.core.search.subprocess.run", fake_run)
+    monkeypatch.setattr("bugpilot.core.search.command_available", lambda command: command == "rg")
+    monkeypatch.setattr("bugpilot.core.search.subprocess.run", fake_run)
 
     markdown, related, quality = run_code_search(
         tmp_path,
@@ -759,9 +759,9 @@ def test_git_run_command_uses_utf8_replace(monkeypatch, tmp_path):
         calls.append(kwargs)
         return CompletedProcess(args, 0, stdout="clean\n")
 
-    monkeypatch.setattr("hrs_ai.core.git_ops.subprocess.run", fake_run)
+    monkeypatch.setattr("bugpilot.core.git_ops.subprocess.run", fake_run)
 
-    from hrs_ai.core.git_ops import run_command
+    from bugpilot.core.git_ops import run_command
 
     code, output = run_command(["git", "status", "--short"], tmp_path)
 
@@ -1138,9 +1138,9 @@ def test_delivery_check_warns_when_required_files_missing(tmp_path, monkeypatch,
 def test_delivery_check_passes_when_ready(tmp_path, monkeypatch, capsys):
     _write_delivery_artifacts(tmp_path)
 
-    monkeypatch.setattr("hrs_ai.core.workflow.inside_git_repo", lambda repo_root: True)
-    monkeypatch.setattr("hrs_ai.core.workflow.current_branch", lambda repo_root: "feature/HR-12345-demo")
-    monkeypatch.setattr("hrs_ai.core.workflow.working_tree_status", lambda repo_root: " M src/file.cpp")
+    monkeypatch.setattr("bugpilot.core.workflow.inside_git_repo", lambda repo_root: True)
+    monkeypatch.setattr("bugpilot.core.workflow.current_branch", lambda repo_root: "feature/HR-12345-demo")
+    monkeypatch.setattr("bugpilot.core.workflow.working_tree_status", lambda repo_root: " M src/file.cpp")
     monkeypatch.chdir(tmp_path)
 
     assert main(["delivery-check", "HR-12345"]) == 0
@@ -1164,7 +1164,7 @@ def test_commit_plan_generates_file_without_git_mutation(tmp_path, monkeypatch):
             return 0, " src/file.cpp | 2 +-\n 1 file changed"
         return 0, ""
 
-    monkeypatch.setattr("hrs_ai.core.workflow.run_command", fake_run_command)
+    monkeypatch.setattr("bugpilot.core.workflow.run_command", fake_run_command)
     monkeypatch.chdir(tmp_path)
 
     assert main(["commit-plan", "HR-12345"]) == 0
@@ -1193,7 +1193,7 @@ def test_push_plan_generates_file_without_git_push(tmp_path, monkeypatch):
             return 0, " M src/file.cpp"
         return 0, ""
 
-    monkeypatch.setattr("hrs_ai.core.workflow.run_command", fake_run_command)
+    monkeypatch.setattr("bugpilot.core.workflow.run_command", fake_run_command)
     monkeypatch.chdir(tmp_path)
 
     assert main(["push-plan", "HR-12345"]) == 0
@@ -1207,9 +1207,9 @@ def test_push_plan_generates_file_without_git_push(tmp_path, monkeypatch):
 
 def test_delivery_commands_are_safe_outside_git_repo(tmp_path, monkeypatch, capsys):
     _write_delivery_artifacts(tmp_path)
-    monkeypatch.setattr("hrs_ai.core.workflow.inside_git_repo", lambda repo_root: False)
-    monkeypatch.setattr("hrs_ai.core.workflow.current_branch", lambda repo_root: None)
-    monkeypatch.setattr("hrs_ai.core.workflow.working_tree_status", lambda repo_root: None)
+    monkeypatch.setattr("bugpilot.core.workflow.inside_git_repo", lambda repo_root: False)
+    monkeypatch.setattr("bugpilot.core.workflow.current_branch", lambda repo_root: None)
+    monkeypatch.setattr("bugpilot.core.workflow.working_tree_status", lambda repo_root: None)
     monkeypatch.chdir(tmp_path)
 
     assert main(["delivery-check", "HR-12345"]) == 0
@@ -1220,7 +1220,7 @@ def test_delivery_commands_are_safe_outside_git_repo(tmp_path, monkeypatch, caps
 
 
 def test_delivery_plan_status_and_log_entries(tmp_path, monkeypatch):
-    monkeypatch.setattr("hrs_ai.core.workflow.run_command", lambda args, repo_root: (0, "feature/HR-12345-demo"))
+    monkeypatch.setattr("bugpilot.core.workflow.run_command", lambda args, repo_root: (0, "feature/HR-12345-demo"))
     monkeypatch.chdir(tmp_path)
 
     main(["commit-plan", "HR-12345"])
@@ -1238,7 +1238,7 @@ def test_delivery_plan_status_and_log_entries(tmp_path, monkeypatch):
 
 def test_commit_and_push_execute_placeholders_do_not_mutate_git(tmp_path, monkeypatch, capsys):
     calls = []
-    monkeypatch.setattr("hrs_ai.core.workflow.run_command", lambda args, repo_root: calls.append(args) or (0, ""))
+    monkeypatch.setattr("bugpilot.core.workflow.run_command", lambda args, repo_root: calls.append(args) or (0, ""))
     monkeypatch.chdir(tmp_path)
 
     assert main(["commit", "HR-12345", "--execute"]) == 0
@@ -1350,7 +1350,7 @@ def test_bug_fresh_removes_old_later_phase_artifacts(tmp_path, monkeypatch):
 def test_bug_default_is_fresh_and_removes_old_artifacts(tmp_path, monkeypatch):
     _set_jira_env(monkeypatch)
     monkeypatch.setattr(
-        "hrs_ai.core.jira.urllib.request.urlopen",
+        "bugpilot.core.jira.urllib.request.urlopen",
         lambda request, timeout: _good_jira_response()(),
     )
     issue_dir = tmp_path / ".ai" / "HR-12345"
@@ -1593,13 +1593,13 @@ def _http_error(status_code: int) -> urllib.error.HTTPError:
 
 def test_jira_http_401_403_classifies_auth_or_permission(tmp_path, monkeypatch):
     _set_jira_env(monkeypatch)
-    monkeypatch.setattr("hrs_ai.core.jira.urllib.request.urlopen", lambda request, timeout: (_ for _ in ()).throw(_http_error(401)))
+    monkeypatch.setattr("bugpilot.core.jira.urllib.request.urlopen", lambda request, timeout: (_ for _ in ()).throw(_http_error(401)))
 
     fallback = fetch_issue(tmp_path, "HR-12345", allow_mock=True)
     assert fallback.source == "mock"
     assert fallback.error_type == "auth_or_permission"
 
-    monkeypatch.setattr("hrs_ai.core.jira.urllib.request.urlopen", lambda request, timeout: (_ for _ in ()).throw(_http_error(403)))
+    monkeypatch.setattr("bugpilot.core.jira.urllib.request.urlopen", lambda request, timeout: (_ for _ in ()).throw(_http_error(403)))
     with pytest.raises(JiraFetchError) as exc_info:
         fetch_issue(tmp_path, "HR-12345", allow_mock=False)
     assert exc_info.value.result.error_type == "auth_or_permission"
@@ -1607,7 +1607,7 @@ def test_jira_http_401_403_classifies_auth_or_permission(tmp_path, monkeypatch):
 
 def test_jira_http_404_classifies_not_found(tmp_path, monkeypatch):
     _set_jira_env(monkeypatch)
-    monkeypatch.setattr("hrs_ai.core.jira.urllib.request.urlopen", lambda request, timeout: (_ for _ in ()).throw(_http_error(404)))
+    monkeypatch.setattr("bugpilot.core.jira.urllib.request.urlopen", lambda request, timeout: (_ for _ in ()).throw(_http_error(404)))
 
     result = fetch_issue(tmp_path, "HR-12345")
 
@@ -1617,7 +1617,7 @@ def test_jira_http_404_classifies_not_found(tmp_path, monkeypatch):
 
 def test_jira_http_429_classifies_rate_limited(tmp_path, monkeypatch):
     _set_jira_env(monkeypatch)
-    monkeypatch.setattr("hrs_ai.core.jira.urllib.request.urlopen", lambda request, timeout: (_ for _ in ()).throw(_http_error(429)))
+    monkeypatch.setattr("bugpilot.core.jira.urllib.request.urlopen", lambda request, timeout: (_ for _ in ()).throw(_http_error(429)))
 
     result = fetch_issue(tmp_path, "HR-12345")
 
@@ -1626,13 +1626,13 @@ def test_jira_http_429_classifies_rate_limited(tmp_path, monkeypatch):
 
 def test_jira_timeout_classifies_timeout(tmp_path, monkeypatch):
     _set_jira_env(monkeypatch)
-    monkeypatch.setattr("hrs_ai.core.jira.urllib.request.urlopen", lambda request, timeout: (_ for _ in ()).throw(socket.timeout()))
+    monkeypatch.setattr("bugpilot.core.jira.urllib.request.urlopen", lambda request, timeout: (_ for _ in ()).throw(socket.timeout()))
 
     result = fetch_issue(tmp_path, "HR-12345")
 
     assert result.error_type == "timeout"
 
-    monkeypatch.setattr("hrs_ai.core.jira.urllib.request.urlopen", lambda request, timeout: (_ for _ in ()).throw(TimeoutError()))
+    monkeypatch.setattr("bugpilot.core.jira.urllib.request.urlopen", lambda request, timeout: (_ for _ in ()).throw(TimeoutError()))
 
     result = fetch_issue(tmp_path, "HR-12345")
 
@@ -1641,7 +1641,7 @@ def test_jira_timeout_classifies_timeout(tmp_path, monkeypatch):
 
 def test_jira_network_error_classifies_network_error(tmp_path, monkeypatch):
     _set_jira_env(monkeypatch)
-    monkeypatch.setattr("hrs_ai.core.jira.urllib.request.urlopen", lambda request, timeout: (_ for _ in ()).throw(urllib.error.URLError("dns failed")))
+    monkeypatch.setattr("bugpilot.core.jira.urllib.request.urlopen", lambda request, timeout: (_ for _ in ()).throw(urllib.error.URLError("dns failed")))
 
     result = fetch_issue(tmp_path, "HR-12345")
 
@@ -1661,7 +1661,7 @@ def test_jira_invalid_response_classifies_invalid_response(tmp_path, monkeypatch
         def read(self):
             return b"{not json"
 
-    monkeypatch.setattr("hrs_ai.core.jira.urllib.request.urlopen", lambda request, timeout: BadResponse())
+    monkeypatch.setattr("bugpilot.core.jira.urllib.request.urlopen", lambda request, timeout: BadResponse())
 
     result = fetch_issue(tmp_path, "HR-12345")
 
@@ -1693,7 +1693,7 @@ def test_jira_success_path_marks_real_source(tmp_path, monkeypatch):
                 }
             ).encode("utf-8")
 
-    monkeypatch.setattr("hrs_ai.core.jira.urllib.request.urlopen", lambda request, timeout: GoodResponse())
+    monkeypatch.setattr("bugpilot.core.jira.urllib.request.urlopen", lambda request, timeout: GoodResponse())
 
     result = fetch_issue(tmp_path, "HR-12345")
 
@@ -2359,7 +2359,7 @@ def _good_jira_response(issue_key: str = "HR-12345") -> type:
 # A. Normalized field mapping with complete Jira issue
 def test_normalize_core_fields_extracts_all_standard_fields():
     issue = _full_jira_issue()
-    from hrs_ai.core.jira import enrich_issue
+    from bugpilot.core.jira import enrich_issue
 
     enrich_issue(issue)
     normalized = issue["hrs_ai_normalized"]
@@ -2409,7 +2409,7 @@ def test_normalize_core_fields_handles_missing_and_null_fields():
             "attachment": None,
         },
     }
-    from hrs_ai.core.jira import enrich_issue
+    from bugpilot.core.jira import enrich_issue
 
     enrich_issue(issue)
     normalized = issue["hrs_ai_normalized"]
@@ -2463,7 +2463,7 @@ def test_jira_parsed_uses_versions_for_environment():
 def test_jira_validate_success_generates_required_files(tmp_path, monkeypatch):
     _set_jira_env(monkeypatch)
     monkeypatch.setattr(
-        "hrs_ai.core.jira.urllib.request.urlopen",
+        "bugpilot.core.jira.urllib.request.urlopen",
         lambda request, timeout: _good_jira_response()(),
     )
     monkeypatch.chdir(tmp_path)
@@ -2495,7 +2495,7 @@ def test_jira_validate_fails_without_credentials(tmp_path, monkeypatch, capsys):
 # G. jira_field_report.md content
 def test_jira_field_report_includes_diagnostic_fields():
     issue = _full_jira_issue()
-    from hrs_ai.core.jira import enrich_issue
+    from bugpilot.core.jira import enrich_issue
 
     enrich_issue(issue)
     report = jira_field_report_markdown(issue)
@@ -2517,7 +2517,7 @@ def test_jira_field_report_includes_diagnostic_fields():
 def test_bug_fresh_no_mock_uses_real_jira_normalized_fields(tmp_path, monkeypatch):
     _set_jira_env(monkeypatch)
     monkeypatch.setattr(
-        "hrs_ai.core.jira.urllib.request.urlopen",
+        "bugpilot.core.jira.urllib.request.urlopen",
         lambda request, timeout: _good_jira_response()(),
     )
     monkeypatch.chdir(tmp_path)
@@ -2601,7 +2601,7 @@ def test_missing_attachment_size_defaults_to_zero():
 
 def test_malformed_attachment_size_renders_in_summary_without_crash():
     issue = _issue_with_attachments(_attachment_raw(size="abc"))
-    from hrs_ai.core.jira import enrich_issue
+    from bugpilot.core.jira import enrich_issue
     enrich_issue(issue)
     summary = jira_summary_markdown(issue, "Fetched Jira data from configured Jira instance.")
     assert "file.log" in summary
@@ -2611,7 +2611,7 @@ def test_malformed_attachment_size_renders_in_summary_without_crash():
 def test_field_report_redacts_token_in_url():
     issue = _jira_issue()
     issue["fields"]["customfield_token_url"] = "https://example.test/path?token=mysecret&x=1"
-    from hrs_ai.core.jira import enrich_issue
+    from bugpilot.core.jira import enrich_issue
     enrich_issue(issue)
     report = jira_field_report_markdown(issue)
     assert "mysecret" not in report
@@ -2621,7 +2621,7 @@ def test_field_report_redacts_token_in_url():
 def test_field_report_redacts_secret_kv_pairs():
     issue = _jira_issue()
     issue["fields"]["customfield_creds"] = "password=abc123 api_key=xyz secret: hidden"
-    from hrs_ai.core.jira import enrich_issue
+    from bugpilot.core.jira import enrich_issue
     enrich_issue(issue)
     report = jira_field_report_markdown(issue)
     assert "abc123" not in report
@@ -2638,7 +2638,7 @@ def test_field_report_redacts_secret_kv_pairs():
 def test_field_report_redacts_plain_key_assignment():
     issue = _jira_issue()
     issue["fields"]["customfield_plain_key"] = "key=xyz"
-    from hrs_ai.core.jira import enrich_issue
+    from bugpilot.core.jira import enrich_issue
     enrich_issue(issue)
     report = jira_field_report_markdown(issue)
     assert "xyz" not in report
@@ -2648,7 +2648,7 @@ def test_field_report_redacts_plain_key_assignment():
 def test_field_report_redacts_url_query_key_param():
     issue = _jira_issue()
     issue["fields"]["customfield_url_key"] = "https://example.test/path?key=xyz&x=1"
-    from hrs_ai.core.jira import enrich_issue
+    from bugpilot.core.jira import enrich_issue
     enrich_issue(issue)
     report = jira_field_report_markdown(issue)
     assert "xyz" not in report
@@ -2658,7 +2658,7 @@ def test_field_report_redacts_url_query_key_param():
 def test_field_report_does_not_redact_innocent_key_words():
     issue = _jira_issue()
     issue["fields"]["customfield_text"] = "keyboard monkey key field missing"
-    from hrs_ai.core.jira import enrich_issue
+    from bugpilot.core.jira import enrich_issue
     enrich_issue(issue)
     report = jira_field_report_markdown(issue)
     assert "keyboard" in report
@@ -2808,7 +2808,7 @@ def test_jira_comment_draft_omits_missing_information_and_attachment_note(tmp_pa
 
 
 def test_markdown_to_adf_renders_headings_rule_and_bullets():
-    from hrs_ai.core.jira import _markdown_to_adf
+    from bugpilot.core.jira import _markdown_to_adf
 
     adf = _markdown_to_adf("# Title\n\n## Root Cause\n\nplain line\n\n- a\n- b\n\n---\nfooter")
     types = [n["type"] for n in adf["content"]]
@@ -2878,7 +2878,7 @@ def test_jira_comment_preview_does_not_call_jira(tmp_path, monkeypatch, capsys):
         called["value"] = True
         return _JiraPostResponse()
 
-    monkeypatch.setattr("hrs_ai.core.jira.urllib.request.urlopen", fake_urlopen)
+    monkeypatch.setattr("bugpilot.core.jira.urllib.request.urlopen", fake_urlopen)
 
     assert main(["jira-comment", "HR-12345"]) == 0
     out = capsys.readouterr().out
@@ -2898,7 +2898,7 @@ def test_jira_comment_execute_posts_comment_and_writes_artifacts(tmp_path, monke
         requests.append(request)
         return _JiraPostResponse()
 
-    monkeypatch.setattr("hrs_ai.core.jira.urllib.request.urlopen", fake_urlopen)
+    monkeypatch.setattr("bugpilot.core.jira.urllib.request.urlopen", fake_urlopen)
 
     assert main(["jira-comment", "HR-12345", "--execute"]) == 0
     out = capsys.readouterr().out
@@ -2933,7 +2933,7 @@ def test_jira_comment_execute_missing_env_fails_without_post(tmp_path, monkeypat
         called["value"] = True
         return _JiraPostResponse()
 
-    monkeypatch.setattr("hrs_ai.core.jira.urllib.request.urlopen", fake_urlopen)
+    monkeypatch.setattr("bugpilot.core.jira.urllib.request.urlopen", fake_urlopen)
 
     assert main(["jira-comment", "HR-12345", "--execute"]) == 1
     err = capsys.readouterr().err
@@ -2962,7 +2962,7 @@ def test_jira_comment_execute_redacts_before_post(tmp_path, monkeypatch):
         posted["body"] = request.data.decode("utf-8")
         return _JiraPostResponse()
 
-    monkeypatch.setattr("hrs_ai.core.jira.urllib.request.urlopen", fake_urlopen)
+    monkeypatch.setattr("bugpilot.core.jira.urllib.request.urlopen", fake_urlopen)
 
     assert main(["jira-comment", "HR-12345", "--execute"]) == 0
 
@@ -3001,7 +3001,7 @@ def test_jira_comment_execute_http_errors_are_clear(tmp_path, monkeypatch, capsy
     def fake_urlopen(request, timeout):
         raise _http_error(status_code)
 
-    monkeypatch.setattr("hrs_ai.core.jira.urllib.request.urlopen", fake_urlopen)
+    monkeypatch.setattr("bugpilot.core.jira.urllib.request.urlopen", fake_urlopen)
 
     assert main(["jira-comment", "HR-12345", "--execute"]) == 1
     err = capsys.readouterr().err.lower()
@@ -3013,7 +3013,7 @@ def test_jira_comment_execute_status_includes_generated_files(tmp_path, monkeypa
     issue_dir = _write_jira_comment_draft(tmp_path)
     _set_jira_env(monkeypatch)
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr("hrs_ai.core.jira.urllib.request.urlopen", lambda request, timeout: _JiraPostResponse())
+    monkeypatch.setattr("bugpilot.core.jira.urllib.request.urlopen", lambda request, timeout: _JiraPostResponse())
 
     assert main(["jira-comment", "HR-12345", "--execute"]) == 0
     status = json.loads((issue_dir / "workflow_status.json").read_text(encoding="utf-8"))
@@ -3043,7 +3043,7 @@ def test_summarize_results_auto_posts_jira_comment_with_flag(tmp_path, monkeypat
         requests.append(request)
         return _JiraPostResponse()
 
-    monkeypatch.setattr("hrs_ai.core.jira.urllib.request.urlopen", fake_urlopen)
+    monkeypatch.setattr("bugpilot.core.jira.urllib.request.urlopen", fake_urlopen)
 
     assert main(["summarize-results", "HR-12345", "--jira-comment"]) == 0
     out = capsys.readouterr().out
@@ -3067,7 +3067,7 @@ def test_summarize_results_auto_posts_when_env_enabled(tmp_path, monkeypatch):
         requests.append(request)
         return _JiraPostResponse()
 
-    monkeypatch.setattr("hrs_ai.core.jira.urllib.request.urlopen", fake_urlopen)
+    monkeypatch.setattr("bugpilot.core.jira.urllib.request.urlopen", fake_urlopen)
 
     assert main(["summarize-results", "HR-12345"]) == 0
     assert len(requests) == 1
@@ -3084,7 +3084,7 @@ def test_summarize_results_no_jira_comment_overrides_env(tmp_path, monkeypatch):
         called["value"] = True
         return _JiraPostResponse()
 
-    monkeypatch.setattr("hrs_ai.core.jira.urllib.request.urlopen", fake_urlopen)
+    monkeypatch.setattr("bugpilot.core.jira.urllib.request.urlopen", fake_urlopen)
 
     assert main(["summarize-results", "HR-12345", "--no-jira-comment"]) == 0
     assert called["value"] is False
@@ -3101,7 +3101,7 @@ def test_summarize_results_default_does_not_post(tmp_path, monkeypatch):
         called["value"] = True
         return _JiraPostResponse()
 
-    monkeypatch.setattr("hrs_ai.core.jira.urllib.request.urlopen", fake_urlopen)
+    monkeypatch.setattr("bugpilot.core.jira.urllib.request.urlopen", fake_urlopen)
 
     assert main(["summarize-results", "HR-12345"]) == 0
     assert called["value"] is False
@@ -3115,7 +3115,7 @@ def test_summarize_results_auto_post_failure_is_non_fatal(tmp_path, monkeypatch,
     def fake_urlopen(request, timeout):
         raise _http_error(500)
 
-    monkeypatch.setattr("hrs_ai.core.jira.urllib.request.urlopen", fake_urlopen)
+    monkeypatch.setattr("bugpilot.core.jira.urllib.request.urlopen", fake_urlopen)
 
     # summarize-results must still succeed even if the Jira post fails.
     assert main(["summarize-results", "HR-12345", "--jira-comment"]) == 0

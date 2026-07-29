@@ -5,11 +5,11 @@ import urllib.error
 
 import pytest
 
-from hrs_ai.cli import main
-from hrs_ai.core.config import load_config
-from hrs_ai.core.jira import JiraValidationResult, validate_credentials
-from hrs_ai.core.setup import run_setup
-from hrs_ai.core.user_config import (
+from bugpilot.cli import main
+from bugpilot.core.config import load_config
+from bugpilot.core.jira import JiraValidationResult, validate_credentials
+from bugpilot.core.setup import run_setup
+from bugpilot.core.user_config import (
     DEFAULT_JIRA_BASE_URL,
     UserConfig,
     load_user_config,
@@ -72,7 +72,7 @@ def test_toml_round_trips_special_characters():
 
 def test_validate_credentials_ok(monkeypatch):
     monkeypatch.setattr(
-        "hrs_ai.core.jira.urllib.request.urlopen",
+        "bugpilot.core.jira.urllib.request.urlopen",
         lambda request, timeout: _FakeResponse({"emailAddress": "e@x.com", "displayName": "Dev"}),
     )
     result = validate_credentials("https://x.atlassian.net", "e@x.com", "tok")
@@ -85,7 +85,7 @@ def test_validate_credentials_auth_failure(monkeypatch):
     def raise_http(request, timeout):
         raise urllib.error.HTTPError("url", 401, "Unauthorized", None, None)
 
-    monkeypatch.setattr("hrs_ai.core.jira.urllib.request.urlopen", raise_http)
+    monkeypatch.setattr("bugpilot.core.jira.urllib.request.urlopen", raise_http)
     result = validate_credentials("https://x", "e", "bad")
     assert not result.ok
     assert result.error_type == "auth_or_permission"
@@ -96,7 +96,7 @@ def test_validate_credentials_network_error(monkeypatch):
     def raise_url(request, timeout):
         raise urllib.error.URLError("host down")
 
-    monkeypatch.setattr("hrs_ai.core.jira.urllib.request.urlopen", raise_url)
+    monkeypatch.setattr("bugpilot.core.jira.urllib.request.urlopen", raise_url)
     result = validate_credentials("https://x", "e", "t")
     assert not result.ok
     assert result.error_type == "network_error"
@@ -129,13 +129,13 @@ def test_env_overrides_user_config(monkeypatch, tmp_path):
 
 
 def _all_tools_present(monkeypatch):
-    monkeypatch.setattr("hrs_ai.core.git_ops.command_available", lambda command: True)
+    monkeypatch.setattr("bugpilot.core.git_ops.command_available", lambda command: True)
 
 
 def test_run_setup_success_saves_config(monkeypatch):
     _all_tools_present(monkeypatch)
     monkeypatch.setattr(
-        "hrs_ai.core.jira.validate_credentials",
+        "bugpilot.core.jira.validate_credentials",
         lambda base_url, email, token, timeout=30: JiraValidationResult(ok=True, account_email=email),
     )
     # Token is shown by default, so both email and token come from `prompt`.
@@ -160,7 +160,7 @@ def test_run_setup_success_saves_config(monkeypatch):
 def test_run_setup_hidden_token_uses_secret_reader(monkeypatch):
     _all_tools_present(monkeypatch)
     monkeypatch.setattr(
-        "hrs_ai.core.jira.validate_credentials",
+        "bugpilot.core.jira.validate_credentials",
         lambda *a, **k: JiraValidationResult(ok=True),
     )
     out = []
@@ -179,7 +179,7 @@ def test_run_setup_hidden_token_uses_secret_reader(monkeypatch):
 def test_run_setup_auth_failure_does_not_save(monkeypatch):
     _all_tools_present(monkeypatch)
     monkeypatch.setattr(
-        "hrs_ai.core.jira.validate_credentials",
+        "bugpilot.core.jira.validate_credentials",
         lambda *a, **k: JiraValidationResult(ok=False, error_type="auth_or_permission", error_message="x"),
     )
     answers = iter(["e@x.com", "bad"])
@@ -198,9 +198,9 @@ def test_run_setup_auth_failure_does_not_save(monkeypatch):
 
 def test_run_setup_warns_when_copilot_missing(monkeypatch):
     availability = {"git": True, "rg": True, "copilot": False}
-    monkeypatch.setattr("hrs_ai.core.git_ops.command_available", lambda command: availability.get(command, False))
+    monkeypatch.setattr("bugpilot.core.git_ops.command_available", lambda command: availability.get(command, False))
     monkeypatch.setattr(
-        "hrs_ai.core.jira.validate_credentials",
+        "bugpilot.core.jira.validate_credentials",
         lambda *a, **k: JiraValidationResult(ok=True),
     )
     answers = iter(["e@x.com", "t"])
@@ -237,7 +237,7 @@ def test_setup_subcommand_dispatches(monkeypatch):
         captured["hide_token"] = hide_token
         return 0
 
-    monkeypatch.setattr("hrs_ai.core.setup.run_setup", spy)
+    monkeypatch.setattr("bugpilot.core.setup.run_setup", spy)
     assert main(["setup"]) == 0
     assert captured["hide_token"] is False
 
@@ -249,6 +249,6 @@ def test_setup_hide_token_flag(monkeypatch):
         captured["hide_token"] = hide_token
         return 0
 
-    monkeypatch.setattr("hrs_ai.core.setup.run_setup", spy)
+    monkeypatch.setattr("bugpilot.core.setup.run_setup", spy)
     assert main(["setup", "--hide-token"]) == 0
     assert captured["hide_token"] is True

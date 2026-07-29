@@ -8,14 +8,14 @@ import os
 import sys
 from pathlib import Path
 
-from hrs_ai.core import agent_runner, copilot, doctor, setup, workflow
-from hrs_ai.core.cleanup import clean_issue_artifacts
-from hrs_ai.core.context import build_context
-from hrs_ai.core.email_notify import EmailSendError
-from hrs_ai.core.jira import JiraCommentPostError, JiraFetchError, fetch_issue, parse_issue
-from hrs_ai.core.keywords import extract_keywords
-from hrs_ai.core.memory import add_memory_entry, search_memory
-from hrs_ai.core.prompts import generate_prompts
+from bugpilot.core import agent_runner, copilot, doctor, setup, workflow
+from bugpilot.core.cleanup import clean_issue_artifacts
+from bugpilot.core.context import build_context
+from bugpilot.core.email_notify import EmailSendError
+from bugpilot.core.jira import JiraCommentPostError, JiraFetchError, fetch_issue, parse_issue
+from bugpilot.core.keywords import extract_keywords
+from bugpilot.core.memory import add_memory_entry, search_memory
+from bugpilot.core.prompts import generate_prompts
 
 
 def build_parser() -> argparse.ArgumentParser:

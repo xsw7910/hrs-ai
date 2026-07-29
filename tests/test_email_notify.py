@@ -8,8 +8,8 @@ import urllib.error
 
 import pytest
 
-from hrs_ai.cli import main
-from hrs_ai.core.config import load_email_config, load_graph_config
+from bugpilot.cli import main
+from bugpilot.core.config import load_email_config, load_graph_config
 
 
 @pytest.fixture(autouse=True)
@@ -55,7 +55,7 @@ def _install_fake_graph(monkeypatch):
             return _Resp(json.dumps({"access_token": "fake-token", "expires_in": 3599}).encode())
         return _Resp(b"")  # sendMail returns 202 with empty body
 
-    monkeypatch.setattr("hrs_ai.core.email_notify.urllib.request.urlopen", fake_urlopen)
+    monkeypatch.setattr("bugpilot.core.email_notify.urllib.request.urlopen", fake_urlopen)
     return calls
 
 
@@ -116,8 +116,8 @@ def _install_fake_smtp(monkeypatch):
         def send_message(self, message):
             sent.append(message)
 
-    monkeypatch.setattr("hrs_ai.core.email_notify.smtplib.SMTP", _FakeSMTP)
-    monkeypatch.setattr("hrs_ai.core.email_notify.smtplib.SMTP_SSL", _FakeSMTP)
+    monkeypatch.setattr("bugpilot.core.email_notify.smtplib.SMTP", _FakeSMTP)
+    monkeypatch.setattr("bugpilot.core.email_notify.smtplib.SMTP_SSL", _FakeSMTP)
     return sent
 
 
@@ -254,7 +254,7 @@ def test_commit_gate_email_failure_is_non_fatal(tmp_path, monkeypatch, capsys):
         def send_message(self, message):
             raise smtplib.SMTPException("relay refused")
 
-    monkeypatch.setattr("hrs_ai.core.email_notify.smtplib.SMTP", _FailingSMTP)
+    monkeypatch.setattr("bugpilot.core.email_notify.smtplib.SMTP", _FailingSMTP)
     monkeypatch.chdir(tmp_path)
 
     # commit-plan must still succeed even if the notification email fails.
@@ -291,7 +291,7 @@ def test_notify_execute_smtp_failure_returns_error(tmp_path, monkeypatch, capsys
         def send_message(self, message):
             raise smtplib.SMTPException("relay refused")
 
-    monkeypatch.setattr("hrs_ai.core.email_notify.smtplib.SMTP", _FailingSMTP)
+    monkeypatch.setattr("bugpilot.core.email_notify.smtplib.SMTP", _FailingSMTP)
     monkeypatch.chdir(tmp_path)
 
     assert main(["notify", "HR-12345", "--execute"]) == 1
@@ -393,7 +393,7 @@ def test_graph_token_failure_is_reported_without_secret(tmp_path, monkeypatch, c
     def failing_urlopen(request, timeout=None):
         raise urllib.error.HTTPError(request.full_url, 401, "Unauthorized", hdrs=None, fp=io.BytesIO(b""))
 
-    monkeypatch.setattr("hrs_ai.core.email_notify.urllib.request.urlopen", failing_urlopen)
+    monkeypatch.setattr("bugpilot.core.email_notify.urllib.request.urlopen", failing_urlopen)
     monkeypatch.chdir(tmp_path)
 
     assert main(["notify", "HR-12345", "--execute"]) == 1

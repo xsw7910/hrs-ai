@@ -6,8 +6,8 @@ orchestrators, every core module, and the artifact pipeline that flows through
 not at an end user (see [usage_guide.md](usage_guide.md) for that).
 
 - Package name: `bugpilot` (`pyproject.toml`), version `0.1.0`.
-- Import name: `hrs_ai` (kept deliberately; the CLI/brand is `bugpilot`).
-- Console script: `bugpilot = hrs_ai.cli:main`.
+- Package / import name: `bugpilot` (matches the CLI). Env vars stay `HRS_AI_*` and the artifact dirs stay `.ai/` / `.ai_memory/`.
+- Console script: `bugpilot = bugpilot.cli:main`.
 - Runtime dependencies: **none** — standard library only. `requires-python >= 3.10`.
 - External tools used at runtime (all optional, all degraded gracefully): `git`,
   ripgrep (`rg`), and the `claude` / `copilot` CLIs (Claude is launched by
@@ -47,15 +47,15 @@ Three properties shape the code:
 
 ```
 bugpilot <command> [args]
-  └─ project.scripts → hrs_ai.cli:main
-python -m hrs_ai
-  └─ hrs_ai/__main__.py → cli.main
+  └─ project.scripts → bugpilot.cli:main
+python -m bugpilot
+  └─ bugpilot/__main__.py → cli.main
 ```
 
-- `hrs_ai/__main__.py` — 5-line shim: `raise SystemExit(main())`.
-- `hrs_ai/cli.py` — argparse surface + per-command dispatch (the top-level
+- `bugpilot/__main__.py` — 5-line shim: `raise SystemExit(main())`.
+- `bugpilot/cli.py` — argparse surface + per-command dispatch (the top-level
   orchestrator for single-step commands).
-- `hrs_ai/core/workflow.py` — the pipeline orchestrator: `run_bug_workflow`
+- `bugpilot/core/workflow.py` — the pipeline orchestrator: `run_bug_workflow`
   chains the steps, and each `*_step` function is also individually callable so
   the matching subcommand can run just that stage.
 - `install.ps1` (repo root) — a PowerShell installer that finds the newest
@@ -67,7 +67,7 @@ python -m hrs_ai
 ## 3. Layered architecture
 
 Modules form a strict dependency direction (leaves import nothing from
-`hrs_ai.core`; orchestrators sit on top). Nothing below imports anything above it.
+`bugpilot.core`; orchestrators sit on top). Nothing below imports anything above it.
 
 ```
         cli.py                     ← argparse, dispatch, printing
@@ -83,7 +83,7 @@ _instr.   │                              │
           └──────────── config ──────────┘
 ```
 
-**Leaf modules** (no `hrs_ai.core` imports): `config`, `jira_adf`, `jira_parse`,
+**Leaf modules** (no `bugpilot.core` imports): `config`, `jira_adf`, `jira_parse`,
 `keywords`, `delivery_instructions`, `cleanup`, `logging_utils`, `git_ops`,
 `context`.
 
@@ -440,5 +440,5 @@ relevant dataclass loader), expose it via a property/`missing_fields`, and
 surface presence in `doctor.py`. Do not read env vars elsewhere.
 
 To add a **pure helper** (parsing, rendering, ranking): keep it a leaf module
-with no `hrs_ai.core` imports so it stays unit-testable, following `jira_adf.py`
+with no `bugpilot.core` imports so it stays unit-testable, following `jira_adf.py`
 / `jira_parse.py` / `keywords.py`.

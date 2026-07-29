@@ -14,7 +14,7 @@ dependencies = []
 test = ["pytest>=8"]
 
 [project.scripts]
-bugpilot = "hrs_ai.cli:main"
+bugpilot = "bugpilot.cli:main"
 
 [tool.setuptools.packages.find]
-include = ["hrs_ai*"]
+include = ["bugpilot*"]

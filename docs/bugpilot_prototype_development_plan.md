@@ -202,7 +202,7 @@ tools/bugpilot/
   README.md
   pyproject.toml
 
-  hrs_ai/
+  bugpilot/
     __init__.py
     __main__.py
     cli.py
@@ -235,7 +235,7 @@ Optional temporary Phase 1 shortcut:
 
 ```text
 tools/bugpilot/
-  hrs_ai.py
+  bugpilot.py
   templates/
   README.md
 ```
@@ -478,14 +478,14 @@ If not installed, it can be invoked by full path:
 
 ```powershell
 cd C:\sandbox\monorepo_qt6\monorepo
-python C:\tools\bugpilot\hrs_ai.py bug HR-12345
+python C:\tools\bugpilot\bugpilot.py bug HR-12345
 ```
 
 For a modular package, it can also be run as:
 
 ```powershell
 cd C:\sandbox\monorepo_qt6\monorepo
-python -m hrs_ai bug HR-12345
+python -m bugpilot bug HR-12345
 ```
 
 ### 11.5 Execution Rule

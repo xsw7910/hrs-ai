@@ -1,9 +1,9 @@
 """User-level BugPilot configuration stored under the home directory.
 
-This is distinct from :mod:`hrs_ai.core.config`, which reads process environment
+This is distinct from :mod:`bugpilot.core.config`, which reads process environment
 variables. ``bugpilot setup`` writes a small ``config.toml`` here so a first-time
 user does not have to export ``JIRA_*`` variables by hand. Environment variables
-still win over this file (see :func:`hrs_ai.core.config.load_config`).
+still win over this file (see :func:`bugpilot.core.config.load_config`).
 
 The company Jira URL is fixed and is NOT persisted. Only ``jira_email`` and (for
 now) ``jira_token`` are stored. Token persistence goes through :class:`TokenStore`
