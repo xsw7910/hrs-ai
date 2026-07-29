@@ -38,6 +38,18 @@ function Write-Ok      { param([string]$Message) Write-Host "    $Message" -Fore
 function Write-Note    { param([string]$Message) Write-Host "    $Message" -ForegroundColor Yellow }
 function Write-Fail    { param([string]$Message) Write-Host $Message -ForegroundColor Red }
 
+# Prominent notice that the user must close this window and open a new terminal
+# (a PATH change from this session won't take effect in the current window).
+function Write-Reopen {
+    param([string]$Message)
+    Write-Host ""
+    Write-Host "  ============================================================" -ForegroundColor Yellow
+    Write-Host "   >>> IMPORTANT: CLOSE THIS WINDOW, open a NEW terminal <<<" -ForegroundColor Yellow
+    if ($Message) { Write-Host "       $Message" -ForegroundColor Yellow }
+    Write-Host "  ============================================================" -ForegroundColor Yellow
+    Write-Host ""
+}
+
 function Write-Banner {
     Write-Host ""
     Write-Host "  ============================================" -ForegroundColor Cyan
@@ -136,8 +148,7 @@ try {
         }
         if (Install-PythonViaWinget) {
             Write-Ok "Python installed."
-            Write-Host ""
-            Write-Note "PATH won't refresh in this window. Close it, open a NEW terminal, and run install.cmd again."
+            Write-Reopen "Then run install.cmd again to finish installing bugpilot."
             exit 0
         }
         Write-Fail "Python 3.10 or newer is required."
@@ -231,20 +242,18 @@ try {
     if ($runSetup) {
         Write-Host ""
         & $bugpilotExe setup
-        Write-Host ""
         if ($pathMayHaveChanged) {
-            Write-Note "PATH was updated during install. Open a NEW terminal before using 'bugpilot'."
+            Write-Reopen "Then the 'bugpilot' command will work by name."
         }
     }
     else {
-        if ($pathMayHaveChanged) {
-            Write-Note "PATH was updated. Restart PowerShell before using 'bugpilot' in a new window."
-            Write-Host ""
-        }
         Write-Host "Next step:" -ForegroundColor White
         Write-Host ""
         Write-Host "    bugpilot setup" -ForegroundColor Cyan
         Write-Host ""
+        if ($pathMayHaveChanged) {
+            Write-Reopen "The 'bugpilot' command works only in a NEW terminal, so open one before 'bugpilot setup'."
+        }
     }
 }
 catch {
