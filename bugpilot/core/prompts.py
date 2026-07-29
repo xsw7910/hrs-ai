@@ -14,13 +14,13 @@ def generate_prompts(
     hint: str | None = None,
     jira_comment: bool = False,
 ) -> dict[str, str]:
-    # The full analysis/fix/review/test workflow lives inside copilot_task.md, so
+    # The full analysis/fix/review/test workflow lives inside agent_task.md, so
     # the standalone per-phase prompt files are intentionally not generated.
     branch = branch_name(issue_key, summary)
     return {
-        "copilot_task.md": _copilot_task(issue_key, branch, hint, jira_comment),
-        "copilot_handoff.md": _copilot_handoff(issue_key, jira_comment),
-        "copilot_team_instructions.md": copilot_team_instructions(),
+        "agent_task.md": _copilot_task(issue_key, branch, hint, jira_comment),
+        "agent_handoff.md": _copilot_handoff(issue_key, jira_comment),
+        "agent_team_instructions.md": copilot_team_instructions(),
     }
 
 
@@ -32,14 +32,14 @@ def generate_copilot_task_files(
 ) -> dict[str, str]:
     branch = branch_name(issue_key, summary)
     return {
-        "copilot_task.md": _copilot_task(issue_key, branch, hint, jira_comment),
-        "copilot_handoff.md": _copilot_handoff(issue_key, jira_comment),
-        "copilot_team_instructions.md": copilot_team_instructions(),
+        "agent_task.md": _copilot_task(issue_key, branch, hint, jira_comment),
+        "agent_handoff.md": _copilot_handoff(issue_key, jira_comment),
+        "agent_team_instructions.md": copilot_team_instructions(),
     }
 
 
 def copilot_team_instructions() -> str:
-    path = Path(__file__).resolve().parents[2] / "docs" / "copilot_team_instructions.md"
+    path = Path(__file__).resolve().parents[2] / "docs" / "agent_team_instructions.md"
     if path.exists():
         return path.read_text(encoding="utf-8")
     return _fallback_team_instructions()
@@ -82,7 +82,7 @@ def _copilot_task(issue_key: str, branch: str, hint: str | None = None, jira_com
         f"- `.ai/{issue_key}/` files are relative to the target repo root.\n\n"
         "## Team Instructions\n\n"
         "Before editing code, read:\n"
-        f"`.ai/{issue_key}/copilot_team_instructions.md`\n\n"
+        f"`.ai/{issue_key}/agent_team_instructions.md`\n\n"
         "Follow these instructions together with the issue-specific context.\n"
         "- Issue-specific task instructions override general team instructions only when necessary.\n"
         "- Safety rules always apply.\n"
@@ -95,7 +95,7 @@ def _copilot_task(issue_key: str, branch: str, hint: str | None = None, jira_com
         "- Create or switch to the feature branch before editing files.\n\n"
         "## Required Input Files\n\n"
         f"- Read `.ai/{issue_key}/bug_context.md`.\n"
-        f"- Read `.ai/{issue_key}/copilot_team_instructions.md`.\n"
+        f"- Read `.ai/{issue_key}/agent_team_instructions.md`.\n"
         f"- Read and inspect `.ai/{issue_key}/code_search.md` if present.\n"
         f"- Read and inspect `.ai/{issue_key}/related_files.json` if present.\n"
         f"- Read search quality from `.ai/{issue_key}/search_quality.json` if present.\n"
@@ -161,10 +161,10 @@ def _copilot_handoff(issue_key: str, jira_comment: bool = True) -> str:
     )
     return (
         f"# Copilot Handoff: {issue_key}\n\n"
-        f"Read `.ai/{issue_key}/copilot_task.md` and complete the workflow.\n\n"
+        f"Read `.ai/{issue_key}/agent_task.md` and complete the workflow.\n\n"
         "Read these files before editing:\n"
-        f"- `.ai/{issue_key}/copilot_task.md`\n"
-        f"- `.ai/{issue_key}/copilot_team_instructions.md`\n\n"
+        f"- `.ai/{issue_key}/agent_task.md`\n"
+        f"- `.ai/{issue_key}/agent_team_instructions.md`\n\n"
         "## Reminder\n\n"
         "- Run Copilot CLI from the target repo root.\n"
         "- Do not run from the bugpilot tool repo.\n"
@@ -175,7 +175,7 @@ def _copilot_handoff(issue_key: str, jira_comment: bool = True) -> str:
     )
 
 
-# This fallback should mirror docs/copilot_team_instructions.md.
+# This fallback should mirror docs/agent_team_instructions.md.
 def _fallback_team_instructions() -> str:
     return """# Copilot Team Instructions
 

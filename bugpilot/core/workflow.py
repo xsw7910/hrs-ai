@@ -51,7 +51,7 @@ def looks_like_issue_key(value: str) -> bool:
 def run_bug_workflow(
     repo_root: Path,
     issue_key: str,
-    copilot_fix: bool = False,
+    agent_fix: bool = False,
     fresh: bool = True,
     include_memory: bool = False,
     allow_mock: bool = False,
@@ -151,11 +151,11 @@ def run_bug_workflow(
         )
         raise
 
-    _mark_step(repo_root, issue_key, "copilot_fix", "skipped")
-    log(target, "[SKIP] copilot_fix: prepare-only mode")
-    if copilot_fix:
+    _mark_step(repo_root, issue_key, "agent_fix", "skipped")
+    log(target, "[SKIP] agent_fix: prepare-only mode")
+    if agent_fix:
         log(target, "[INFO] Copilot automatic invocation is not enabled, using manual handoff")
-        log(target, f"[INFO] Next Copilot CLI instruction: Read .ai/{issue_key}/copilot_task.md and complete the workflow.")
+        log(target, f"[INFO] Next Copilot CLI instruction: Read .ai/{issue_key}/agent_task.md and complete the workflow.")
     generated = _generated_files(repo_root, issue_key)
     for file_name in generated:
         log(target, f"[GENERATED] {file_name}")
@@ -174,7 +174,7 @@ def run_bug_workflow(
             "context": "pass",
             "prompt": "pass",
             "memory_add": "pass",
-            "copilot_fix": "skipped",
+            "agent_fix": "skipped",
         },
         generated,
         fresh=fresh,
@@ -429,10 +429,10 @@ def copilot_instructions_step(repo_root: Path, issue_key: str) -> Path:
     target = _prepare_issue_dir(repo_root, issue_key)
     log(target, "[START] copilot_instructions")
     try:
-        path = target / "copilot_team_instructions.md"
+        path = target / "agent_team_instructions.md"
         path.write_text(copilot_team_instructions(), encoding="utf-8")
         _mark_step(repo_root, issue_key, "copilot_instructions", "pass")
-        log(target, f"[GENERATED] .ai/{issue_key}/copilot_team_instructions.md")
+        log(target, f"[GENERATED] .ai/{issue_key}/agent_team_instructions.md")
         log(target, "[END] copilot_instructions: pass")
         return path
     except Exception as exc:
@@ -1053,7 +1053,7 @@ def _read_artifact(target: Path, file_name: str) -> str:
 
 
 # Presence of this marker enables the "Report Status to Jira (before commit)"
-# instruction in the generated copilot_task.md / copilot_handoff.md. The default is
+# instruction in the generated agent_task.md / agent_handoff.md. The default is
 # to omit that instruction; the marker is written once (by --jira-comment) and read
 # back by prompt_step / copilot_task_step so the opt-in survives --resume and
 # standalone regeneration.

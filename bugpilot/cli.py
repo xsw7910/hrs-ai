@@ -25,19 +25,19 @@ def build_parser() -> argparse.ArgumentParser:
     setup_parser = subparsers.add_parser("setup", help="Interactively configure BugPilot (Jira email + API token).")
     setup_parser.add_argument("--hide-token", action="store_true", help="Hide the API token while typing (default: shown so you can verify the paste).")
     subparsers.add_parser("doctor", help="Check local environment readiness.")
-    subparsers.add_parser("copilot-check", help="Check Copilot CLI readiness.")
+    subparsers.add_parser("agent-check", help="Check Copilot CLI readiness.")
 
-    for name in ("parse", "keywords", "search", "git-context", "context", "status", "copilot-instructions", "review-package", "delivery-check", "push-plan", "retry-prompt"):
+    for name in ("parse", "keywords", "search", "git-context", "context", "status", "agent-instructions", "review-package", "delivery-check", "push-plan", "retry-prompt"):
         command = subparsers.add_parser(name, help=f"Run the {name} step.")
         command.add_argument("issue_key")
 
-    for name in ("prompt", "copilot-task"):
+    for name in ("prompt", "agent-task"):
         command = subparsers.add_parser(name, help=f"Run the {name} step.")
         command.add_argument("issue_key")
         command.add_argument(
             "--jira-comment",
             action="store_true",
-            help="Include the pre-commit Jira status comment instruction in the generated copilot_task.md (omitted by default).",
+            help="Include the pre-commit Jira status comment instruction in the generated agent_task.md (omitted by default).",
         )
 
     summarize_parser = subparsers.add_parser("summarize-results", help="Summarize Copilot results; optionally post a Jira comment so watchers are notified.")
@@ -103,7 +103,7 @@ def build_parser() -> argparse.ArgumentParser:
     bug_parser = subparsers.add_parser("bug", help="Run prepare-only bug workflow.")
     bug_parser.add_argument("issue_key")
     bug_parser.add_argument(
-        "--copilot-fix",
+        "--agent-fix",
         action="store_true",
         help="Print experimental Copilot invocation guidance after preparation.",
     )
@@ -137,12 +137,12 @@ def build_parser() -> argparse.ArgumentParser:
     bug_parser.add_argument(
         "--hint",
         metavar="TEXT",
-        help="Developer hint (e.g. fix location) injected into copilot_task.md so the agent goes straight to it.",
+        help="Developer hint (e.g. fix location) injected into agent_task.md so the agent goes straight to it.",
     )
     bug_parser.add_argument(
         "--jira-comment",
         action="store_true",
-        help="Include the pre-commit Jira status comment instruction in the generated copilot_task.md (omitted by default).",
+        help="Include the pre-commit Jira status comment instruction in the generated agent_task.md (omitted by default).",
     )
     bug_mock = bug_parser.add_mutually_exclusive_group()
     bug_mock.add_argument("--allow-mock", action="store_true", help="Allow mock/demo fallback when Jira fetch fails.")
@@ -175,7 +175,7 @@ def main(argv: list[str] | None = None) -> int:
         doctor.print_doctor_report(repo_root)
         return 0
 
-    if args.command == "copilot-check":
+    if args.command == "agent-check":
         copilot.print_copilot_check()
         return 0
 
@@ -279,7 +279,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Generated prompts for {args.issue_key}.")
         return 0
 
-    if args.command == "copilot-task":
+    if args.command == "agent-task":
         try:
             workflow.copilot_task_step(repo_root, args.issue_key, jira_comment=args.jira_comment)
         except FileNotFoundError:
@@ -289,7 +289,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Regenerated Copilot task files for {args.issue_key}.")
         return 0
 
-    if args.command == "copilot-instructions":
+    if args.command == "agent-instructions":
         path = workflow.copilot_instructions_step(repo_root, args.issue_key)
         print(f"Generated Copilot team instructions: {path}")
         return 0
@@ -417,7 +417,7 @@ def main(argv: list[str] | None = None) -> int:
             result = workflow.run_bug_workflow(
                 repo_root,
                 args.issue_key,
-                copilot_fix=args.copilot_fix,
+                agent_fix=args.agent_fix,
                 fresh=fresh,
                 include_memory=args.include_memory,
                 allow_mock=_allow_mock(args),
@@ -443,11 +443,11 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Prepared bugpilot workflow package for {args.issue_key}.")
         print(f"Artifacts: .ai/{args.issue_key}")
         # By default an agent (Claude) is launched after preparation. --prepare-only
-        # stops here with artifacts only; --copilot-fix prints legacy guidance instead.
-        if args.prepare_only or args.copilot_fix:
+        # stops here with artifacts only; --agent-fix prints legacy guidance instead.
+        if args.prepare_only or args.agent_fix:
             print("Next manual Copilot CLI instruction:")
-            print(f"  Read .ai/{args.issue_key}/copilot_task.md and complete the workflow.")
-            if args.copilot_fix:
+            print(f"  Read .ai/{args.issue_key}/agent_task.md and complete the workflow.")
+            if args.agent_fix:
                 copilot.print_copilot_check()
                 copilot.print_auto_invocation_not_implemented(args.issue_key)
             return 0
@@ -496,7 +496,7 @@ def _run_agent_after_prepare(repo_root: Path, issue_key: str, agent: str) -> int
     if not result.ran:
         print(f"WARN: could not launch {agent}: {result.skipped_reason}", file=sys.stderr)
         print(f"Open {agent} manually from the target repo root and run:", file=sys.stderr)
-        print(f"  Read .ai/{issue_key}/copilot_task.md and complete the workflow.", file=sys.stderr)
+        print(f"  Read .ai/{issue_key}/agent_task.md and complete the workflow.", file=sys.stderr)
         return 1
     if result.returncode not in (0, None):
         print(f"WARN: {agent} exited with code {result.returncode}.", file=sys.stderr)
@@ -536,7 +536,7 @@ def _print_key_generated_artifacts(repo_root: Path, issue_key: str) -> None:
         "jira_parsed.md",
         "code_search.md",
         "bug_context.md",
-        "copilot_task.md",
+        "agent_task.md",
     ]
     existing = [f".ai/{issue_key}/{file_name}" for file_name in key_files if (repo_root / ".ai" / issue_key / file_name).exists()]
     if not existing:

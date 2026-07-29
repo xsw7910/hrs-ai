@@ -70,15 +70,15 @@ bugpilot bug HR-12345 --claude --hint "Fix in FooWidget.cxx: <root cause / appro
 ```text
 .ai/HR-12345/bug_context.md
 .ai/HR-12345/search_quality.json
-.ai/HR-12345/copilot_task.md
-.ai/HR-12345/copilot_team_instructions.md
-.ai/HR-12345/copilot_handoff.md
+.ai/HR-12345/agent_task.md
+.ai/HR-12345/agent_team_instructions.md
+.ai/HR-12345/agent_handoff.md
 ```
 
 4. Open Copilot CLI from the target repo root and paste:
 
 ```text
-Read .ai/HR-12345/copilot_task.md and complete the workflow.
+Read .ai/HR-12345/agent_task.md and complete the workflow.
 ```
 
 5. After Copilot generates result files, run:

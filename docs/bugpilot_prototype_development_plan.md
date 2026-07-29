@@ -99,7 +99,7 @@ Expected result:
 Optional experimental command:
 
 ```bash
-bugpilot bug HR-12345 --copilot-fix
+bugpilot bug HR-12345 --agent-fix
 ```
 
 Expected behavior:
@@ -108,7 +108,7 @@ Expected behavior:
 1. Run the same preparation workflow.
 2. Try to invoke Copilot CLI if supported.
 3. If automatic invocation fails, fall back to prepare-only mode.
-4. Ask developer to manually run Copilot CLI with .ai/HR-12345/copilot_task.md.
+4. Ask developer to manually run Copilot CLI with .ai/HR-12345/agent_task.md.
 ```
 
 ---
@@ -225,7 +225,7 @@ tools/bugpilot/
       bug_context_template.md
       copilot_task_template.md
       copilot_analysis_prompt.md
-      copilot_fix_prompt.md
+      agent_fix_prompt.md
       review_prompt.md
       test_plan_template.md
       memory_entry_template.md
@@ -265,9 +265,9 @@ For Jira issue `HR-12345`, generate:
     git_context.md
     bug_context.md
 
-    copilot_task.md
+    agent_task.md
     copilot_analysis_prompt.md
-    copilot_fix_prompt.md
+    agent_fix_prompt.md
     review_prompt.md
     test_plan.md
 
@@ -408,7 +408,7 @@ copilot
 Inside Copilot CLI, the developer can then run:
 
 ```text
-Read .ai/HR-12345/copilot_task.md and complete the workflow.
+Read .ai/HR-12345/agent_task.md and complete the workflow.
 ```
 
 ### 11.2 Why Copilot CLI Must Run from the Target Repository
@@ -453,7 +453,7 @@ C:\sandbox\monorepo_qt6\monorepo\.ai_memory\bugs\
 This allows Copilot CLI to read files using relative paths:
 
 ```text
-.ai/HR-12345/copilot_task.md
+.ai/HR-12345/agent_task.md
 .ai/HR-12345/bug_context.md
 .ai/HR-12345/code_search.md
 ```
@@ -543,7 +543,7 @@ Final message should include:
 Next step:
 Open Copilot CLI and run:
 
-Read .ai/HR-12345/copilot_task.md and complete the workflow.
+Read .ai/HR-12345/agent_task.md and complete the workflow.
 ```
 
 ### 11.2 Experimental Copilot Fix Mode
@@ -551,7 +551,7 @@ Read .ai/HR-12345/copilot_task.md and complete the workflow.
 Command:
 
 ```bash
-bugpilot bug HR-12345 --copilot-fix
+bugpilot bug HR-12345 --agent-fix
 ```
 
 Behavior:
@@ -566,19 +566,19 @@ Behavior:
 Important:
 
 ```text
---copilot-fix is experimental until the team validates the exact Copilot CLI invocation method in the company environment.
+--agent-fix is experimental until the team validates the exact Copilot CLI invocation method in the company environment.
 ```
 
 ---
 
 ## 13. Copilot CLI Compatibility Spike
 
-Before relying on `--copilot-fix`, implement and run a small validation command.
+Before relying on `--agent-fix`, implement and run a small validation command.
 
 Command:
 
 ```bash
-bugpilot copilot-check
+bugpilot agent-check
 ```
 
 Purpose:
@@ -610,7 +610,7 @@ Output:
 If unsupported:
 
 ```text
-- Keep bugpilot useful by generating copilot_task.md.
+- Keep bugpilot useful by generating agent_task.md.
 - Ask the developer to manually open Copilot CLI.
 - Do not block the rest of the workflow.
 ```
@@ -693,12 +693,12 @@ Steps:
 [PASS] code_search
 [PASS] context
 [PASS] prompt
-[SKIP] copilot_fix
+[SKIP] agent_fix
 [PASS] memory_add
 
 Generated:
 .ai/HR-12345/bug_context.md
-.ai/HR-12345/copilot_task.md
+.ai/HR-12345/agent_task.md
 ```
 
 ### 13.3 Fetch Jira
@@ -1173,9 +1173,9 @@ Generate prompts for Copilot CLI and review/testing.
 Outputs:
 
 ```text
-.ai/HR-12345/copilot_task.md
+.ai/HR-12345/agent_task.md
 .ai/HR-12345/copilot_analysis_prompt.md
-.ai/HR-12345/copilot_fix_prompt.md
+.ai/HR-12345/agent_fix_prompt.md
 .ai/HR-12345/review_prompt.md
 .ai/HR-12345/test_plan.md
 ```
@@ -1187,7 +1187,7 @@ Outputs:
 The most important file is:
 
 ```text
-.ai/HR-12345/copilot_task.md
+.ai/HR-12345/agent_task.md
 ```
 
 Recommended content:
@@ -1336,7 +1336,7 @@ Do not force checkout or reset.
 Command:
 
 ```bash
-bugpilot bug HR-12345 --copilot-fix
+bugpilot bug HR-12345 --agent-fix
 ```
 
 Implementation:
@@ -1344,7 +1344,7 @@ Implementation:
 ```text
 1. bugpilot prepares context and task prompt.
 2. bugpilot checks whether Copilot CLI automatic invocation is supported.
-3. If supported, Copilot CLI reads copilot_task.md.
+3. If supported, Copilot CLI reads agent_task.md.
 4. Copilot CLI creates branch.
 5. Copilot CLI analyzes issue.
 6. Copilot CLI edits source code.
@@ -1646,12 +1646,12 @@ Each workflow run should write:
     "code_search": "pass",
     "context": "pass",
     "prompt": "pass",
-    "copilot_fix": "skipped",
+    "agent_fix": "skipped",
     "memory_add": "pass"
   },
   "generated_files": [
     ".ai/HR-12345/bug_context.md",
-    ".ai/HR-12345/copilot_task.md",
+    ".ai/HR-12345/agent_task.md",
     ".ai_memory/bugs/HR-12345.md"
   ]
 }
@@ -1691,10 +1691,10 @@ Recommended steps:
 [13/13] Print Copilot CLI next-step instruction
 ```
 
-If using `--copilot-fix`:
+If using `--agent-fix`:
 
 ```text
-Try to invoke Copilot CLI with copilot_task.md.
+Try to invoke Copilot CLI with agent_task.md.
 If invocation fails, fall back to prepare-only instruction.
 ```
 
@@ -1757,7 +1757,7 @@ Validate what the company Copilot CLI can actually do from a script.
 Implement:
 
 ```text
-- bugpilot copilot-check
+- bugpilot agent-check
 - detect copilot command
 - detect gh copilot command
 - test whether markdown task prompt can be passed programmatically
@@ -1767,7 +1767,7 @@ Implement:
 Completion criteria:
 
 ```text
-The team knows whether --copilot-fix can auto-invoke Copilot CLI or must remain prepare-only/manual.
+The team knows whether --agent-fix can auto-invoke Copilot CLI or must remain prepare-only/manual.
 ```
 
 ### Phase 1: End-to-End Prepare-only Skeleton
@@ -1834,16 +1834,16 @@ Let Copilot CLI handle git operations, analysis, and implementation.
 Implement:
 
 ```text
-- copilot_task.md generation
+- agent_task.md generation
 - prepare-only mode as default
-- experimental --copilot-fix mode
+- experimental --agent-fix mode
 - fallback if Copilot CLI invocation fails
 ```
 
 Completion criteria:
 
 ```text
-Copilot CLI can manually or automatically read copilot_task.md, create feature/HR-12345-..., analyze the bug, and implement a small fix.
+Copilot CLI can manually or automatically read agent_task.md, create feature/HR-12345-..., analyze the bug, and implement a small fix.
 ```
 
 ### Phase 4: Test, Diff, Review, Memory Update
@@ -1906,7 +1906,7 @@ This phase is optional and should not be part of the default prototype demo.
 
 ```text
 1. bugpilot doctor
-2. bugpilot copilot-check
+2. bugpilot agent-check
 3. bugpilot fetch HR-12345
 4. bugpilot keywords HR-12345
 5. bugpilot search HR-12345
@@ -1980,8 +1980,8 @@ prepare-only
 .ai/HR-12345/bug_context.md
 .ai/HR-12345/code_search.md
 .ai/HR-12345/memory_search.md
-.ai/HR-12345/copilot_task.md
-.ai/HR-12345/copilot_fix_prompt.md
+.ai/HR-12345/agent_task.md
+.ai/HR-12345/agent_fix_prompt.md
 .ai/HR-12345/review_prompt.md
 .ai/HR-12345/test_plan.md
 .ai_memory/bugs/HR-12345.md
@@ -1990,7 +1990,7 @@ prepare-only
 ### Copilot CLI Instruction
 
 ```text
-Read .ai/HR-12345/copilot_task.md and complete the workflow.
+Read .ai/HR-12345/agent_task.md and complete the workflow.
 ```
 
 ### Expected Branch
@@ -2054,7 +2054,7 @@ bugpilot bug HR-12345
 The most important generated file is:
 
 ```text
-.ai/HR-12345/copilot_task.md
+.ai/HR-12345/agent_task.md
 ```
 
 The expected branch is:
@@ -2063,6 +2063,6 @@ The expected branch is:
 feature/HR-12345-<summary-slug>
 ```
 
-`--copilot-fix` remains experimental until Copilot CLI automatic invocation is validated in the company environment.
+`--agent-fix` remains experimental until Copilot CLI automatic invocation is validated in the company environment.
 
 

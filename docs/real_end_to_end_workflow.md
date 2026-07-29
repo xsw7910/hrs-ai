@@ -44,7 +44,7 @@ Review the generated files:
 .ai/HR-26307/code_search.md
 .ai/HR-26307/search_quality.json
 .ai/HR-26307/bug_context.md
-.ai/HR-26307/copilot_task.md
+.ai/HR-26307/agent_task.md
 ```
 
 Confirm the data source is Jira, the parsed details are useful, and search confidence makes sense before handing work to Copilot.
@@ -60,7 +60,7 @@ copilot
 Paste:
 
 ```text
-Read .ai/HR-26307/copilot_task.md and complete the workflow.
+Read .ai/HR-26307/agent_task.md and complete the workflow.
 ```
 
 Copilot should generate:

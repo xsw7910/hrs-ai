@@ -8,7 +8,7 @@ Run commands from the **target repository root**. Generated files are written un
 bugpilot doctor                       # check environment (Python, git, ripgrep, Jira, Copilot/Claude, email)
 bugpilot jira-validate HR-26307       # confirm Jira fetch + field mapping (real Jira only)
 bugpilot bug HR-26307                 # prepare the AI-ready package (prepare-only)
-#   … run Copilot/Claude on .ai/HR-26307/copilot_task.md, or use `bugpilot bug HR-26307 --claude`
+#   … run Copilot/Claude on .ai/HR-26307/agent_task.md, or use `bugpilot bug HR-26307 --claude`
 bugpilot check-results HR-26307       # confirm the agent wrote its result files
 bugpilot summarize-results HR-26307   # roll results into result_summary.md (+ optional Jira comment)
 bugpilot review-package HR-26307      # generate a final review prompt
@@ -34,14 +34,14 @@ Real Jira is the default for `fetch` and `bug`; mock/demo fallback is disabled u
 | 6 | Search code | `bugpilot search HR-26307` | `code_search.md`, `related_files.json`, `search_quality.json` |
 | 7 | Git context | `bugpilot git-context HR-26307` | `git_context.md` |
 | 8 | Build context | `bugpilot context HR-26307` | `bug_context.md` |
-| 9 | Generate task package | `bugpilot prompt HR-26307` | `copilot_task.md`, `copilot_handoff.md`, `copilot_team_instructions.md` |
+| 9 | Generate task package | `bugpilot prompt HR-26307` | `agent_task.md`, `agent_handoff.md`, `agent_team_instructions.md` |
 | 10 | Add memory entry | `bugpilot memory add HR-26307` | `.ai_memory/bugs/HR-26307.md` |
 
 Each step reads the artifacts written by the previous one, so run them in order the first time. Notes:
 
 - Steps 3, 4, 6, 8 read `jira.json` / `extracted_keywords.json`, so run `fetch` (and `keywords`) first.
 - When you run the full `bugpilot bug`, it also **cleans** old `.ai/<issue>/` artifacts first and **folds** `memory_search.md` and `git_context.md` into `bug_context.md` (then removes those two intermediate files). Running the steps manually keeps them as separate files.
-- `bugpilot copilot-task <ISSUE>` regenerates just the step-9 task package from an existing `bug_context.md`.
+- `bugpilot agent-task <ISSUE>` regenerates just the step-9 task package from an existing `bug_context.md`.
 
 ## Command Reference
 
@@ -51,7 +51,7 @@ Each step reads the artifacts written by the previous one, so run them in order 
 Report Python, git, current directory, git repo status, ripgrep, Jira env vars, Copilot and Claude availability, and email configuration (`email_configured`, `email_graph_configured`).
 Generated files: None. Read-only: Yes. Modifies source: No.
 
-#### `bugpilot copilot-check`
+#### `bugpilot agent-check`
 Report Copilot CLI, GitHub CLI, and Claude availability. Automatic agent invocation is opt-in via `bugpilot bug --claude` / `--copilot`.
 Generated files: None. Read-only: Yes. Modifies source: No.
 
@@ -97,19 +97,19 @@ Generated files: `bug_context.md`. Read-only: writes artifacts only. Modifies so
 
 #### `bugpilot prompt <ISSUE>`
 Generate the Copilot/Claude task package from `bug_context.md`.
-Generated files: `copilot_task.md`, `copilot_handoff.md`, `copilot_team_instructions.md`. Read-only: writes artifacts only. Modifies source: No.
+Generated files: `agent_task.md`, `agent_handoff.md`, `agent_team_instructions.md`. Read-only: writes artifacts only. Modifies source: No.
 
-#### `bugpilot copilot-task <ISSUE>`
+#### `bugpilot agent-task <ISSUE>`
 Regenerate the task package from an existing `bug_context.md` (e.g., after editing context or upgrading templates).
-Generated files: `copilot_task.md`, `copilot_handoff.md`, `copilot_team_instructions.md`. Read-only: writes artifacts only. Modifies source: No.
+Generated files: `agent_task.md`, `agent_handoff.md`, `agent_team_instructions.md`. Read-only: writes artifacts only. Modifies source: No.
 
-#### `bugpilot copilot-instructions <ISSUE>`
-Generate or refresh the per-issue team-rules file (copies `docs/copilot_team_instructions.md`, or a built-in fallback).
-Generated files: `copilot_team_instructions.md`. Read-only: writes artifacts only. Modifies source: No.
+#### `bugpilot agent-instructions <ISSUE>`
+Generate or refresh the per-issue team-rules file (copies `docs/agent_team_instructions.md`, or a built-in fallback).
+Generated files: `agent_team_instructions.md`. Read-only: writes artifacts only. Modifies source: No.
 
 #### `bugpilot bug <ISSUE>`
 Run the main end-to-end **prepare-only** workflow (the 10 steps above): fetch/parse Jira, extract keywords, search memory and code, capture git context, build `bug_context.md`, generate the task package, and write the shared memory entry.
-Generated files (typical): `execution.log`, `workflow_status.json`, `jira.json`, `jira_summary.md`, `jira_parsed.md`, `extracted_keywords.json`, `code_search.md`, `related_files.json`, `search_quality.json`, `bug_context.md`, `copilot_task.md`, `copilot_handoff.md`, `copilot_team_instructions.md`, and `.ai_memory/bugs/<issue>.md`.
+Generated files (typical): `execution.log`, `workflow_status.json`, `jira.json`, `jira_summary.md`, `jira_parsed.md`, `extracted_keywords.json`, `code_search.md`, `related_files.json`, `search_quality.json`, `bug_context.md`, `agent_task.md`, `agent_handoff.md`, `agent_team_instructions.md`, and `.ai_memory/bugs/<issue>.md`.
 Read-only: writes artifacts only. Modifies source: No.
 Defaults: real Jira only, **fresh** run, mock fallback disabled. Old `.ai/<issue>/` artifacts are cleaned first; `.ai_memory/bugs/<issue>.md` is preserved unless `--include-memory`. It does not commit, push, merge, create PRs, update Jira, or invoke an agent unless you ask.
 
@@ -120,13 +120,13 @@ Flags:
 - `--fresh` — clean old `.ai/<issue>/` artifacts before running (default).
 - `--resume` — keep existing `.ai/<issue>/` artifacts and continue. Cannot combine with `--fresh` or `--include-memory`.
 - `--include-memory` — also remove that issue's `.ai_memory/bugs/<issue>.md` before rerunning (fresh mode only).
-- `--hint "TEXT"` — save `developer_hint.md` and inject a **Developer Hint** at the top of `copilot_task.md` so the agent goes straight to the known fix location (also reused on `--resume`). Great for a fast, predictable demo.
+- `--hint "TEXT"` — save `developer_hint.md` and inject a **Developer Hint** at the top of `agent_task.md` so the agent goes straight to the known fix location (also reused on `--resume`). Great for a fast, predictable demo.
 - `--claude` — after preparation, launch **Claude** in the target repo to complete the workflow (see below).
 - `--copilot` — same, but launch **Copilot CLI**.
-- `--copilot-fix` — print experimental Copilot invocation guidance after preparation (does not run an agent).
+- `--agent-fix` — print experimental Copilot invocation guidance after preparation (does not run an agent).
 
 #### `bugpilot bug <ISSUE> --claude` / `--copilot`
-After preparing the package, launch that agent **interactively in the target repo** to read `copilot_task.md` and complete the workflow (analyze → smallest safe fix → result files → one Jira status comment), stopping at the **commit gate** to ask before committing.
+After preparing the package, launch that agent **interactively in the target repo** to read `agent_task.md` and complete the workflow (analyze → smallest safe fix → result files → one Jira status comment), stopping at the **commit gate** to ask before committing.
 Read-only: bugpilot itself writes only artifacts; the launched agent may edit source — review it as third-party code before committing.
 Configure with `HRS_AI_CLAUDE_COMMAND` / `HRS_AI_CLAUDE_ARGS` (default `--permission-mode acceptEdits`) or `HRS_AI_COPILOT_COMMAND` / `HRS_AI_COPILOT_ARGS`. For a fully unattended run set `HRS_AI_CLAUDE_ARGS="--dangerously-skip-permissions"` (understand the risk).
 

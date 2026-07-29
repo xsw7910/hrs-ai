@@ -19,7 +19,7 @@ Code Search + Memory Search + Git Context
 bug_context.md
   |
   v
-copilot_task.md + copilot_handoff.md + copilot_team_instructions.md
+agent_task.md + agent_handoff.md + agent_team_instructions.md
   |
   v
 Copilot CLI manual handoff
@@ -74,7 +74,7 @@ The tool searches source files with ripgrep, ranks related files, assesses searc
 `bug_context.md` combines Jira details, keywords, related files, search quality, snippets, historical issues, and git context into one file for AI-assisted investigation.
 
 ### Copilot Task And Handoff
-`copilot_task.md` gives Copilot CLI strict instructions, required inputs, search-confidence cautions, safety rules, and expected output files. `copilot_team_instructions.md` gives stable team rules for legacy C++/Qt work. `copilot_handoff.md` is the short instruction a developer can paste into Copilot CLI.
+`agent_task.md` gives Copilot CLI strict instructions, required inputs, search-confidence cautions, safety rules, and expected output files. `agent_team_instructions.md` gives stable team rules for legacy C++/Qt work. `agent_handoff.md` is the short instruction a developer can paste into Copilot CLI.
 
 ### Copilot CLI Manual Handoff
 The developer runs Copilot CLI manually from the target repo root. bugpilot does not invoke Copilot automatically. Generated Copilot instructions can optionally ask the developer whether to commit and push after the result files and delivery summary are complete; Copilot may do so only after explicit approval and must never push main/master, force push, commit `.ai/` or `.ai_memory/`, or update Jira.

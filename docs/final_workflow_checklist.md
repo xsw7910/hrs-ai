@@ -22,8 +22,8 @@ Use this checklist before and after a real end-to-end bugpilot workflow.
 ## C. Before Copilot
 
 - [ ] Current branch is not `main` or `master`.
-- [ ] `copilot_task.md` has been reviewed.
-- [ ] `copilot_team_instructions.md` has been reviewed.
+- [ ] `agent_task.md` has been reviewed.
+- [ ] `agent_team_instructions.md` has been reviewed.
 - [ ] Search confidence is understood.
 - [ ] Optional Copilot commit/push will require explicit approval.
 - [ ] Copilot must not commit `.ai/` or `.ai_memory/`.

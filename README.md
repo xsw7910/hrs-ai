@@ -68,7 +68,7 @@ bugpilot HR-12345     # prepare, then launch the agent
 The first run may trip SmartScreen ("Windows protected your PC") because the exe is
 unsigned — choose **More info -> Run anyway**.
 
-Note: the packaged exe can't read `docs/copilot_team_instructions.md` from the repo, so it
+Note: the packaged exe can't read `docs/agent_team_instructions.md` from the repo, so it
 uses the built-in fallback team instructions (same content).
 
 ## Jira Configuration
@@ -210,7 +210,7 @@ Notes:
 
 ## Optional: Let an Agent Complete the Workflow
 By default `bugpilot bug` is prepare-only and prints the manual handoff line. You can
-instead have it launch a coding agent to read `copilot_task.md` and complete the
+instead have it launch a coding agent to read `agent_task.md` and complete the
 workflow (analyze, implement the smallest safe fix, write result files, post one Jira
 status comment) — the agent still stops at the commit gate and asks before committing.
 
@@ -228,7 +228,7 @@ bugpilot bug HR-12345 --claude --hint "Fix in FooWidget.cxx: preserve selection 
 ```
 
 The hint is saved to `.ai/<ISSUE>/developer_hint.md`, injected as a "Developer Hint" section
-at the top of `copilot_task.md`, and reused on `--resume`. copilot_task.md also tells the
+at the top of `agent_task.md`, and reused on `--resume`. agent_task.md also tells the
 agent to investigate inline (Read/Grep/Glob) and not spawn background sub-agents.
 
 The agent runs interactively in the current (target) repo so you can watch it work.
@@ -268,7 +268,7 @@ bugpilot bug HR-12345
 bugpilot status HR-12345
 bugpilot clean HR-12345
 bugpilot bug HR-12345 --resume
-bugpilot copilot-task HR-12345
+bugpilot agent-task HR-12345
 bugpilot check-results HR-12345
 bugpilot summarize-results HR-12345
 bugpilot memory update HR-12345
@@ -285,7 +285,7 @@ bugpilot push-plan HR-12345
 
 ## Main Commands
 - `bugpilot doctor`: report environment, git, ripgrep, Jira env vars, and Copilot CLI availability.
-- `bugpilot copilot-check`: check Copilot and GitHub CLI availability without invoking Copilot.
+- `bugpilot agent-check`: check Copilot and GitHub CLI availability without invoking Copilot.
 - `bugpilot fetch <ISSUE>`: fetch real Jira data and fail clearly if Jira is unavailable.
 - `bugpilot fetch <ISSUE> --allow-mock`: allow clearly marked mock/demo fallback when Jira fetch fails.
 - `bugpilot fetch <ISSUE> --no-mock`: require real Jira data. This is the default.
@@ -298,8 +298,8 @@ bugpilot push-plan HR-12345
 - `bugpilot git-context <ISSUE>`: generate branch, status, and recent file history context.
 - `bugpilot context <ISSUE>`: generate enriched `bug_context.md`.
 - `bugpilot prompt <ISSUE>`: generate Copilot and review prompt files.
-- `bugpilot copilot-task <ISSUE>`: regenerate Copilot task and handoff files from existing context.
-- `bugpilot copilot-instructions <ISSUE>`: regenerate `.ai/<issue>/copilot_team_instructions.md` from the reusable team template.
+- `bugpilot agent-task <ISSUE>`: regenerate Copilot task and handoff files from existing context.
+- `bugpilot agent-instructions <ISSUE>`: regenerate `.ai/<issue>/agent_team_instructions.md` from the reusable team template.
 - `bugpilot check-results <ISSUE>`: check whether Copilot result files exist.
 - `bugpilot check-results <ISSUE> --strict`: return nonzero if required result files are missing.
 - `bugpilot summarize-results <ISSUE>`: generate result summary and manual validation files.
@@ -368,7 +368,7 @@ Key search artifacts include:
 .ai/<issue>/code_search.md
 .ai/<issue>/related_files.json
 .ai/<issue>/search_quality.json
-.ai/<issue>/copilot_team_instructions.md
+.ai/<issue>/agent_team_instructions.md
 .ai/<issue>/jira_comment_draft.md
 ```
 
@@ -381,7 +381,7 @@ These folders belong to the target repository where the command is run.
 
 Reusable team instructions live at:
 ```text
-docs/copilot_team_instructions.md
+docs/agent_team_instructions.md
 ```
 
 Each issue package gets a copy so Copilot CLI can read stable team rules together with the issue-specific task.

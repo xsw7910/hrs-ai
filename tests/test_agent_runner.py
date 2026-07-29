@@ -8,7 +8,7 @@ from bugpilot.cli import main
 from bugpilot.core.agent_runner import AgentRunResult, build_agent_command, run_agent
 from bugpilot.core.config import load_config
 
-HANDOFF = "Read .ai/HR-12345/copilot_task.md and complete the workflow."
+HANDOFF = "Read .ai/HR-12345/agent_task.md and complete the workflow."
 
 
 @pytest.fixture(autouse=True)
@@ -139,4 +139,4 @@ def test_bug_missing_binary_warns(tmp_path, monkeypatch, capsys):
     assert main(["bug", "HR-12345", "--allow-mock"]) == 1
     err = capsys.readouterr().err
     assert "could not launch claude" in err
-    assert "Read .ai/HR-12345/copilot_task.md" in err
+    assert "Read .ai/HR-12345/agent_task.md" in err

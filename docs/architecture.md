@@ -106,15 +106,15 @@ the *outputs* of the other steps, not their code.
 
 | Group | Commands |
 | --- | --- |
-| Full pipeline | `bug` — the **default command**, so `bugpilot HR-123` == `bugpilot bug HR-123`. Prepares, then launches Claude. Flags: `--copilot` (use Copilot) / `--prepare-only` (no agent), `--jira-comment` (add the pre-commit Jira status instruction, off by default), `--resume` / `--fresh`, `--include-memory`, `--hint`, `--allow-mock` / `--no-mock`, and the legacy `--copilot-fix` guidance printer. |
+| Full pipeline | `bug` — the **default command**, so `bugpilot HR-123` == `bugpilot bug HR-123`. Prepares, then launches Claude. Flags: `--copilot` (use Copilot) / `--prepare-only` (no agent), `--jira-comment` (add the pre-commit Jira status instruction, off by default), `--resume` / `--fresh`, `--include-memory`, `--hint`, `--allow-mock` / `--no-mock`, and the legacy `--agent-fix` guidance printer. |
 | Setup | `setup` — interactive first-run config: collects Jira email + API token, validates them, writes `~/.bugpilot/config.toml`. |
 | Jira | `fetch`, `jira-validate`, `jira-comment-draft`, `jira-comment [--execute]` |
-| Individual steps | `parse`, `keywords`, `search`, `git-context`, `context`, `prompt [--jira-comment]`, `copilot-task [--jira-comment]`, `copilot-instructions`, `status`, `review-package` |
+| Individual steps | `parse`, `keywords`, `search`, `git-context`, `context`, `prompt [--jira-comment]`, `agent-task [--jira-comment]`, `agent-instructions`, `status`, `review-package` |
 | Results | `check-results`, `summarize-results [--jira-comment/--no-jira-comment]`, `manual-result [--overwrite]` |
 | Memory | `memory add`, `memory update`, `memory search` |
 | Delivery | `delivery-check`, `commit-plan [--no-email]`, `push-plan` (and `commit` / `push` — placeholders that do **not** actually commit or push; delivery stays manual) |
 | Notify | `notify [--execute]` |
-| Diagnostics / housekeeping | `doctor`, `copilot-check`, `clean [--include-memory]` |
+| Diagnostics / housekeeping | `doctor`, `agent-check`, `clean [--include-memory]` |
 
 Most single-step commands are thin: parse args → call the matching
 `workflow.*_step` → print a result. `bug` is the exception; it calls
@@ -125,7 +125,7 @@ isn't a known subcommand, which is what makes `bugpilot HR-123` work.
 ### 4.2 `workflow.py` — pipeline
 
 `run_bug_workflow(repo_root, issue_key, *, fresh, include_memory, allow_mock,
-copilot_fix, progress, hint, jira_comment)` runs the fresh prepare sequence:
+agent_fix, progress, hint, jira_comment)` runs the fresh prepare sequence:
 
 ```
 clean (if fresh) → doctor → fetch → parse → keywords → memory_search
@@ -160,8 +160,8 @@ The full `command → step function` map:
 | `git-context` | `git_context_step` |
 | `context` | `context_step` |
 | `prompt` | `prompt_step` |
-| `copilot-task` | `copilot_task_step` |
-| `copilot-instructions` | `copilot_instructions_step` |
+| `agent-task` | `copilot_task_step` |
+| `agent-instructions` | `copilot_instructions_step` |
 | `check-results` | `check_results_step` |
 | `summarize-results` | `summarize_results_step` |
 | `review-package` | `review_package_step` |
@@ -279,13 +279,13 @@ parsing goes through `_clean_env` / `_env_int` / `_env_bool` / `_parse_recipient
 
 - **`prompts.py` (~270 lines)** — builds the three handoff files.
   `generate_prompts` / `generate_copilot_task_files` both return
-  `{copilot_task.md, copilot_handoff.md, copilot_team_instructions.md}`.
+  `{agent_task.md, agent_handoff.md, agent_team_instructions.md}`.
   `_copilot_task` is the large template (branch/analysis/implementation/output/
   forbidden sections, plus the optional pre-commit Jira-status block and the
   shared delivery block). The `jira_comment` parameter threads through
   `_copilot_task`, `_copilot_handoff`, and `delivery_instructions_block` to
   include or omit the "Report Status to Jira (before commit)" instruction.
-  `copilot_team_instructions()` loads `docs/copilot_team_instructions.md` or a
+  `copilot_team_instructions()` loads `docs/agent_team_instructions.md` or a
   `_fallback_team_instructions()` mirror.
 - **`delivery_instructions.py` (~50 lines)** — single source of the "Optional
   Assisted Delivery" block: branch-name checks, the forbidden add-list
@@ -348,9 +348,9 @@ Artifacts *are* the interface between steps. Producer → consumer:
 | `search_quality.json` | `code_search_step` | context, copilot_task |
 | `git_context.md` | `git_context_step` | context *(intermediate — dropped)* |
 | `bug_context.md` | `context_step` | copilot_task, memory |
-| `copilot_task.md` / `copilot_handoff.md` / `copilot_team_instructions.md` | `prompt_step` | Copilot/Claude/human |
-| `developer_hint.md` | `--hint` | prompt/copilot-task regeneration |
-| `jira_comment_on.flag` | `--jira-comment` | prompt/copilot-task regeneration |
+| `agent_task.md` / `agent_handoff.md` / `agent_team_instructions.md` | `prompt_step` | Copilot/Claude/human |
+| `developer_hint.md` | `--hint` | prompt/agent-task regeneration |
+| `jira_comment_on.flag` | `--jira-comment` | prompt/agent-task regeneration |
 | `bug_analysis.md`, `fix_summary.md`, `test_result.md`, `diff_summary.md`, `review_notes.md` | Copilot/human/`manual-result` | check-results, summarize, review-package, jira-comment-draft |
 | `user_feedback.md`, `copilot_retry_prompt.md` | `retry_prompt_step` | Copilot (2nd attempt) |
 | `result_summary.md`, `manual_validation.md` | `summarize_results_step` | review-package, email, jira-comment-draft |

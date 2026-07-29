@@ -91,7 +91,7 @@ def test_workflow_status_json_generation(tmp_path):
         "prompt": "pass",
         "copilot_instructions": "skipped",
         "memory_add": "pass",
-        "copilot_fix": "skipped",
+        "agent_fix": "skipped",
         "result_summary": "skipped",
         "manual_validation": "skipped",
         "final_review_prompt": "skipped",
@@ -105,9 +105,9 @@ def test_workflow_status_json_generation(tmp_path):
         "retry_prompt": "skipped",
         "manual_result": "skipped",
     }
-    assert ".ai/HR-12345/copilot_task.md" in status["generated_files"]
-    assert ".ai/HR-12345/copilot_handoff.md" in status["generated_files"]
-    assert ".ai/HR-12345/copilot_team_instructions.md" in status["generated_files"]
+    assert ".ai/HR-12345/agent_task.md" in status["generated_files"]
+    assert ".ai/HR-12345/agent_handoff.md" in status["generated_files"]
+    assert ".ai/HR-12345/agent_team_instructions.md" in status["generated_files"]
     assert ".ai/HR-12345/code_search.md" in status["generated_files"]
     assert ".ai/HR-12345/related_files.json" in status["generated_files"]
     assert ".ai/HR-12345/search_quality.json" in status["generated_files"]
@@ -171,7 +171,7 @@ def test_bug_command_prints_progress_and_key_artifacts(tmp_path, monkeypatch, ca
     assert ".ai/HR-12345/jira_parsed.md" in output
     assert ".ai/HR-12345/code_search.md" in output
     assert ".ai/HR-12345/bug_context.md" in output
-    assert ".ai/HR-12345/copilot_task.md" in output
+    assert ".ai/HR-12345/agent_task.md" in output
     assert "Prepared bugpilot workflow package for HR-12345." in output
     assert "Artifacts: .ai/HR-12345" in output
 
@@ -237,7 +237,7 @@ def test_execution_log_contains_prepare_only_lifecycle(tmp_path, monkeypatch):
     assert "[END] prompt: pass" in log_text
     assert "[START] memory_add" in log_text
     assert "[END] memory_add: pass" in log_text
-    assert "[SKIP] copilot_fix: prepare-only mode" in log_text
+    assert "[SKIP] agent_fix: prepare-only mode" in log_text
     assert "[GENERATED] .ai/HR-12345/code_search.md" in log_text
     assert "[GENERATED] .ai/HR-12345/related_files.json" in log_text
     assert "[GENERATED] .ai/HR-12345/search_quality.json" in log_text
@@ -245,16 +245,16 @@ def test_execution_log_contains_prepare_only_lifecycle(tmp_path, monkeypatch):
     assert "folded into bug_context.md and removed: .ai/HR-12345/git_context.md" in log_text
     assert "[GENERATED] .ai/HR-12345/memory_search.md" not in log_text
     assert "[GENERATED] .ai/HR-12345/git_context.md" not in log_text
-    assert "[GENERATED] .ai/HR-12345/copilot_task.md" in log_text
-    assert "[GENERATED] .ai/HR-12345/copilot_handoff.md" in log_text
-    assert "[GENERATED] .ai/HR-12345/copilot_team_instructions.md" in log_text
+    assert "[GENERATED] .ai/HR-12345/agent_task.md" in log_text
+    assert "[GENERATED] .ai/HR-12345/agent_handoff.md" in log_text
+    assert "[GENERATED] .ai/HR-12345/agent_team_instructions.md" in log_text
     assert "[GENERATED] .ai_memory/bugs/HR-12345.md" in log_text
     assert "[END] workflow: pass" in log_text
 
 
 def test_copilot_task_references_code_search(tmp_path):
     run_bug_workflow(tmp_path, "HR-12345", allow_mock=True)
-    task = (tmp_path / ".ai" / "HR-12345" / "copilot_task.md").read_text()
+    task = (tmp_path / ".ai" / "HR-12345" / "agent_task.md").read_text()
 
     assert "Run Copilot CLI from the target repo root" in task
     assert "Do not run Copilot CLI from the bugpilot tool source directory" in task
@@ -263,7 +263,7 @@ def test_copilot_task_references_code_search(tmp_path):
     assert "Check the current branch before editing" in task
     assert "Create or switch to the feature branch before editing files" in task
     assert ".ai/HR-12345/bug_context.md" in task
-    assert ".ai/HR-12345/copilot_team_instructions.md" in task
+    assert ".ai/HR-12345/agent_team_instructions.md" in task
     assert "Before editing code" in task
     assert "team instructions" in task
     assert ".ai/HR-12345/code_search.md" in task
@@ -301,8 +301,8 @@ def test_copilot_task_references_code_search(tmp_path):
 def test_default_omits_jira_status_section(tmp_path):
     run_bug_workflow(tmp_path, "HR-12345", allow_mock=True)
     issue_dir = tmp_path / ".ai" / "HR-12345"
-    task = (issue_dir / "copilot_task.md").read_text()
-    handoff = (issue_dir / "copilot_handoff.md").read_text()
+    task = (issue_dir / "agent_task.md").read_text()
+    handoff = (issue_dir / "agent_handoff.md").read_text()
 
     # No pre-commit Jira status section, and no marker, by default.
     assert "Report Status to Jira (before commit)" not in task
@@ -317,7 +317,7 @@ def test_default_omits_jira_status_section(tmp_path):
 def test_jira_comment_opt_in_includes_status_section(tmp_path):
     run_bug_workflow(tmp_path, "HR-12345", allow_mock=True, jira_comment=True)
     issue_dir = tmp_path / ".ai" / "HR-12345"
-    task = (issue_dir / "copilot_task.md").read_text()
+    task = (issue_dir / "agent_task.md").read_text()
 
     # --jira-comment adds the pre-commit status section and its commands.
     assert "Report Status to Jira (before commit)" in task
@@ -326,17 +326,17 @@ def test_jira_comment_opt_in_includes_status_section(tmp_path):
     # The marker persists so a standalone regeneration keeps the comment on.
     assert (issue_dir / "jira_comment_on.flag").exists()
     copilot_task_step(tmp_path, "HR-12345")
-    assert "Report Status to Jira (before commit)" in (issue_dir / "copilot_task.md").read_text()
+    assert "Report Status to Jira (before commit)" in (issue_dir / "agent_task.md").read_text()
 
 
 def test_copilot_task_step_jira_comment_flag(tmp_path):
     run_bug_workflow(tmp_path, "HR-12345", allow_mock=True)
     issue_dir = tmp_path / ".ai" / "HR-12345"
-    assert "Report Status to Jira (before commit)" not in (issue_dir / "copilot_task.md").read_text()
+    assert "Report Status to Jira (before commit)" not in (issue_dir / "agent_task.md").read_text()
 
     # Standalone regeneration can turn the status comment on after the fact.
     copilot_task_step(tmp_path, "HR-12345", jira_comment=True)
-    assert "Report Status to Jira (before commit)" in (issue_dir / "copilot_task.md").read_text()
+    assert "Report Status to Jira (before commit)" in (issue_dir / "agent_task.md").read_text()
 
 
 def test_copilot_task_branch_uses_jira_summary_slug(tmp_path):
@@ -355,7 +355,7 @@ def test_copilot_task_branch_uses_jira_summary_slug(tmp_path):
     )
 
     workflow.prompt_step(tmp_path, "HR-26307")
-    task = (issue_dir / "copilot_task.md").read_text(encoding="utf-8")
+    task = (issue_dir / "agent_task.md").read_text(encoding="utf-8")
 
     assert "feature/HR-26307-amplitude-spectrum-min-max-ranges-not-converted-to-db" in task
 
@@ -377,7 +377,7 @@ def test_copilot_task_branch_uses_normalized_summary_fallback(tmp_path):
     )
 
     workflow.prompt_step(tmp_path, "HR-26305")
-    task = (issue_dir / "copilot_task.md").read_text(encoding="utf-8")
+    task = (issue_dir / "agent_task.md").read_text(encoding="utf-8")
 
     assert "feature/HR-26305-import-as-a-user-i-can-import-a-3d-post-stack-vds-file" in task
 
@@ -530,7 +530,7 @@ def test_bug_workflow_generates_phase_2_files_and_enriched_context(tmp_path):
     assert "## Code Search Summary" in context
     assert "## Similar Historical Issues" in context
     assert "## Git Context" in context
-    assert (issue_dir / "copilot_handoff.md").is_file()
+    assert (issue_dir / "agent_handoff.md").is_file()
 
 
 def test_rg_subprocess_uses_utf8_replace_and_include_globs(tmp_path, monkeypatch):
@@ -814,10 +814,10 @@ def test_context_code_search_summary_prefers_related_files_over_warnings():
 
 def test_copilot_handoff_is_generated(tmp_path):
     run_bug_workflow(tmp_path, "HR-12345", allow_mock=True)
-    handoff = (tmp_path / ".ai" / "HR-12345" / "copilot_handoff.md").read_text()
+    handoff = (tmp_path / ".ai" / "HR-12345" / "agent_handoff.md").read_text()
 
-    assert "Read `.ai/HR-12345/copilot_task.md` and complete the workflow." in handoff
-    assert ".ai/HR-12345/copilot_team_instructions.md" in handoff
+    assert "Read `.ai/HR-12345/agent_task.md` and complete the workflow." in handoff
+    assert ".ai/HR-12345/agent_team_instructions.md" in handoff
     assert "Run Copilot CLI from the target repo root" in handoff
     assert "Do not work directly on main/master" in handoff
     assert "Do not commit or push unless the developer explicitly approves" in handoff
@@ -825,7 +825,7 @@ def test_copilot_handoff_is_generated(tmp_path):
 
 
 def test_docs_copilot_team_instructions_exists():
-    path = Path(__file__).resolve().parents[1] / "docs" / "copilot_team_instructions.md"
+    path = Path(__file__).resolve().parents[1] / "docs" / "agent_team_instructions.md"
     assert path.exists()
     text = path.read_text(encoding="utf-8")
 
@@ -852,19 +852,19 @@ def test_copilot_task_command_regenerates_task_files(tmp_path, monkeypatch):
     issue_dir = tmp_path / ".ai" / "HR-12345"
     issue_dir.mkdir(parents=True)
     (issue_dir / "bug_context.md").write_text("# Bug Context\n", encoding="utf-8")
-    (issue_dir / "copilot_task.md").write_text("old", encoding="utf-8")
-    (issue_dir / "copilot_team_instructions.md").write_text("UNIQUE_STALE_TEAM_INSTRUCTIONS", encoding="utf-8")
+    (issue_dir / "agent_task.md").write_text("old", encoding="utf-8")
+    (issue_dir / "agent_team_instructions.md").write_text("UNIQUE_STALE_TEAM_INSTRUCTIONS", encoding="utf-8")
     monkeypatch.chdir(tmp_path)
 
-    assert main(["copilot-task", "HR-12345"]) == 0
+    assert main(["agent-task", "HR-12345"]) == 0
 
-    assert "Copilot CLI Task" in (issue_dir / "copilot_task.md").read_text()
-    assert (issue_dir / "copilot_handoff.md").is_file()
-    assert "UNIQUE_STALE_TEAM_INSTRUCTIONS" not in (issue_dir / "copilot_team_instructions.md").read_text()
-    assert "Copilot Team Instructions" in (issue_dir / "copilot_team_instructions.md").read_text()
+    assert "Copilot CLI Task" in (issue_dir / "agent_task.md").read_text()
+    assert (issue_dir / "agent_handoff.md").is_file()
+    assert "UNIQUE_STALE_TEAM_INSTRUCTIONS" not in (issue_dir / "agent_team_instructions.md").read_text()
+    assert "Copilot Team Instructions" in (issue_dir / "agent_team_instructions.md").read_text()
     # The standalone per-phase prompt files are no longer generated (their content
-    # is contained in copilot_task.md).
-    assert not (issue_dir / "copilot_fix_prompt.md").exists()
+    # is contained in agent_task.md).
+    assert not (issue_dir / "agent_fix_prompt.md").exists()
     assert not (issue_dir / "review_prompt.md").exists()
 
 
@@ -874,7 +874,7 @@ def test_bug_hint_is_injected_into_copilot_task(tmp_path, monkeypatch):
 
     assert main(["bug", "HR-12345", "--allow-mock", "--hint", hint]) == 0
     issue_dir = tmp_path / ".ai" / "HR-12345"
-    task = (issue_dir / "copilot_task.md").read_text(encoding="utf-8")
+    task = (issue_dir / "agent_task.md").read_text(encoding="utf-8")
 
     assert (issue_dir / "developer_hint.md").read_text(encoding="utf-8").strip() == hint
     assert "## Developer Hint" in task
@@ -889,7 +889,7 @@ def test_bug_without_hint_has_no_developer_hint_section(tmp_path, monkeypatch):
     issue_dir = tmp_path / ".ai" / "HR-12345"
 
     assert not (issue_dir / "developer_hint.md").exists()
-    assert "## Developer Hint" not in (issue_dir / "copilot_task.md").read_text(encoding="utf-8")
+    assert "## Developer Hint" not in (issue_dir / "agent_task.md").read_text(encoding="utf-8")
 
 
 def test_bug_hint_persists_across_resume(tmp_path, monkeypatch):
@@ -899,7 +899,7 @@ def test_bug_hint_persists_across_resume(tmp_path, monkeypatch):
     assert main(["bug", "HR-12345", "--allow-mock", "--hint", hint]) == 0
     # Resume without repeating --hint: the stored hint should still apply.
     assert main(["bug", "HR-12345", "--allow-mock", "--resume"]) == 0
-    task = (tmp_path / ".ai" / "HR-12345" / "copilot_task.md").read_text(encoding="utf-8")
+    task = (tmp_path / ".ai" / "HR-12345" / "agent_task.md").read_text(encoding="utf-8")
 
     assert hint in task
 
@@ -907,7 +907,7 @@ def test_bug_hint_persists_across_resume(tmp_path, monkeypatch):
 def test_copilot_task_command_reports_missing_bug_context(tmp_path, monkeypatch, capsys):
     monkeypatch.chdir(tmp_path)
 
-    assert main(["copilot-task", "HR-12345"]) == 1
+    assert main(["agent-task", "HR-12345"]) == 1
     error = capsys.readouterr().err
 
     assert "Missing .ai/HR-12345/bug_context.md." in error
@@ -917,9 +917,9 @@ def test_copilot_task_command_reports_missing_bug_context(tmp_path, monkeypatch,
 def test_copilot_instructions_command_generates_file(tmp_path, monkeypatch, capsys):
     monkeypatch.chdir(tmp_path)
 
-    assert main(["copilot-instructions", "HR-12345"]) == 0
+    assert main(["agent-instructions", "HR-12345"]) == 0
     output = capsys.readouterr().out
-    path = tmp_path / ".ai" / "HR-12345" / "copilot_team_instructions.md"
+    path = tmp_path / ".ai" / "HR-12345" / "agent_team_instructions.md"
     status = json.loads((tmp_path / ".ai" / "HR-12345" / "workflow_status.json").read_text())
     log_text = (tmp_path / ".ai" / "HR-12345" / "execution.log").read_text()
 
@@ -927,9 +927,9 @@ def test_copilot_instructions_command_generates_file(tmp_path, monkeypatch, caps
     assert path.is_file()
     assert "Copilot Team Instructions" in path.read_text(encoding="utf-8")
     assert status["steps"]["copilot_instructions"] == "pass"
-    assert ".ai/HR-12345/copilot_team_instructions.md" in status["generated_files"]
+    assert ".ai/HR-12345/agent_team_instructions.md" in status["generated_files"]
     assert "[START] copilot_instructions" in log_text
-    assert "[GENERATED] .ai/HR-12345/copilot_team_instructions.md" in log_text
+    assert "[GENERATED] .ai/HR-12345/agent_team_instructions.md" in log_text
     assert "[END] copilot_instructions: pass" in log_text
 
 
@@ -937,9 +937,9 @@ def test_copilot_instructions_command_creates_missing_issue_dir(tmp_path, monkey
     monkeypatch.chdir(tmp_path)
     assert not (tmp_path / ".ai" / "HR-12345").exists()
 
-    assert main(["copilot-instructions", "HR-12345"]) == 0
+    assert main(["agent-instructions", "HR-12345"]) == 0
 
-    assert (tmp_path / ".ai" / "HR-12345" / "copilot_team_instructions.md").is_file()
+    assert (tmp_path / ".ai" / "HR-12345" / "agent_team_instructions.md").is_file()
 
 
 def test_check_results_reports_missing_files(tmp_path, monkeypatch, capsys):
@@ -986,19 +986,19 @@ def test_check_results_strict_passes_when_all_files_exist(tmp_path, monkeypatch,
     assert "PASS: all Copilot result files exist." in capsys.readouterr().out
 
 
-def test_bug_copilot_fix_remains_manual_and_safe(tmp_path, monkeypatch, capsys):
+def test_bug_agent_fix_remains_manual_and_safe(tmp_path, monkeypatch, capsys):
     monkeypatch.chdir(tmp_path)
 
-    assert main(["bug", "HR-12345", "--copilot-fix", "--allow-mock"]) == 0
+    assert main(["bug", "HR-12345", "--agent-fix", "--allow-mock"]) == 0
     output = capsys.readouterr().out
     log_text = (tmp_path / ".ai" / "HR-12345" / "execution.log").read_text()
     status = json.loads((tmp_path / ".ai" / "HR-12345" / "workflow_status.json").read_text())
 
     assert "Copilot automatic invocation is not enabled." in output
-    assert "Read .ai/HR-12345/copilot_task.md and complete the workflow." in output
+    assert "Read .ai/HR-12345/agent_task.md and complete the workflow." in output
     assert "[INFO] Copilot automatic invocation is not enabled, using manual handoff" in log_text
-    assert "[INFO] Next Copilot CLI instruction: Read .ai/HR-12345/copilot_task.md and complete the workflow." in log_text
-    assert status["steps"]["copilot_fix"] == "skipped"
+    assert "[INFO] Next Copilot CLI instruction: Read .ai/HR-12345/agent_task.md and complete the workflow." in log_text
+    assert status["steps"]["agent_fix"] == "skipped"
 
 
 def test_summarize_results_generates_summary_and_manual_validation(tmp_path, monkeypatch):
@@ -2019,7 +2019,7 @@ def test_bug_context_includes_comment_and_attachment_signals(tmp_path):
 
 def test_copilot_task_includes_comment_attachment_guidance(tmp_path):
     run_bug_workflow(tmp_path, "HR-12345", allow_mock=True)
-    task = (tmp_path / ".ai" / "HR-12345" / "copilot_task.md").read_text(encoding="utf-8")
+    task = (tmp_path / ".ai" / "HR-12345" / "agent_task.md").read_text(encoding="utf-8")
 
     assert "Read Jira comments in `bug_context.md`" in task
     assert "comments in `bug_context.md` as potentially newer than the original description" in task
@@ -2280,7 +2280,7 @@ def test_bug_context_includes_reproduction_and_missing_info(tmp_path):
 
 def test_copilot_task_includes_jira_parsed_guidance(tmp_path):
     run_bug_workflow(tmp_path, "HR-12345", allow_mock=True)
-    task = (tmp_path / ".ai" / "HR-12345" / "copilot_task.md").read_text(encoding="utf-8")
+    task = (tmp_path / ".ai" / "HR-12345" / "agent_task.md").read_text(encoding="utf-8")
 
     assert "jira_parsed.md" in task
     assert "Do not invent reproduction steps" in task
@@ -2477,7 +2477,7 @@ def test_jira_validate_success_generates_required_files(tmp_path, monkeypatch):
     assert (issue_dir / "jira_field_report.md").is_file()
     # Must NOT generate code search or copilot task
     assert not (issue_dir / "code_search.md").exists()
-    assert not (issue_dir / "copilot_task.md").exists()
+    assert not (issue_dir / "agent_task.md").exists()
 
 
 # F. jira-validate failure path

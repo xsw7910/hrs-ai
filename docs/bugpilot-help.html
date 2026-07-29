@@ -158,7 +158,7 @@
 
   <div class="term"><div class="bar"><span class="d"></span><span class="d"></span><span class="d"></span><span class="path">setup &amp; environment</span><button class="copy">Copy</button></div><pre><span class="p">❯</span> bugpilot setup                        <span class="o"># configure Jira email + token (--hide-token to hide it)</span>
 <span class="p">❯</span> bugpilot doctor                       <span class="o"># check Python, git, ripgrep, Jira, agents, email</span>
-<span class="p">❯</span> bugpilot copilot-check                 <span class="o"># Copilot / Claude / gh availability</span>
+<span class="p">❯</span> bugpilot agent-check                 <span class="o"># Copilot / Claude / gh availability</span>
 <span class="p">❯</span> bugpilot status HR-12345               <span class="o"># step status + generated files for an issue</span></pre></div>
 
   <div class="term"><div class="bar"><span class="d"></span><span class="d"></span><span class="d"></span><span class="path">main workflow</span><button class="copy">Copy</button></div><pre><span class="p">❯</span> bugpilot HR-12345                      <span class="o"># DEFAULT: prepare, then launch Claude</span>
@@ -180,8 +180,8 @@
 <span class="p">❯</span> bugpilot context HR-12345              <span class="o"># build bug_context.md</span></pre></div>
 
   <div class="term"><div class="bar"><span class="d"></span><span class="d"></span><span class="d"></span><span class="path">agent hand-off package</span><button class="copy">Copy</button></div><pre><span class="p">❯</span> bugpilot prompt HR-12345               <span class="o"># regenerate copilot_task / handoff / team_instructions</span>
-<span class="p">❯</span> bugpilot copilot-task HR-12345         <span class="o"># regen task package (--jira-comment to include Jira step)</span>
-<span class="p">❯</span> bugpilot copilot-instructions HR-12345 <span class="o"># refresh per-issue team rules</span></pre></div>
+<span class="p">❯</span> bugpilot agent-task HR-12345         <span class="o"># regen task package (--jira-comment to include Jira step)</span>
+<span class="p">❯</span> bugpilot agent-instructions HR-12345 <span class="o"># refresh per-issue team rules</span></pre></div>
 
   <div class="term"><div class="bar"><span class="d"></span><span class="d"></span><span class="d"></span><span class="path">results &amp; memory</span><button class="copy">Copy</button></div><pre><span class="p">❯</span> bugpilot check-results HR-12345        <span class="o"># verify agent output files (--strict to fail if missing)</span>
 <span class="p">❯</span> bugpilot manual-result HR-12345        <span class="o"># manual-fix templates (--overwrite to replace)</span>
@@ -240,7 +240,7 @@
       <li><b>Jira “not found or not accessible”</b> — the issue key is wrong, or your account can't view that project.
         Open <code>&lt;JIRA_URL&gt;/browse/HR-12345</code> in a browser to confirm.</li>
       <li><b>Fix didn't happen</b> — if you ran <code>--prepare-only</code>, no agent was launched. Re-run without it, or
-        open the agent yourself and paste: <code>Read .ai/HR-12345/copilot_task.md and complete the workflow.</code></li>
+        open the agent yourself and paste: <code>Read .ai/HR-12345/agent_task.md and complete the workflow.</code></li>
     </ul>
   </div>
 

@@ -2,7 +2,7 @@
 
 bugpilot stays prepare-only by default. When the developer passes --claude or
 --copilot to `bugpilot bug`, this module launches that agent interactively in the
-target repo with the standard handoff prompt so it reads copilot_task.md and
+target repo with the standard handoff prompt so it reads agent_task.md and
 completes the workflow (analyze, fix, write result files, post one Jira status
 comment). The agent still stops at the commit gate and asks before committing.
 """
@@ -18,7 +18,7 @@ from pathlib import Path
 
 from .config import AppConfig, load_config
 
-HANDOFF_PROMPT = "Read .ai/{issue_key}/copilot_task.md and complete the workflow."
+HANDOFF_PROMPT = "Read .ai/{issue_key}/agent_task.md and complete the workflow."
 
 
 @dataclass

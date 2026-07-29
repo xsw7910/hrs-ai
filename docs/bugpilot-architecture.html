@@ -187,7 +187,7 @@
         Jira comment stay <strong>opt-in</strong> and explicit.</p>
       <h3>Artifact-first</h3>
       <p>Every stage writes a file you can open and read (<code>bug_context.md</code>, <code>code_search.md</code>,
-        <code>search_quality.json</code>, <code>copilot_task.md</code>, …). The hand-off to an agent is a plain task
+        <code>search_quality.json</code>, <code>agent_task.md</code>, …). The hand-off to an agent is a plain task
         package, not a hidden prompt — reviewable and version-controllable.</p>
       <h3>Agent-agnostic &amp; dependency-light</h3>
       <p>Claude and Copilot consume the same package; nothing is vendor-locked. The runtime uses only the Python
@@ -243,8 +243,8 @@
             <tr><td><span class="m">setup</span></td><td>—</td><td>Interactive first-run config: collect Jira email + token, validate, write <code>~/.bugpilot/config.toml</code>.</td></tr>
             <tr><td><span class="m">fetch</span> · <span class="m">jira-validate</span></td><td><code>--allow-mock</code>/<code>--no-mock</code></td><td>Fetch a Jira issue; validate real field mapping without running code search.</td></tr>
             <tr><td><span class="m">parse</span> · <span class="m">keywords</span> · <span class="m">search</span> · <span class="m">git-context</span> · <span class="m">context</span></td><td>—</td><td>Individual prepare steps, runnable standalone against an existing <code>.ai/&lt;issue&gt;/</code>.</td></tr>
-            <tr><td><span class="m">prompt</span> · <span class="m">copilot-task</span></td><td><code>--jira-comment</code></td><td>(Re)generate the agent hand-off package.</td></tr>
-            <tr><td><span class="m">copilot-instructions</span> · <span class="m">copilot-check</span> · <span class="m">doctor</span></td><td>—</td><td>Emit team instructions; report agent + environment readiness.</td></tr>
+            <tr><td><span class="m">prompt</span> · <span class="m">agent-task</span></td><td><code>--jira-comment</code></td><td>(Re)generate the agent hand-off package.</td></tr>
+            <tr><td><span class="m">agent-instructions</span> · <span class="m">agent-check</span> · <span class="m">doctor</span></td><td>—</td><td>Emit team instructions; report agent + environment readiness.</td></tr>
             <tr><td><span class="m">check-results</span> · <span class="m">summarize-results</span> · <span class="m">manual-result</span></td><td><code>--strict</code> · <code>--jira-comment</code>/<code>--no-jira-comment</code> · <code>--overwrite</code></td><td>Verify agent output files; build the result summary; or seed manual-fix templates.</td></tr>
             <tr><td><span class="m">review-package</span> · <span class="m">retry-prompt</span></td><td>—</td><td>Build the final review prompt; build a second-attempt prompt with developer feedback.</td></tr>
             <tr><td><span class="m">memory add</span> · <span class="m">memory update</span> · <span class="m">memory search</span></td><td>—</td><td>Write, refresh, or keyword-search the shared <code>.ai_memory/bugs/</code> store.</td></tr>
@@ -314,7 +314,7 @@
             <tr><td><span class="m">core/search.py</span></td><td class="loc">530</td><td>ripgrep-based code search with <b>specificity-first</b> ranking (diminishing returns per keyword, phrase/qualified-name weighting, breadth &amp; file-name bonuses), per-file confidence (High/Med/Low), and overall search-quality assessment.</td></tr>
             <tr><td><span class="m">core/memory.py</span></td><td class="loc">124</td><td>Shared markdown memory: build an entry, add/update it, and search by keyword across <code>.ai_memory/bugs/</code>.</td></tr>
             <tr><td><span class="m">core/context.py</span></td><td class="loc">183</td><td>Assemble <code>bug_context.md</code> from Jira, keywords, search, memory, and git; compute a context-quality score.</td></tr>
-            <tr><td><span class="m">core/prompts.py</span></td><td class="loc">270</td><td>Generate the agent hand-off package (<code>copilot_task.md</code>, <code>copilot_handoff.md</code>, <code>copilot_team_instructions.md</code>); inject the optional developer hint and the opt-in (<code>--jira-comment</code>) Jira-comment block.</td></tr>
+            <tr><td><span class="m">core/prompts.py</span></td><td class="loc">270</td><td>Generate the agent hand-off package (<code>agent_task.md</code>, <code>agent_handoff.md</code>, <code>agent_team_instructions.md</code>); inject the optional developer hint and the opt-in (<code>--jira-comment</code>) Jira-comment block.</td></tr>
             <tr><td><span class="m">core/agent_runner.py</span></td><td class="loc">79</td><td>Launch Claude (default) or Copilot: build the command, resolve the executable (Windows <code>.cmd</code> via <code>cmd /c</code>), run it interactively in the repo. Skipped by <code>--prepare-only</code>.</td></tr>
             <tr><td><span class="m">core/email_notify.py</span></td><td class="loc">328</td><td>Build the notification draft and <code>.eml</code>; send via SMTP or Microsoft Graph; gate on config; sanitize the body.</td></tr>
             <tr><td><span class="m">core/copilot.py</span></td><td class="loc">25</td><td>Copilot/Claude availability checks and manual-handoff messaging.</td></tr>
@@ -412,7 +412,7 @@
         to Copilot; <code>--prepare-only</code> launches nothing). <code>agent_runner.py</code> builds the command from
         <code>HRS_AI_CLAUDE_COMMAND</code>/<code>_ARGS</code>, resolves the real executable with <code>shutil.which</code>
         (wrapping Windows <code>.cmd</code> shims through <code>cmd /c</code>), and runs it <strong>interactively in the
-        target repo</strong> so you can watch it. The agent reads <code>copilot_task.md</code>, implements the smallest
+        target repo</strong> so you can watch it. The agent reads <code>agent_task.md</code>, implements the smallest
         safe fix, writes result files, and stops at the commit gate (it posts a Jira status comment only when
         <code>--jira-comment</code> was requested).</p>
       <div class="note warn"><div class="h">Permissions</div><p>Default <code>--permission-mode acceptEdits</code> auto-accepts
@@ -441,7 +441,7 @@
         <dt>developer_hint.md</dt><dd><code>--hint "…"</code> steers the agent straight to a fix location. An explicit hint
           wins; otherwise a hint from a prior run is reused on resume.</dd>
         <dt>jira_comment_on.flag</dt><dd>The pre-commit "Report Status to Jira" block is omitted by default;
-          <code>--jira-comment</code> writes this marker to add it to <code>copilot_task.md</code>. Its presence flips the
+          <code>--jira-comment</code> writes this marker to add it to <code>agent_task.md</code>. Its presence flips the
           generated instructions; <code>--fresh</code> clears it back to the default.</dd>
       </div>
       <p>The same idea drives the intermediate fold: <code>memory_search.md</code> and <code>git_context.md</code> exist
@@ -456,13 +456,13 @@
       <pre>{
   "issue_key": "HR-12345",
   "mode": "prepare-only",
-  "steps": { "doctor": "pass", "fetch": "pass", …, "copilot_fix": "skipped" },
-  "generated_files": ["bug_context.md", "copilot_task.md", …],
+  "steps": { "doctor": "pass", "fetch": "pass", …, "agent_fix": "skipped" },
+  "generated_files": ["bug_context.md", "agent_task.md", …],
   "fresh": true,
   "allow_mock": false
 }</pre>
       <p>The <code>steps</code> map is keyed by every entry in <code>WORKFLOW_STEPS</code>, so status is complete even for
-        phases a given run skipped (e.g. <code>copilot_fix</code> in prepare-only mode). Degradation is graceful: a missing
+        phases a given run skipped (e.g. <code>agent_fix</code> in prepare-only mode). Degradation is graceful: a missing
         <code>rg</code> or <code>git</code> is detected via <code>command_available</code> and the affected step skips with
         a note rather than crashing the run.</p>
     </section>
@@ -495,7 +495,7 @@
             <tr><td><span class="m">extracted_keywords.json</span></td><td>keywords</td><td>High / normal / dropped keywords.</td></tr>
             <tr><td><span class="m">code_search.md</span> · <span class="m">related_files.json</span> · <span class="m">search_quality.json</span></td><td>search</td><td>Matches, ranked files, confidence.</td></tr>
             <tr><td><span class="m">bug_context.md</span></td><td>context</td><td>The aggregated agent input (folds in memory + git).</td></tr>
-            <tr><td><span class="m">copilot_task.md</span> · <span class="m">copilot_handoff.md</span> · <span class="m">copilot_team_instructions.md</span></td><td>prompt</td><td>The agent hand-off package.</td></tr>
+            <tr><td><span class="m">agent_task.md</span> · <span class="m">agent_handoff.md</span> · <span class="m">agent_team_instructions.md</span></td><td>prompt</td><td>The agent hand-off package.</td></tr>
             <tr><td><span class="m">developer_hint.md</span> · <span class="m">jira_comment_on.flag</span></td><td>--hint / --jira-comment</td><td>Persisted per-run choices that survive <code>--resume</code>.</td></tr>
             <tr><td><span class="m">.ai_memory/bugs/&lt;issue&gt;.md</span></td><td>memory add</td><td>Shared, long-lived memory entry.</td></tr>
           </tbody>

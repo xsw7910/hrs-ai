@@ -10,7 +10,7 @@ from .git_ops import command_available
 
 def print_copilot_check() -> None:
     config = load_config(Path.cwd())
-    print("bugpilot copilot-check")
+    print("bugpilot agent-check")
     print(f"copilot_command: {config.copilot_command}")
     print(f"copilot_available: {command_available(config.copilot_command)}")
     print(f"gh_available: {command_available('gh')}")
@@ -22,4 +22,4 @@ def print_copilot_check() -> None:
 def print_auto_invocation_not_implemented(issue_key: str) -> None:
     print("Copilot automatic invocation is not enabled.")
     print("Open Copilot CLI from the target repo root and run:")
-    print(f"Read .ai/{issue_key}/copilot_task.md and complete the workflow.")
+    print(f"Read .ai/{issue_key}/agent_task.md and complete the workflow.")
