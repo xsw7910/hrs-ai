@@ -75,13 +75,13 @@ bugpilot bug HR-12345 --claude --hint "Fix in FooWidget.cxx: <root cause / appro
 .ai/HR-12345/agent_handoff.md
 ```
 
-4. Open Copilot CLI from the target repo root and paste:
+4. Open your AI agent from the target repo root and paste:
 
 ```text
 Read .ai/HR-12345/agent_task.md and complete the workflow.
 ```
 
-5. After Copilot generates result files, run:
+5. After the agent generates result files, run:
 
 ```powershell
 bugpilot check-results HR-12345
@@ -119,8 +119,8 @@ Show how the memory entry preserves Jira context, code search context, related f
 ## Demo Talking Points
 - bugpilot is a deterministic context builder.
 - Search confidence makes noisy matches and false positives explicit.
-- Team instructions give Copilot stable legacy C++/Qt engineering rules.
-- Copilot does the AI coding work through a manual handoff.
+- Team instructions give the agent stable legacy C++/Qt engineering rules.
+- The AI agent does the coding work through a manual handoff.
 - Safety gates keep the developer in control.
 - Shared AI memory keeps investigation history reusable.
 - There is no automatic commit, push, merge, PR creation, or Jira write-back.

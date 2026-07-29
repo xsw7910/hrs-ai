@@ -154,8 +154,8 @@ def run_bug_workflow(
     _mark_step(repo_root, issue_key, "agent_fix", "skipped")
     log(target, "[SKIP] agent_fix: prepare-only mode")
     if agent_fix:
-        log(target, "[INFO] Copilot automatic invocation is not enabled, using manual handoff")
-        log(target, f"[INFO] Next Copilot CLI instruction: Read .ai/{issue_key}/agent_task.md and complete the workflow.")
+        log(target, "[INFO] Agent automatic invocation is not enabled, using manual handoff")
+        log(target, f"[INFO] Next agent instruction: Read .ai/{issue_key}/agent_task.md and complete the workflow.")
     generated = _generated_files(repo_root, issue_key)
     for file_name in generated:
         log(target, f"[GENERATED] {file_name}")
@@ -431,12 +431,12 @@ def copilot_instructions_step(repo_root: Path, issue_key: str) -> Path:
     try:
         path = target / "agent_team_instructions.md"
         path.write_text(copilot_team_instructions(), encoding="utf-8")
-        _mark_step(repo_root, issue_key, "copilot_instructions", "pass")
+        _mark_step(repo_root, issue_key, "agent_instructions", "pass")
         log(target, f"[GENERATED] .ai/{issue_key}/agent_team_instructions.md")
         log(target, "[END] copilot_instructions: pass")
         return path
     except Exception as exc:
-        _mark_step(repo_root, issue_key, "copilot_instructions", "fail")
+        _mark_step(repo_root, issue_key, "agent_instructions", "fail")
         log(target, f"[ERROR] copilot_instructions: {exc}")
         raise
 
@@ -455,7 +455,7 @@ def check_results_step(repo_root: Path, issue_key: str, strict: bool = False) ->
     log(target, f"[START] check_results{' --strict' if strict else ''}")
     missing = check_result_files(repo_root, issue_key)
     if missing:
-        log(target, f"[WARN] check_results: missing {len(missing)} Copilot result file(s).")
+        log(target, f"[WARN] check_results: missing {len(missing)} agent result file(s).")
         for file_name in missing:
             log(target, f"[WARN] missing result file: {file_name}")
     else:
@@ -679,7 +679,7 @@ def jira_comment_draft_step(repo_root: Path, issue_key: str, strict: bool = Fals
             log(target, f"[ERROR] jira_comment_draft missing required result file: {file_name}")
         _mark_step(repo_root, issue_key, "jira_comment_draft", "fail")
         log(target, "[END] jira_comment_draft: fail")
-        raise ValueError("Missing required Copilot result files: " + ", ".join(missing))
+        raise ValueError("Missing required agent result files: " + ", ".join(missing))
 
     draft = _build_jira_comment_draft(repo_root, issue_key, missing)
     path = target / "jira_comment_draft.md"
@@ -749,10 +749,10 @@ def retry_prompt_step(repo_root: Path, issue_key: str) -> dict[str, Path]:
             feedback_path.write_text(_user_feedback_template(issue_key), encoding="utf-8")
             created_feedback = True
             log(target, f"[GENERATED] .ai/{issue_key}/user_feedback.md")
-        prompt_path = target / "copilot_retry_prompt.md"
+        prompt_path = target / "agent_retry_prompt.md"
         prompt_path.write_text(_build_retry_prompt(repo_root, issue_key), encoding="utf-8")
         _mark_step(repo_root, issue_key, "retry_prompt", "pass")
-        log(target, f"[GENERATED] .ai/{issue_key}/copilot_retry_prompt.md")
+        log(target, f"[GENERATED] .ai/{issue_key}/agent_retry_prompt.md")
         log(target, "[END] retry_prompt: pass")
         result = {"prompt": prompt_path}
         if created_feedback:
@@ -858,7 +858,7 @@ def _build_retry_prompt(repo_root: Path, issue_key: str) -> str:
     feedback = _cap_text(_read_artifact(target, "user_feedback.md") or "No user feedback file found.", 3000)
     previous = _previous_attempt_summary(target)
     return (
-        f"# Copilot Retry Prompt: {issue_key}\n\n"
+        f"# Agent Retry Prompt: {issue_key}\n\n"
         "## Purpose\n\n"
         "The previous attempt did not fully resolve the issue, or the developer wants a second focused attempt.\n\n"
         "## Required Reading\n\n"
@@ -887,8 +887,8 @@ def _build_retry_prompt(repo_root: Path, issue_key: str) -> str:
         f"- .ai/{issue_key}/diff_summary.md\n"
         f"- .ai/{issue_key}/review_notes.md\n\n"
         "## How to Run\n\n"
-        "Run Copilot manually from the target repo root and paste:\n\n"
-        f"Read .ai/{issue_key}/copilot_retry_prompt.md and continue the workflow.\n"
+        "Run your AI agent manually from the target repo root and paste:\n\n"
+        f"Read .ai/{issue_key}/agent_retry_prompt.md and continue the workflow.\n"
     )
 
 
@@ -1008,7 +1008,7 @@ def _jira_comment_post_summary(result: JiraCommentPostResult) -> str:
         "## Timestamp\n\n"
         f"{result.timestamp}\n\n"
         "## Safety Note\n\n"
-        "Only a Jira comment was added. bugpilot did not update Jira fields, transition status, assign the issue, upload attachments, download attachments, modify source code, commit, push, merge, create a PR, or invoke Copilot.\n"
+        "Only a Jira comment was added. bugpilot did not update Jira fields, transition status, assign the issue, upload attachments, download attachments, modify source code, commit, push, merge, create a PR, or invoke an agent.\n"
     )
 
 
@@ -1111,7 +1111,7 @@ def _missing_information_draft(path: Path) -> str:
 
 def _missing_results_markdown(missing_results: list[str]) -> str:
     if not missing_results:
-        return "All expected Copilot result artifacts are present."
+        return "All expected agent result artifacts are present."
     return "\n".join(f"- Missing: {path}" for path in missing_results)
 
 

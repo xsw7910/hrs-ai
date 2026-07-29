@@ -123,7 +123,7 @@ Flags:
 - `--hint "TEXT"` — save `developer_hint.md` and inject a **Developer Hint** at the top of `agent_task.md` so the agent goes straight to the known fix location (also reused on `--resume`). Great for a fast, predictable demo.
 - `--claude` — after preparation, launch **Claude** in the target repo to complete the workflow (see below).
 - `--copilot` — same, but launch **Copilot CLI**.
-- `--agent-fix` — print experimental Copilot invocation guidance after preparation (does not run an agent).
+- `--agent-fix` — print experimental agent invocation guidance after preparation (does not run an agent).
 
 #### `bugpilot bug <ISSUE> --claude` / `--copilot`
 After preparing the package, launch that agent **interactively in the target repo** to read `agent_task.md` and complete the workflow (analyze → smallest safe fix → result files → one Jira status comment), stopping at the **commit gate** to ask before committing.
@@ -180,7 +180,7 @@ Generated files (execute): `jira_comment_post_result.json`, `jira_comment_post_s
 
 #### `bugpilot retry-prompt <ISSUE>`
 Generate a focused second-attempt prompt from local artifacts + developer feedback.
-Generated files: `copilot_retry_prompt.md`; creates `user_feedback.md` if missing. Read-only: writes artifacts only. Modifies source: No.
+Generated files: `agent_retry_prompt.md`; creates `user_feedback.md` if missing. Read-only: writes artifacts only. Modifies source: No.
 Edit `user_feedback.md` with what failed, then re-run to include it.
 
 ### Delivery (all read-only / plans)

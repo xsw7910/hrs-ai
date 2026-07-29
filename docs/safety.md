@@ -11,7 +11,7 @@ bugpilot prepares an AI-ready task package from a Jira bug and then hands it to 
 - `jira-comment` previews by default and posts only when `--execute` is explicitly provided.
 - `summarize-results` does not post to Jira by default. It posts one analysis comment only when opted in — either `--jira-comment` on the command, or the environment variable `HRS_AI_AUTO_JIRA_COMMENT` set to a truthy value. `--no-jira-comment` always wins. This is intended so Jira notifies watchers by email once the fix results are ready, before the developer decides whether to commit.
 - Auto-posting from `summarize-results` adds exactly one Jira comment (same scope limits as `jira-comment --execute`); a Jira/network failure is non-fatal and never fails `summarize-results`.
-- `jira-comment --execute` only adds one Jira comment; it does not update fields, transition status, assign issues, upload attachments, download attachments, call Copilot, or run git commands.
+- `jira-comment --execute` only adds one Jira comment; it does not update fields, transition status, assign issues, upload attachments, download attachments, call an agent, or run git commands.
 - `notify` previews by default (writes `.ai/<issue>/email_draft.md` and a portable `notification.eml`) and sends only when `--execute` is explicitly provided.
 - Automatic sending uses Microsoft Graph when configured, otherwise SMTP; if neither is configured, `notify`/`commit-plan` still succeed and report that no email was sent, and the `.eml` can be sent manually via `scripts/send-via-outlook.ps1` (Outlook).
 - `commit-plan` sends the notification email at the commit gate only when a transport is configured through the environment; `--no-email` suppresses it.
@@ -20,11 +20,11 @@ bugpilot prepares an AI-ready task package from a Jira bug and then hands it to 
 - `bugpilot setup` saves the Jira email and API token to `~/.bugpilot/config.toml` (the API token in plaintext for now, with file permissions tightened to `600` where the OS supports it). Environment variables (`JIRA_BASE_URL` / `JIRA_EMAIL` / `JIRA_TOKEN`) override the file. The fixed company Jira URL is never written to disk. Token storage is behind a seam so it can later move to the Windows Credential Manager.
 - Sending the notification email does not modify source code, Jira, or git state.
 - `retry-prompt` and `manual-result` generate local markdown artifacts only.
-- `retry-prompt` does not call Copilot; the developer runs Copilot manually.
+- `retry-prompt` does not call an agent; the developer runs their agent manually.
 - `manual-result` does not inspect or modify product source code.
-- Generated Copilot instructions may offer optional assisted delivery, but Copilot must ask for explicit approval before any commit or push.
+- Generated agent instructions may offer optional assisted delivery, but the agent must ask for explicit approval before any commit or push.
 - By default the generated `agent_task.md` does NOT instruct the agent to write Jira. Pass `--jira-comment` to `bugpilot` (or `agent-task` / `prompt`) to add an instruction to post one Jira status comment (via `bugpilot jira-comment --execute`) after writing the result files and before commit, so watchers are notified while the developer still controls the commit; the choice is recorded per issue and survives `--resume`.
-- Copilot must never push main/master, force push, commit `.ai/` or `.ai_memory/`, transition Jira, assign Jira, or change Jira fields. The only Jira write the agent may make is the single status comment above, and only when `--jira-comment` was requested.
+- The agent must never push main/master, force push, commit `.ai/` or `.ai_memory/`, transition Jira, assign Jira, or change Jira fields. The only Jira write the agent may make is the single status comment above, and only when `--jira-comment` was requested.
 - bugpilot does not download Jira attachments; it records attachment metadata only.
 - bugpilot does not create pull requests.
 - bugpilot does not merge.
@@ -33,7 +33,7 @@ bugpilot prepares an AI-ready task package from a Jira bug and then hands it to 
 - bugpilot does not run `git push`.
 - Commit and push execute commands are placeholders only in this prototype.
 - Generated artifacts live under `.ai` and `.ai_memory`.
-- The developer reviews context, runs Copilot CLI manually, validates changes, and performs delivery actions manually.
+- The developer reviews context, runs their AI agent manually, validates changes, and performs delivery actions manually.
 - `bugpilot clean <ISSUE>` deletes only `.ai/<issue>/`.
 - `bugpilot clean <ISSUE> --include-memory` also deletes only `.ai_memory/bugs/<issue>.md`.
 - `bugpilot <ISSUE>` performs the same scoped cleanup before running the workflow.
@@ -66,7 +66,7 @@ These paths are relative to the current working directory, which should be the t
 Clean and fresh-run commands validate issue keys and are scoped to those generated artifact paths. They do not delete product source code.
 
 ## Manual Handoff
-Copilot CLI should be run from the target product repository root. The generated `agent_task.md` and `agent_team_instructions.md` instruct Copilot to avoid destructive git commands, avoid unrelated refactoring, preserve legacy C++/Qt patterns, and generate result files before delivery planning.
+The AI agent should be run from the target product repository root. The generated `agent_task.md` and `agent_team_instructions.md` instruct the agent to avoid destructive git commands, avoid unrelated refactoring, preserve legacy C++/Qt patterns, and generate result files before delivery planning.
 
 ## Jira Mock Fallback
 When mock fallback is used, generated Jira artifacts are clearly marked as mock/demo fallback. For real Jira-only preparation (no agent launch), run:

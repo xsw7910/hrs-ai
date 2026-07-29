@@ -1,8 +1,8 @@
-# Copilot Team Instructions
+# Agent Team Instructions
 
 ## Purpose
 
-This document gives Copilot CLI stable team rules for working in a legacy C++/Qt desktop codebase.
+This document gives the AI agent stable team rules for working in a legacy C++/Qt desktop codebase.
 
 ## Core Principles
 
@@ -72,7 +72,7 @@ This document gives Copilot CLI stable team rules for working in a legacy C++/Qt
 
 ## Output Expectations
 
-When completing a bugpilot Copilot task, generate:
+When completing a bugpilot agent task, generate:
 - .ai/<issue>/bug_analysis.md
 - .ai/<issue>/fix_summary.md
 - .ai/<issue>/test_result.md

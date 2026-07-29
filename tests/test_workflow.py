@@ -89,7 +89,7 @@ def test_workflow_status_json_generation(tmp_path):
         "git_context": "pass",
         "context": "pass",
         "prompt": "pass",
-        "copilot_instructions": "skipped",
+        "agent_instructions": "skipped",
         "memory_add": "pass",
         "agent_fix": "skipped",
         "result_summary": "skipped",
@@ -165,7 +165,7 @@ def test_bug_command_prints_progress_and_key_artifacts(tmp_path, monkeypatch, ca
     assert "Searching memory" in output
     assert "Searching codebase" in output
     assert "Building bug context" in output
-    assert "Generating Copilot task package" in output
+    assert "Generating agent task package" in output
     assert "Generated:" in output
     assert ".ai/HR-12345/jira_summary.md" in output
     assert ".ai/HR-12345/jira_parsed.md" in output
@@ -256,8 +256,8 @@ def test_copilot_task_references_code_search(tmp_path):
     run_bug_workflow(tmp_path, "HR-12345", allow_mock=True)
     task = (tmp_path / ".ai" / "HR-12345" / "agent_task.md").read_text()
 
-    assert "Run Copilot CLI from the target repo root" in task
-    assert "Do not run Copilot CLI from the bugpilot tool source directory" in task
+    assert "Run your AI agent from the target repo root" in task
+    assert "Do not run your AI agent from the bugpilot tool source directory" in task
     assert ".ai/HR-12345/` files are relative to the target repo root" in task
     assert "feature/HR-12345-demo-bug-employee-search-returns-stale-results-after" in task
     assert "Check the current branch before editing" in task
@@ -818,7 +818,7 @@ def test_copilot_handoff_is_generated(tmp_path):
 
     assert "Read `.ai/HR-12345/agent_task.md` and complete the workflow." in handoff
     assert ".ai/HR-12345/agent_team_instructions.md" in handoff
-    assert "Run Copilot CLI from the target repo root" in handoff
+    assert "Run your AI agent from the target repo root" in handoff
     assert "Do not work directly on main/master" in handoff
     assert "Do not commit or push unless the developer explicitly approves" in handoff
     assert "Never push main/master" in handoff
@@ -858,10 +858,10 @@ def test_copilot_task_command_regenerates_task_files(tmp_path, monkeypatch):
 
     assert main(["agent-task", "HR-12345"]) == 0
 
-    assert "Copilot CLI Task" in (issue_dir / "agent_task.md").read_text()
+    assert "Agent Task" in (issue_dir / "agent_task.md").read_text()
     assert (issue_dir / "agent_handoff.md").is_file()
     assert "UNIQUE_STALE_TEAM_INSTRUCTIONS" not in (issue_dir / "agent_team_instructions.md").read_text()
-    assert "Copilot Team Instructions" in (issue_dir / "agent_team_instructions.md").read_text()
+    assert "Agent Team Instructions" in (issue_dir / "agent_team_instructions.md").read_text()
     # The standalone per-phase prompt files are no longer generated (their content
     # is contained in agent_task.md).
     assert not (issue_dir / "agent_fix_prompt.md").exists()
@@ -925,8 +925,8 @@ def test_copilot_instructions_command_generates_file(tmp_path, monkeypatch, caps
 
     assert str(path) in output
     assert path.is_file()
-    assert "Copilot Team Instructions" in path.read_text(encoding="utf-8")
-    assert status["steps"]["copilot_instructions"] == "pass"
+    assert "Agent Team Instructions" in path.read_text(encoding="utf-8")
+    assert status["steps"]["agent_instructions"] == "pass"
     assert ".ai/HR-12345/agent_team_instructions.md" in status["generated_files"]
     assert "[START] copilot_instructions" in log_text
     assert "[GENERATED] .ai/HR-12345/agent_team_instructions.md" in log_text
@@ -948,7 +948,7 @@ def test_check_results_reports_missing_files(tmp_path, monkeypatch, capsys):
     assert main(["check-results", "HR-12345"]) == 0
     output = capsys.readouterr().out
 
-    assert "WARN: missing 5 Copilot result file(s)." in output
+    assert "WARN: missing 5 agent result file(s)." in output
     assert ".ai/HR-12345/bug_analysis.md" in output
     assert ".ai/HR-12345/review_notes.md" in output
 
@@ -959,7 +959,7 @@ def test_check_results_strict_missing_files_exits_nonzero(tmp_path, monkeypatch,
     assert main(["check-results", "HR-12345", "--strict"]) == 1
     output = capsys.readouterr().out
 
-    assert "WARN: missing 5 Copilot result file(s)." in output
+    assert "WARN: missing 5 agent result file(s)." in output
 
 
 def test_check_results_passes_when_all_files_exist(tmp_path, monkeypatch, capsys):
@@ -971,7 +971,7 @@ def test_check_results_passes_when_all_files_exist(tmp_path, monkeypatch, capsys
 
     assert main(["check-results", "HR-12345"]) == 0
 
-    assert "PASS: all Copilot result files exist." in capsys.readouterr().out
+    assert "PASS: all agent result files exist." in capsys.readouterr().out
 
 
 def test_check_results_strict_passes_when_all_files_exist(tmp_path, monkeypatch, capsys):
@@ -983,7 +983,7 @@ def test_check_results_strict_passes_when_all_files_exist(tmp_path, monkeypatch,
 
     assert main(["check-results", "HR-12345", "--strict"]) == 0
 
-    assert "PASS: all Copilot result files exist." in capsys.readouterr().out
+    assert "PASS: all agent result files exist." in capsys.readouterr().out
 
 
 def test_bug_agent_fix_remains_manual_and_safe(tmp_path, monkeypatch, capsys):
@@ -994,10 +994,10 @@ def test_bug_agent_fix_remains_manual_and_safe(tmp_path, monkeypatch, capsys):
     log_text = (tmp_path / ".ai" / "HR-12345" / "execution.log").read_text()
     status = json.loads((tmp_path / ".ai" / "HR-12345" / "workflow_status.json").read_text())
 
-    assert "Copilot automatic invocation is not enabled." in output
+    assert "Agent automatic invocation is not enabled." in output
     assert "Read .ai/HR-12345/agent_task.md and complete the workflow." in output
-    assert "[INFO] Copilot automatic invocation is not enabled, using manual handoff" in log_text
-    assert "[INFO] Next Copilot CLI instruction: Read .ai/HR-12345/agent_task.md and complete the workflow." in log_text
+    assert "[INFO] Agent automatic invocation is not enabled, using manual handoff" in log_text
+    assert "[INFO] Next agent instruction: Read .ai/HR-12345/agent_task.md and complete the workflow." in log_text
     assert status["steps"]["agent_fix"] == "skipped"
 
 
@@ -2728,7 +2728,7 @@ def test_jira_comment_draft_strict_fails_when_results_missing(tmp_path, monkeypa
     assert main(["jira-comment-draft", "HR-12345", "--strict"]) == 1
     err = capsys.readouterr().err
 
-    assert "Missing required Copilot result files" in err
+    assert "Missing required agent result files" in err
     assert not (tmp_path / ".ai" / "HR-12345" / "jira_comment_draft.md").exists()
 
 
@@ -3144,10 +3144,10 @@ def test_retry_prompt_creates_user_feedback_template_if_missing(tmp_path, monkey
     assert main(["retry-prompt", "HR-12345"]) == 0
 
     feedback = (issue_dir / "user_feedback.md").read_text(encoding="utf-8")
-    prompt = (issue_dir / "copilot_retry_prompt.md").read_text(encoding="utf-8")
+    prompt = (issue_dir / "agent_retry_prompt.md").read_text(encoding="utf-8")
     assert "# User Feedback: HR-12345" in feedback
     assert "Do not claim tests passed unless they were run." in feedback
-    assert "# Copilot Retry Prompt: HR-12345" in prompt
+    assert "# Agent Retry Prompt: HR-12345" in prompt
     assert ".ai/HR-12345/user_feedback.md" in prompt
 
 
@@ -3157,7 +3157,7 @@ def test_retry_prompt_includes_developer_feedback(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
 
     assert main(["retry-prompt", "HR-12345"]) == 0
-    prompt = (issue_dir / "copilot_retry_prompt.md").read_text(encoding="utf-8")
+    prompt = (issue_dir / "agent_retry_prompt.md").read_text(encoding="utf-8")
 
     assert "The retry must inspect EmployeeSearchModel." in prompt
 
@@ -3167,7 +3167,7 @@ def test_retry_prompt_includes_assisted_delivery_rules(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
 
     assert main(["retry-prompt", "HR-12345"]) == 0
-    prompt = (issue_dir / "copilot_retry_prompt.md").read_text(encoding="utf-8")
+    prompt = (issue_dir / "agent_retry_prompt.md").read_text(encoding="utf-8")
 
     assert "Do you want me to commit and push this branch to origin?" in prompt
     assert "Only if the developer explicitly answers yes" in prompt
@@ -3185,7 +3185,7 @@ def test_retry_prompt_lists_present_and_missing_previous_attempt_files(tmp_path,
     monkeypatch.chdir(tmp_path)
 
     assert main(["retry-prompt", "HR-12345"]) == 0
-    prompt = (issue_dir / "copilot_retry_prompt.md").read_text(encoding="utf-8")
+    prompt = (issue_dir / "agent_retry_prompt.md").read_text(encoding="utf-8")
 
     assert "- .ai/HR-12345/code_search.md" in prompt
     assert "### test_result.md" in prompt
@@ -3263,8 +3263,8 @@ def test_retry_prompt_updates_status_and_log(tmp_path, monkeypatch):
     log_text = (issue_dir / "execution.log").read_text(encoding="utf-8")
 
     assert status["steps"]["retry_prompt"] == "pass"
-    assert ".ai/HR-12345/copilot_retry_prompt.md" in status["generated_files"]
+    assert ".ai/HR-12345/agent_retry_prompt.md" in status["generated_files"]
     assert ".ai/HR-12345/user_feedback.md" in status["generated_files"]
     assert "[START] retry_prompt" in log_text
-    assert "[GENERATED] .ai/HR-12345/copilot_retry_prompt.md" in log_text
+    assert "[GENERATED] .ai/HR-12345/agent_retry_prompt.md" in log_text
     assert "[END] retry_prompt: pass" in log_text

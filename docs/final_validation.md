@@ -40,5 +40,5 @@ Expected outcomes:
 - Memory is preserved unless `--include-memory` is provided.
 - Default real Jira mode fails clearly when Jira fetch fails.
 - `--allow-mock` works without Jira env vars by using clearly marked mock fallback.
-- No automatic Copilot invocation occurs.
+- No automatic agent invocation occurs.
 - No automatic Jira write, commit, push, merge, or PR creation occurs.

@@ -25,7 +25,7 @@ def build_parser() -> argparse.ArgumentParser:
     setup_parser = subparsers.add_parser("setup", help="Interactively configure BugPilot (Jira email + API token).")
     setup_parser.add_argument("--hide-token", action="store_true", help="Hide the API token while typing (default: shown so you can verify the paste).")
     subparsers.add_parser("doctor", help="Check local environment readiness.")
-    subparsers.add_parser("agent-check", help="Check Copilot CLI readiness.")
+    subparsers.add_parser("agent-check", help="Check AI agent readiness.")
 
     for name in ("parse", "keywords", "search", "git-context", "context", "status", "agent-instructions", "review-package", "delivery-check", "push-plan", "retry-prompt"):
         command = subparsers.add_parser(name, help=f"Run the {name} step.")
@@ -40,7 +40,7 @@ def build_parser() -> argparse.ArgumentParser:
             help="Include the pre-commit Jira status comment instruction in the generated agent_task.md (omitted by default).",
         )
 
-    summarize_parser = subparsers.add_parser("summarize-results", help="Summarize Copilot results; optionally post a Jira comment so watchers are notified.")
+    summarize_parser = subparsers.add_parser("summarize-results", help="Summarize agent results; optionally post a Jira comment so watchers are notified.")
     summarize_parser.add_argument("issue_key")
     summarize_jira = summarize_parser.add_mutually_exclusive_group()
     summarize_jira.add_argument("--jira-comment", action="store_true", help="Post the analysis summary as a Jira comment (Jira then notifies watchers by email).")
@@ -65,7 +65,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     jira_comment_parser = subparsers.add_parser("jira-comment-draft", help="Generate a local Jira comment draft from existing bugpilot artifacts.")
     jira_comment_parser.add_argument("issue_key")
-    jira_comment_parser.add_argument("--strict", action="store_true", help="Fail if Copilot result artifacts are missing.")
+    jira_comment_parser.add_argument("--strict", action="store_true", help="Fail if agent result artifacts are missing.")
 
     jira_post_parser = subparsers.add_parser("jira-comment", help="Preview or explicitly post a Jira comment draft.")
     jira_post_parser.add_argument("issue_key")
@@ -83,7 +83,7 @@ def build_parser() -> argparse.ArgumentParser:
     push_parser.add_argument("issue_key")
     push_parser.add_argument("--execute", action="store_true", help="Placeholder only; execution is disabled.")
 
-    check_parser = subparsers.add_parser("check-results", help="Check Copilot result files.")
+    check_parser = subparsers.add_parser("check-results", help="Check agent result files.")
     check_parser.add_argument("issue_key")
     check_parser.add_argument("--strict", action="store_true", help="Exit non-zero when result files are missing.")
 
@@ -105,7 +105,7 @@ def build_parser() -> argparse.ArgumentParser:
     bug_parser.add_argument(
         "--agent-fix",
         action="store_true",
-        help="Print experimental Copilot invocation guidance after preparation.",
+        help="Print experimental agent invocation guidance after preparation.",
     )
     bug_run = bug_parser.add_mutually_exclusive_group()
     bug_run.add_argument(
@@ -286,12 +286,12 @@ def main(argv: list[str] | None = None) -> int:
             print(f"Missing .ai/{args.issue_key}/bug_context.md.", file=sys.stderr)
             print(f"Run: bugpilot bug {args.issue_key}", file=sys.stderr)
             return 1
-        print(f"Regenerated Copilot task files for {args.issue_key}.")
+        print(f"Regenerated agent task files for {args.issue_key}.")
         return 0
 
     if args.command == "agent-instructions":
         path = workflow.copilot_instructions_step(repo_root, args.issue_key)
-        print(f"Generated Copilot team instructions: {path}")
+        print(f"Generated agent team instructions: {path}")
         return 0
 
     if args.command == "retry-prompt":
@@ -303,18 +303,18 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Generated retry prompt: {result['prompt']}")
         if "user_feedback" in result:
             print(f"Generated user feedback template: {result['user_feedback']}")
-        print(f"Next manual Copilot CLI instruction: Read .ai/{args.issue_key}/copilot_retry_prompt.md and continue the workflow.")
+        print(f"Next manual agent instruction: Read .ai/{args.issue_key}/agent_retry_prompt.md and continue the workflow.")
         return 0
 
     if args.command == "check-results":
         missing = workflow.check_results_step(repo_root, args.issue_key, strict=args.strict)
         if missing:
-            print(f"WARN: missing {len(missing)} Copilot result file(s).")
+            print(f"WARN: missing {len(missing)} agent result file(s).")
             for file_name in missing:
                 print(f"  {file_name}")
             return 1 if args.strict else 0
         else:
-            print("PASS: all Copilot result files exist.")
+            print("PASS: all agent result files exist.")
         return 0
 
     if args.command == "manual-result":
@@ -445,7 +445,7 @@ def main(argv: list[str] | None = None) -> int:
         # By default an agent (Claude) is launched after preparation. --prepare-only
         # stops here with artifacts only; --agent-fix prints legacy guidance instead.
         if args.prepare_only or args.agent_fix:
-            print("Next manual Copilot CLI instruction:")
+            print("Next manual agent instruction:")
             print(f"  Read .ai/{args.issue_key}/agent_task.md and complete the workflow.")
             if args.agent_fix:
                 copilot.print_copilot_check()
@@ -514,7 +514,7 @@ def _bug_progress_printer(issue_key: str):
         "code_search": "[6/9] Searching codebase...",
         "git_context": "[7/9] Collecting git context...",
         "context": "[8/9] Building bug context...",
-        "prompt": "[9/9] Generating Copilot task package...",
+        "prompt": "[9/9] Generating agent task package...",
     }
 
     def print_progress(event: str) -> None:

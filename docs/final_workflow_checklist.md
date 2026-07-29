@@ -19,20 +19,20 @@ Use this checklist before and after a real end-to-end bugpilot workflow.
 - [ ] `code_search.md` references product code.
 - [ ] `search_quality.json` has been reviewed.
 
-## C. Before Copilot
+## C. Before the agent
 
 - [ ] Current branch is not `main` or `master`.
 - [ ] `agent_task.md` has been reviewed.
 - [ ] `agent_team_instructions.md` has been reviewed.
 - [ ] Search confidence is understood.
-- [ ] Optional Copilot commit/push will require explicit approval.
-- [ ] Copilot must not commit `.ai/` or `.ai_memory/`.
-- [ ] Copilot must not push `main`/`master` or force push.
+- [ ] Optional agent commit/push will require explicit approval.
+- [ ] The agent must not commit `.ai/` or `.ai_memory/`.
+- [ ] The agent must not push `main`/`master` or force push.
 
 ## C2. Retry Or Manual Fix
 
-- [ ] If retrying Copilot, `user_feedback.md` describes what failed or needs correction.
-- [ ] If retrying Copilot, `copilot_retry_prompt.md` has been generated and reviewed.
+- [ ] If retrying the agent, `user_feedback.md` describes what failed or needs correction.
+- [ ] If retrying the agent, `agent_retry_prompt.md` has been generated and reviewed.
 - [ ] If the developer fixed the issue manually, `manual-result` templates have been filled in.
 - [ ] Existing result files were not overwritten unless `--overwrite` was intentional.
 

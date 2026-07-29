@@ -351,8 +351,8 @@ Artifacts *are* the interface between steps. Producer → consumer:
 | `agent_task.md` / `agent_handoff.md` / `agent_team_instructions.md` | `prompt_step` | Copilot/Claude/human |
 | `developer_hint.md` | `--hint` | prompt/agent-task regeneration |
 | `jira_comment_on.flag` | `--jira-comment` | prompt/agent-task regeneration |
-| `bug_analysis.md`, `fix_summary.md`, `test_result.md`, `diff_summary.md`, `review_notes.md` | Copilot/human/`manual-result` | check-results, summarize, review-package, jira-comment-draft |
-| `user_feedback.md`, `copilot_retry_prompt.md` | `retry_prompt_step` | Copilot (2nd attempt) |
+| `bug_analysis.md`, `fix_summary.md`, `test_result.md`, `diff_summary.md`, `review_notes.md` | agent/human/`manual-result` | check-results, summarize, review-package, jira-comment-draft |
+| `user_feedback.md`, `agent_retry_prompt.md` | `retry_prompt_step` | agent (2nd attempt) |
 | `result_summary.md`, `manual_validation.md` | `summarize_results_step` | review-package, email, jira-comment-draft |
 | `jira_comment_draft.md` | `jira_comment_draft_step` | jira-comment |
 | `jira_comment_post_result.json`, `jira_comment_post_summary.md` | `jira_comment_step --execute` | (audit) |

@@ -8,7 +8,7 @@ The goal of this prototype is to demonstrate an end-to-end workflow that connect
 
 ```text
 Jira issue → code search → shared AI memory search → AI-ready context →
-Copilot CLI task → git branch → bug analysis → code fix → test/review notes →
+The AI agent task → git branch → bug analysis → code fix → test/review notes →
 shared AI memory update
 ```
 
@@ -89,11 +89,11 @@ Expected result:
 3. Search related code.
 4. Search shared AI memory.
 5. Build AI-ready bug context.
-6. Generate Copilot CLI task prompt.
+6. Generate the AI agent task prompt.
 7. Generate analysis/fix/review/test prompts.
 8. Save workflow status and execution log.
 9. Save investigation result to shared AI memory.
-10. Print the next Copilot CLI instruction for the developer.
+10. Print the next agent instruction for the developer.
 ```
 
 Optional experimental command:
@@ -106,9 +106,9 @@ Expected behavior:
 
 ```text
 1. Run the same preparation workflow.
-2. Try to invoke Copilot CLI if supported.
+2. Try to invoke an agent CLI if supported.
 3. If automatic invocation fails, fall back to prepare-only mode.
-4. Ask developer to manually run Copilot CLI with .ai/HR-12345/agent_task.md.
+4. Ask developer to manually run the AI agent with .ai/HR-12345/agent_task.md.
 ```
 
 ---
@@ -131,7 +131,7 @@ bugpilot responsibilities:
 - workflow status tracking
 - memory storage
 
-Copilot CLI responsibilities:
+The AI agent responsibilities:
 - git status inspection
 - branch creation or branch switching
 - bug analysis
@@ -143,7 +143,7 @@ Copilot CLI responsibilities:
 - review notes generation
 ```
 
-This keeps `bugpilot` predictable and auditable while allowing Copilot CLI to perform AI coding tasks.
+This keeps `bugpilot` predictable and auditable while allowing the AI agent to perform AI coding tasks.
 
 ---
 
@@ -177,7 +177,7 @@ bugpilot CLI
    |     Build bug_context.md with context quality score
    |
    |-- Prompt Builder
-   |     Build Copilot CLI task prompt and review/test prompts
+   |     Build agent task prompt and review/test prompts
    |
    |-- Workflow Logger
    |     Write execution.log and workflow_status.json
@@ -185,8 +185,8 @@ bugpilot CLI
    |-- Memory Store
    |     Save bug investigation to shared markdown memory
    |
-   |-- Optional Copilot Runner
-         Try to invoke Copilot CLI, otherwise fall back to prepare-only
+   |-- Optional Agent Runner
+         Try to invoke an agent CLI, otherwise fall back to prepare-only
 ```
 
 ---
@@ -381,7 +381,7 @@ memory:
 
 `bugpilot` and GitHub Copilot CLI should be run from the **target repository root directory**, not from the `bugpilot` tool source directory.
 
-This is important because both `bugpilot` and Copilot CLI need to operate against the repository being analyzed and modified.
+This is important because both `bugpilot` and the AI agent need to operate against the repository being analyzed and modified.
 
 ### 11.1 Recommended Directory Layout
 
@@ -405,24 +405,24 @@ bugpilot bug HR-12345
 copilot
 ```
 
-Inside Copilot CLI, the developer can then run:
+Inside the AI agent, the developer can then run:
 
 ```text
 Read .ai/HR-12345/agent_task.md and complete the workflow.
 ```
 
-### 11.2 Why Copilot CLI Must Run from the Target Repository
+### 11.2 Why Your AI Agent Must Run from the Target Repository
 
-Copilot CLI uses the current working directory as its project context.
+The AI agent uses the current working directory as its project context.
 
-If Copilot CLI is run from the `bugpilot` tool directory:
+If the AI agent is run from the `bugpilot` tool directory:
 
 ```powershell
 cd C:\tools\bugpilot
 copilot
 ```
 
-then Copilot will see and operate on the `bugpilot` tool code, not the target product repository.
+then the agent will see and operate on the `bugpilot` tool code, not the target product repository.
 
 This may cause incorrect behavior such as:
 
@@ -450,7 +450,7 @@ C:\sandbox\monorepo_qt6\monorepo\.ai\HR-12345\
 C:\sandbox\monorepo_qt6\monorepo\.ai_memory\bugs\
 ```
 
-This allows Copilot CLI to read files using relative paths:
+This allows the AI agent to read files using relative paths:
 
 ```text
 .ai/HR-12345/agent_task.md
@@ -499,13 +499,13 @@ bugpilot source code location:
 bugpilot execution location:
 - target repository root
 
-Copilot CLI execution location:
+The AI agent execution location:
 - target repository root
 
 .ai output location:
 - target repository root
 
-source code modified by Copilot:
+source code modified by the agent:
 - target repository
 ```
 
@@ -530,23 +530,23 @@ This mode:
 
 ```text
 - generates all Jira/code/memory/context/prompt artifacts
-- does not automatically invoke Copilot CLI
+- does not automatically invoke an agent CLI
 - does not modify source code
 - does not create commit
 - does not push
-- prints clear next-step instructions for Copilot CLI
+- prints clear next-step instructions for the agent
 ```
 
 Final message should include:
 
 ```text
 Next step:
-Open Copilot CLI and run:
+Open the AI agent and run:
 
 Read .ai/HR-12345/agent_task.md and complete the workflow.
 ```
 
-### 11.2 Experimental Copilot Fix Mode
+### 11.2 Experimental Agent Fix Mode
 
 Command:
 
@@ -558,8 +558,8 @@ Behavior:
 
 ```text
 - runs the preparation workflow first
-- tries to invoke Copilot CLI only if the local Copilot command supports it
-- writes Copilot output to .ai/HR-12345/copilot_output.md
+- tries to invoke an agent CLI only if the local Copilot command supports it
+- writes agent output to .ai/HR-12345/copilot_output.md
 - falls back to prepare-only mode if invocation fails
 ```
 
@@ -611,7 +611,7 @@ If unsupported:
 
 ```text
 - Keep bugpilot useful by generating agent_task.md.
-- Ask the developer to manually open Copilot CLI.
+- Ask the developer to manually open their AI agent.
 - Do not block the rest of the workflow.
 ```
 
@@ -641,7 +641,7 @@ Checks:
 - current directory is a git repo
 - Jira environment variables exist
 - Jira base URL is reachable if possible
-- Copilot CLI is available
+- The AI agent is available
 - current branch
 - working tree status
 - configured paths exist
@@ -962,7 +962,7 @@ Outputs:
 Important:
 
 ```text
-code_search.md must include enough file path and line-number information for Copilot CLI to inspect the correct files.
+code_search.md must include enough file path and line-number information for the agent to inspect the correct files.
 ```
 
 ### 13.8 Related File Ranking
@@ -1047,7 +1047,7 @@ bugpilot git-context HR-12345
 Purpose:
 
 ```text
-Collect useful git context before asking Copilot to work.
+Collect useful git context before asking the agent to work.
 ```
 
 Collect:
@@ -1075,7 +1075,7 @@ bugpilot context HR-12345
 Purpose:
 
 ```text
-Build a single AI-ready context file for Copilot CLI.
+Build a single AI-ready context file for the AI agent.
 ```
 
 Inputs:
@@ -1158,7 +1158,7 @@ Context risks:
 ...
 ```
 
-### 13.12 Generate Copilot Task and Prompts
+### 13.12 Generate Agent Task and Prompts
 
 ```bash
 bugpilot prompt HR-12345
@@ -1167,7 +1167,7 @@ bugpilot prompt HR-12345
 Purpose:
 
 ```text
-Generate prompts for Copilot CLI and review/testing.
+Generate prompts for the AI agent and review/testing.
 ```
 
 Outputs:
@@ -1182,7 +1182,7 @@ Outputs:
 
 ---
 
-## 15. Copilot CLI Task Design
+## 15. Agent Task Design
 
 The most important file is:
 
@@ -1193,7 +1193,7 @@ The most important file is:
 Recommended content:
 
 ```markdown
-# Copilot CLI Task
+# Agent Task
 
 You are an expert in legacy C++/Qt desktop application development.
 
@@ -1261,9 +1261,9 @@ Please summarize:
 
 ---
 
-## 16. Copilot CLI Responsibilities
+## 16. The AI agent Responsibilities
 
-Copilot CLI should be responsible for:
+The AI agent should be responsible for:
 
 ```text
 - git status
@@ -1278,7 +1278,7 @@ Copilot CLI should be responsible for:
 - generating review notes
 ```
 
-Copilot CLI should not do by default:
+The AI agent should not do by default:
 
 ```text
 - merge branch
@@ -1344,16 +1344,16 @@ Implementation:
 ```text
 1. bugpilot prepares context and task prompt.
 2. bugpilot checks whether Copilot CLI automatic invocation is supported.
-3. If supported, Copilot CLI reads agent_task.md.
-4. Copilot CLI creates branch.
-5. Copilot CLI analyzes issue.
-6. Copilot CLI edits source code.
-7. Copilot CLI runs tests if available.
-8. Copilot CLI writes summary files.
-9. If unsupported, bugpilot prints manual Copilot CLI instructions.
+3. If supported, the AI agent reads agent_task.md.
+4. The AI agent creates branch.
+5. The AI agent analyzes issue.
+6. The AI agent edits source code.
+7. The AI agent runs tests if available.
+8. The AI agent writes summary files.
+9. If unsupported, bugpilot prints manual agent instructions.
 ```
 
-Generated files after Copilot fix:
+Generated files after the agent fix:
 
 ```text
 .ai/HR-12345/bug_analysis.md
@@ -1433,7 +1433,7 @@ bugpilot diff HR-12345
 Purpose:
 
 ```text
-Summarize current git diff after Copilot changes.
+Summarize current git diff after the agent changes.
 ```
 
 Run:
@@ -1685,16 +1685,16 @@ Recommended steps:
 [7/13] Rank related files
 [8/13] Collect git context
 [9/13] Build bug context
-[10/13] Generate Copilot prompts
+[10/13] Generate agent prompts
 [11/13] Generate test plan
 [12/13] Save memory entry
-[13/13] Print Copilot CLI next-step instruction
+[13/13] Print agent next-step instruction
 ```
 
 If using `--agent-fix`:
 
 ```text
-Try to invoke Copilot CLI with agent_task.md.
+Try to invoke an agent CLI with agent_task.md.
 If invocation fails, fall back to prepare-only instruction.
 ```
 
@@ -1714,7 +1714,7 @@ If invocation fails, fall back to prepare-only instruction.
 - Do not merge.
 ```
 
-### 24.2 Copilot Safety
+### 24.2 Agent Safety
 
 ```text
 - Keep fixes small and targeted.
@@ -1767,7 +1767,7 @@ Implement:
 Completion criteria:
 
 ```text
-The team knows whether --agent-fix can auto-invoke Copilot CLI or must remain prepare-only/manual.
+The team knows whether --agent-fix can auto-invoke an agent CLI or must remain prepare-only/manual.
 ```
 
 ### Phase 1: End-to-End Prepare-only Skeleton
@@ -1803,7 +1803,7 @@ Running bugpilot bug HR-12345 creates .ai/HR-12345 and .ai_memory/bugs/HR-12345.
 Goal:
 
 ```text
-Make the context useful for Copilot.
+Make the context useful for the agent.
 ```
 
 Implement:
@@ -1823,12 +1823,12 @@ Completion criteria:
 bug_context.md includes Jira summary, context quality, related files, code snippets, and similar historical issues.
 ```
 
-### Phase 3: Copilot CLI Task Workflow
+### Phase 3: Agent Task Workflow
 
 Goal:
 
 ```text
-Let Copilot CLI handle git operations, analysis, and implementation.
+Let the AI agent handle git operations, analysis, and implementation.
 ```
 
 Implement:
@@ -1837,13 +1837,13 @@ Implement:
 - agent_task.md generation
 - prepare-only mode as default
 - experimental --agent-fix mode
-- fallback if Copilot CLI invocation fails
+- fallback if agent invocation fails
 ```
 
 Completion criteria:
 
 ```text
-Copilot CLI can manually or automatically read agent_task.md, create feature/HR-12345-..., analyze the bug, and implement a small fix.
+The AI agent can manually or automatically read agent_task.md, create feature/HR-12345-..., analyze the bug, and implement a small fix.
 ```
 
 ### Phase 4: Test, Diff, Review, Memory Update
@@ -1866,7 +1866,7 @@ Implement:
 Completion criteria:
 
 ```text
-After Copilot fix, bugpilot can generate test/review artifacts and update the shared memory entry.
+After the agent fix, bugpilot can generate test/review artifacts and update the shared memory entry.
 ```
 
 ### Phase 5: Optional Commit and Push
@@ -1987,7 +1987,7 @@ prepare-only
 .ai_memory/bugs/HR-12345.md
 ```
 
-### Copilot CLI Instruction
+### Agent Instruction
 
 ```text
 Read .ai/HR-12345/agent_task.md and complete the workflow.
@@ -2002,7 +2002,7 @@ feature/HR-12345-<summary-slug>
 ### Demo Message
 
 ```text
-This prototype shows how an AI-assisted workflow can turn a Jira issue into a structured development package: code search results, AI-ready context, Copilot CLI task, test plan, review prompt, branch guidance, execution status, and shared AI memory.
+This prototype shows how an AI-assisted workflow can turn a Jira issue into a structured development package: code search results, AI-ready context, the AI agent task, test plan, review prompt, branch guidance, execution status, and shared AI memory.
 ```
 
 ---
@@ -2018,9 +2018,9 @@ The prototype is successful if it can demonstrate:
 4. bugpilot can search related code with strict output limits.
 5. bugpilot can search previous AI memory.
 6. bugpilot can build bug_context.md with context quality score.
-7. bugpilot can generate Copilot CLI task prompt.
+7. bugpilot can generate an agent task prompt.
 8. bugpilot can log execution and show workflow status.
-9. Copilot CLI can use the task prompt manually or automatically to perform git/code/test work.
+9. The AI agent can use the task prompt manually or automatically to perform git/code/test work.
 10. bugpilot can save memory entry for future reuse.
 11. The workflow can guide creation of branch:
     feature/HR-12345-<summary-slug>
@@ -2033,7 +2033,7 @@ The prototype is successful if it can demonstrate:
 The purpose of **bugpilot** is to demonstrate a practical AI-assisted development workflow:
 
 ```text
-Jira issue → context builder → code search → shared memory → Copilot CLI task →
+Jira issue → context builder → code search → shared memory → the AI agent task →
 branch → fix → test/review artifacts → memory update
 ```
 
@@ -2041,7 +2041,7 @@ For this prototype:
 
 ```text
 bugpilot prepares the context.
-Copilot CLI performs git/code/test work.
+The AI agent performs git/code/test work.
 Shared AI memory preserves useful investigation results.
 ```
 

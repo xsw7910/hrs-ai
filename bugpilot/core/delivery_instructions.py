@@ -1,4 +1,4 @@
-"""Shared Copilot assisted delivery instruction text."""
+"""Shared agent assisted delivery instruction text."""
 
 from __future__ import annotations
 

@@ -409,7 +409,7 @@
 
       <h3 id="deep-agent">6.5 Agent invocation</h3>
       <p>After preparation, <code>bugpilot &lt;ISSUE&gt;</code> launches Claude by default (<code>--copilot</code> switches
-        to Copilot; <code>--prepare-only</code> launches nothing). <code>agent_runner.py</code> builds the command from
+        to the agent; <code>--prepare-only</code> launches nothing). <code>agent_runner.py</code> builds the command from
         <code>HRS_AI_CLAUDE_COMMAND</code>/<code>_ARGS</code>, resolves the real executable with <code>shutil.which</code>
         (wrapping Windows <code>.cmd</code> shims through <code>cmd /c</code>), and runs it <strong>interactively in the
         target repo</strong> so you can watch it. The agent reads <code>agent_task.md</code>, implements the smallest

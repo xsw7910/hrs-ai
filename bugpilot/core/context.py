@@ -21,7 +21,7 @@ def build_context(repo_root: Path, issue_key: str, parsed: dict[str, object], ke
     return (
         f"# Bug Context: {issue_key}\n\n"
         "## Scope\n\n"
-        "Phase 2 prepares context only. bugpilot does not modify source code, invoke Copilot automatically, "
+        "Phase 2 prepares context only. bugpilot does not modify source code, invoke an agent automatically, "
         "create commits, push branches, update Jira, or create pull requests.\n\n"
         "## Issue\n\n"
         f"- Summary: {parsed.get('summary', '')}\n"
@@ -53,7 +53,7 @@ def build_context(repo_root: Path, issue_key: str, parsed: dict[str, object], ke
         f"{_code_search_summary(code_search)}\n\n"
         "## Code Search Quality\n\n"
         f"{_search_quality_markdown(search_quality)}\n\n"
-        "Copilot instruction: If search confidence is Low, do not assume the matched files are the correct implementation. "
+        "Agent instruction: If search confidence is Low, do not assume the matched files are the correct implementation. "
         "Treat them as candidates only and first verify whether the feature exists in the codebase.\n\n"
         "## Top Related Files\n\n"
         f"{_related_files_markdown(related_files)}\n\n"

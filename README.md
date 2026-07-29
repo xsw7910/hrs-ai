@@ -1,7 +1,7 @@
 # bugpilot
 
 ## What It Is
-bugpilot is a prototype CLI for an AI-assisted Jira bug workflow using GitHub Copilot CLI. It builds a deterministic development package from a Jira issue, local code search, shared memory, and git context so a developer can hand Copilot a clearer task.
+bugpilot is a prototype CLI for an AI-assisted Jira bug workflow. It works with any coding agent (Claude by default, GitHub Copilot CLI optional via `--copilot`). It builds a deterministic development package from a Jira issue, local code search, shared memory, and git context so a developer can hand the agent a clearer task.
 
 ## Why It Exists
 AI-assisted bug work often starts with scattered context and ends with useful investigation notes disappearing into chat history. bugpilot is intended to make that work repeatable.
@@ -14,10 +14,10 @@ AI-assisted bug work often starts with scattered context and ends with useful in
 
 ## How It Works
 ```text
-Jira issue -> code search -> memory search -> bug_context.md -> Copilot CLI task -> result summary -> memory update -> delivery plan
+Jira issue -> code search -> memory search -> bug_context.md -> agent task -> result summary -> memory update -> delivery plan
 ```
 
-bugpilot prepares files under `.ai/<issue>/` and shared memory under `.ai_memory/bugs/<issue>.md`. Jira Cloud ADF descriptions and comments are converted into readable Markdown for the issue package, and Jira attachment metadata is surfaced without downloading attachment content. Code search includes a confidence assessment so low-confidence false positives are visible before Copilot edits anything. Copilot CLI remains a manual handoff step, with reusable team instructions for legacy C++/Qt work.
+bugpilot prepares files under `.ai/<issue>/` and shared memory under `.ai_memory/bugs/<issue>.md`. Jira Cloud ADF descriptions and comments are converted into readable Markdown for the issue package, and Jira attachment metadata is surfaced without downloading attachment content. Code search includes a confidence assessment so low-confidence false positives are visible before the agent edits anything. The AI agent remains a manual handoff step, with reusable team instructions for legacy C++/Qt work.
 
 ## Installation
 
@@ -253,7 +253,7 @@ never commits or pushes for you; the agent stops and asks at the commit gate.
 ## Important: Run From Target Repo Root
 The bugpilot source repo can be anywhere. Run `bugpilot` from the target product repository root, because generated `.ai` and `.ai_memory` folders are written relative to the current working directory.
 
-Copilot CLI should also be run from the target product repository root. Do not run the Copilot handoff from the bugpilot tool source directory unless that is the repository you intend to modify.
+The AI agent should also be run from the target product repository root. Do not run the agent handoff from the bugpilot tool source directory unless that is the repository you intend to modify.
 
 Example:
 ```powershell
@@ -285,7 +285,7 @@ bugpilot push-plan HR-12345
 
 ## Main Commands
 - `bugpilot doctor`: report environment, git, ripgrep, Jira env vars, and Copilot CLI availability.
-- `bugpilot agent-check`: check Copilot and GitHub CLI availability without invoking Copilot.
+- `bugpilot agent-check`: check AI agent and GitHub CLI availability without invoking the agent.
 - `bugpilot fetch <ISSUE>`: fetch real Jira data and fail clearly if Jira is unavailable.
 - `bugpilot fetch <ISSUE> --allow-mock`: allow clearly marked mock/demo fallback when Jira fetch fails.
 - `bugpilot fetch <ISSUE> --no-mock`: require real Jira data. This is the default.
@@ -297,18 +297,18 @@ bugpilot push-plan HR-12345
 - `bugpilot memory update <ISSUE>`: update memory with final result information.
 - `bugpilot git-context <ISSUE>`: generate branch, status, and recent file history context.
 - `bugpilot context <ISSUE>`: generate enriched `bug_context.md`.
-- `bugpilot prompt <ISSUE>`: generate Copilot and review prompt files.
-- `bugpilot agent-task <ISSUE>`: regenerate Copilot task and handoff files from existing context.
+- `bugpilot prompt <ISSUE>`: generate agent and review prompt files.
+- `bugpilot agent-task <ISSUE>`: regenerate agent task and handoff files from existing context.
 - `bugpilot agent-instructions <ISSUE>`: regenerate `.ai/<issue>/agent_team_instructions.md` from the reusable team template.
-- `bugpilot check-results <ISSUE>`: check whether Copilot result files exist.
+- `bugpilot check-results <ISSUE>`: check whether agent result files exist.
 - `bugpilot check-results <ISSUE> --strict`: return nonzero if required result files are missing.
 - `bugpilot summarize-results <ISSUE>`: generate result summary and manual validation files.
 - `bugpilot review-package <ISSUE>`: generate final review prompt.
 - `bugpilot jira-comment-draft <ISSUE>`: generate a local, reviewable Jira comment draft from existing bugpilot artifacts.
-- `bugpilot jira-comment-draft <ISSUE> --strict`: require Copilot result files before generating the local draft.
+- `bugpilot jira-comment-draft <ISSUE> --strict`: require agent result files before generating the local draft.
 - `bugpilot jira-comment <ISSUE>`: preview the local Jira comment draft without posting to Jira.
 - `bugpilot jira-comment <ISSUE> --execute`: post exactly one Jira comment from the local draft.
-- `bugpilot retry-prompt <ISSUE>`: generate a second-attempt Copilot prompt from local artifacts and developer feedback.
+- `bugpilot retry-prompt <ISSUE>`: generate a second-attempt agent prompt from local artifacts and developer feedback.
 - `bugpilot manual-result <ISSUE>`: create developer manual-fix result templates without overwriting existing result files.
 - `bugpilot manual-result <ISSUE> --overwrite`: replace result files with fresh manual-fix templates.
 - `bugpilot delivery-check <ISSUE>`: check readiness for manual delivery.
@@ -324,7 +324,7 @@ bugpilot push-plan HR-12345
 - `bugpilot bug <ISSUE> --include-memory`: clean `.ai/<issue>/` and that issue's memory entry first, then rerun.
 - `bugpilot bug <ISSUE> --allow-mock`: explicitly allow mock/demo Jira fallback.
 - `bugpilot bug <ISSUE> --no-mock`: require real Jira data and stop if Jira fetch fails. This is the default.
-- `bugpilot jira-validate <ISSUE>`: validate Jira field mapping for a real issue (no code search, no Copilot task). Generates `jira_summary.md`, `jira_parsed.md`, and `jira_field_report.md`.
+- `bugpilot jira-validate <ISSUE>`: validate Jira field mapping for a real issue (no code search, no agent task). Generates `jira_summary.md`, `jira_parsed.md`, and `jira_field_report.md`.
 
 ## Recommended Real Workflow
 ```powershell
@@ -340,14 +340,14 @@ Run these from the target product repo root. Real Jira is the default, and mock 
 
 ## Safety Rules
 - bugpilot does not automatically modify product source code.
-- bugpilot does not automatically invoke Copilot CLI.
+- bugpilot does not automatically invoke an agent CLI.
 - bugpilot does not update Jira.
 - Jira integration is read-only; bugpilot converts fetched Jira content to Markdown but does not comment, assign, close, or transition Jira issues.
 - `jira-comment-draft` writes a local markdown draft only; it does not post comments to Jira.
 - `jira-comment` previews by default; `jira-comment --execute` only adds a Jira comment and does not change status, fields, assignee, attachments, source code, git state, or PRs.
-- `retry-prompt` and `manual-result` generate local artifacts only; they do not call Copilot or Jira.
-- Generated Copilot instructions may ask whether you want Copilot to commit and push after completing the workflow, but commit/push is never automatic and requires explicit approval inside Copilot CLI.
-- Copilot must not push main/master, force push, commit `.ai/` or `.ai_memory/`, or update Jira.
+- `retry-prompt` and `manual-result` generate local artifacts only; they do not call an agent or Jira.
+- Generated agent instructions may ask whether you want the agent to commit and push after completing the workflow, but commit/push is never automatic and requires explicit approval inside your AI agent.
+- The agent must not push main/master, force push, commit `.ai/` or `.ai_memory/`, or update Jira.
 - bugpilot does not create pull requests.
 - bugpilot does not merge.
 - bugpilot does not run `git add`, `git commit`, or `git push`.
@@ -384,11 +384,11 @@ Reusable team instructions live at:
 docs/agent_team_instructions.md
 ```
 
-Each issue package gets a copy so Copilot CLI can read stable team rules together with the issue-specific task.
+Each issue package gets a copy so the AI agent can read stable team rules together with the issue-specific task.
 
 ## Prototype Status
 - Phase 1: prepare-only workflow skeleton.
 - Phase 2: code search, memory search, git context, and enriched bug context.
-- Phase 3: Copilot CLI task and handoff workflow.
-- Phase 4: post-Copilot result summary, review package, and memory update.
+- Phase 3: Agent task and handoff workflow.
+- Phase 4: post-agent result summary, review package, and memory update.
 - Phase 5: delivery readiness, commit plan, and push plan.

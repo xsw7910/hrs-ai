@@ -1,4 +1,4 @@
-"""Copilot CLI checks and safe handoff guidance."""
+"""AI agent availability checks and safe handoff guidance."""
 
 from __future__ import annotations
 
@@ -20,6 +20,6 @@ def print_copilot_check() -> None:
 
 
 def print_auto_invocation_not_implemented(issue_key: str) -> None:
-    print("Copilot automatic invocation is not enabled.")
-    print("Open Copilot CLI from the target repo root and run:")
+    print("Agent automatic invocation is not enabled.")
+    print("Open your AI agent from the target repo root and run:")
     print(f"Read .ai/{issue_key}/agent_task.md and complete the workflow.")

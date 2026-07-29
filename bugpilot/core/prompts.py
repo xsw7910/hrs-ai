@@ -74,11 +74,11 @@ def _copilot_task(issue_key: str, branch: str, hint: str | None = None, jira_com
         else "- Do not update Jira.\n"
     )
     return (
-        f"# Copilot CLI Task: {issue_key}\n\n"
+        f"# Agent Task: {issue_key}\n\n"
         f"{hint_block}"
         "## Execution Location\n\n"
-        "- Run Copilot CLI from the target repo root (the target repository root).\n"
-        "- Do not run Copilot CLI from the bugpilot tool source directory.\n"
+        "- Run your AI agent from the target repo root (the target repository root).\n"
+        "- Do not run your AI agent from the bugpilot tool source directory.\n"
         f"- `.ai/{issue_key}/` files are relative to the target repo root.\n\n"
         "## Team Instructions\n\n"
         "Before editing code, read:\n"
@@ -160,13 +160,13 @@ def _copilot_handoff(issue_key: str, jira_comment: bool = True) -> str:
         else "- Never push main/master, force push, merge, update Jira, or commit `.ai/` or `.ai_memory/`.\n"
     )
     return (
-        f"# Copilot Handoff: {issue_key}\n\n"
+        f"# Agent Handoff: {issue_key}\n\n"
         f"Read `.ai/{issue_key}/agent_task.md` and complete the workflow.\n\n"
         "Read these files before editing:\n"
         f"- `.ai/{issue_key}/agent_task.md`\n"
         f"- `.ai/{issue_key}/agent_team_instructions.md`\n\n"
         "## Reminder\n\n"
-        "- Run Copilot CLI from the target repo root.\n"
+        "- Run your AI agent from the target repo root.\n"
         "- Do not run from the bugpilot tool repo.\n"
         "- Do not work directly on main/master.\n"
         "- Do not commit or push unless the developer explicitly approves after a delivery summary.\n"
@@ -177,11 +177,11 @@ def _copilot_handoff(issue_key: str, jira_comment: bool = True) -> str:
 
 # This fallback should mirror docs/agent_team_instructions.md.
 def _fallback_team_instructions() -> str:
-    return """# Copilot Team Instructions
+    return """# Agent Team Instructions
 
 ## Purpose
 
-This document gives Copilot CLI stable team rules for working in a legacy C++/Qt desktop codebase.
+This document gives the AI agent stable team rules for working in a legacy C++/Qt desktop codebase.
 
 ## Core Principles
 
@@ -251,7 +251,7 @@ This document gives Copilot CLI stable team rules for working in a legacy C++/Qt
 
 ## Output Expectations
 
-When completing a bugpilot Copilot task, generate:
+When completing a bugpilot agent task, generate:
 - .ai/<issue>/bug_analysis.md
 - .ai/<issue>/fix_summary.md
 - .ai/<issue>/test_result.md

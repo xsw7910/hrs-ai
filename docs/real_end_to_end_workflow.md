@@ -1,6 +1,6 @@
 # Real End-to-End Workflow
 
-This workflow is for a real Jira-backed trial from the target product repository root. It keeps bugpilot as the deterministic context and workflow tool, while Copilot CLI remains the manually launched coding agent.
+This workflow is for a real Jira-backed trial from the target product repository root. It keeps bugpilot as the deterministic context and workflow tool, while the AI agent remains the manually launched coding agent.
 
 ## Step 1: Run From Target Product Repo Root
 
@@ -24,7 +24,7 @@ Confirm Python, git, ripgrep, Jira environment variables, and Copilot CLI availa
 bugpilot jira-validate HR-26307
 ```
 
-This validates real Jira field mapping and generates Jira summary/parsing diagnostics without running code search or Copilot task generation.
+This validates real Jira field mapping and generates Jira summary/parsing diagnostics without running code search or agent task generation.
 
 ## Step 4: Prepare Workflow Package
 
@@ -47,11 +47,11 @@ Review the generated files:
 .ai/HR-26307/agent_task.md
 ```
 
-Confirm the data source is Jira, the parsed details are useful, and search confidence makes sense before handing work to Copilot.
+Confirm the data source is Jira, the parsed details are useful, and search confidence makes sense before handing work to the agent.
 
-## Step 6: Optional Copilot CLI Handoff
+## Step 6: Optional Agent Handoff
 
-Open Copilot CLI from the same target repo root:
+Open your AI agent from the same target repo root:
 
 ```powershell
 copilot
@@ -63,7 +63,7 @@ Paste:
 Read .ai/HR-26307/agent_task.md and complete the workflow.
 ```
 
-Copilot should generate:
+The agent should generate:
 
 ```text
 .ai/HR-26307/bug_analysis.md
@@ -73,17 +73,17 @@ Copilot should generate:
 .ai/HR-26307/review_notes.md
 ```
 
-After completing the workflow, Copilot may show a delivery summary and ask:
+After completing the workflow, the agent may show a delivery summary and ask:
 
 ```text
 Do you want me to commit and push this branch to origin?
 ```
 
-Only approve this if the branch is safe to deliver. Copilot must not push `main` or `master`, must not force push, must not commit `.ai/` or `.ai_memory/`, and must not update Jira.
+Only approve this if the branch is safe to deliver. The agent must not push `main` or `master`, must not force push, must not commit `.ai/` or `.ai_memory/`, and must not update Jira.
 
 ## Step 7: Result Processing
 
-If Copilot needs another attempt, add feedback and generate a retry prompt:
+If the agent needs another attempt, add feedback and generate a retry prompt:
 
 ```powershell
 bugpilot retry-prompt HR-26307
@@ -95,10 +95,10 @@ Edit:
 .ai/HR-26307/user_feedback.md
 ```
 
-Then run Copilot manually from the target repo root and paste:
+Then run the agent manually from the target repo root and paste:
 
 ```text
-Read .ai/HR-26307/copilot_retry_prompt.md and continue the workflow.
+Read .ai/HR-26307/agent_retry_prompt.md and continue the workflow.
 ```
 
 If the developer fixed the issue manually, generate result templates instead:
