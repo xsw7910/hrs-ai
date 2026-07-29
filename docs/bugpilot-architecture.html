@@ -140,7 +140,7 @@
     <a href="#deps" class="sub">5.1 Dependency direction</a>
     <a href="#deep" >6 · How key parts work</a>
     <a href="#deep-context" class="sub">6.1 Context building</a>
-    <a href="#deep-search" class="sub">6.2 Search confidence</a>
+    <a href="#deep-search" class="sub">6.2 Keywords &amp; search</a>
     <a href="#deep-jira" class="sub">6.3 Jira &amp; ADF</a>
     <a href="#deep-memory" class="sub">6.4 Shared memory</a>
     <a href="#deep-agent" class="sub">6.5 Agent invocation</a>
@@ -310,8 +310,8 @@
             <tr><td><span class="m">core/jira.py</span></td><td class="loc">869</td><td>Jira fetch over <code>urllib</code>, HTTP-error classification, controlled mock fallback, field normalization, summary/parsed/field-report markdown, comment posting as ADF, and secret redaction.</td></tr>
             <tr><td><span class="m">core/jira_adf.py</span></td><td class="loc">167</td><td>Deterministic Atlassian Document Format → Markdown (for reading Jira descriptions/comments).</td></tr>
             <tr><td><span class="m">core/jira_parse.py</span></td><td class="loc">442</td><td>Deterministic extraction of reproduction steps, actual/expected results, environment, error messages, stack traces, signals, and a missing-information checklist.</td></tr>
-            <tr><td><span class="m">core/keywords.py</span></td><td class="loc">41</td><td>Split issue text into high-value / normal / dropped keywords for code search.</td></tr>
-            <tr><td><span class="m">core/search.py</span></td><td class="loc">483</td><td>ripgrep-based code search, file scoring/ranking, per-file confidence (High/Med/Low), and overall search-quality assessment.</td></tr>
+            <tr><td><span class="m">core/keywords.py</span></td><td class="loc">230</td><td>Rank keywords by <b>identifier shape</b> (camelCase / snake_case / <code>Foo::bar</code> / file names), not frequency; extract quoted <b>phrases</b>, split compounds into <b>expanded</b> sub-tokens, and boost tokens from stack traces / errors. Keys: high_value / normal / dropped / phrase / expanded.</td></tr>
+            <tr><td><span class="m">core/search.py</span></td><td class="loc">530</td><td>ripgrep-based code search with <b>specificity-first</b> ranking (diminishing returns per keyword, phrase/qualified-name weighting, breadth &amp; file-name bonuses), per-file confidence (High/Med/Low), and overall search-quality assessment.</td></tr>
             <tr><td><span class="m">core/memory.py</span></td><td class="loc">124</td><td>Shared markdown memory: build an entry, add/update it, and search by keyword across <code>.ai_memory/bugs/</code>.</td></tr>
             <tr><td><span class="m">core/context.py</span></td><td class="loc">183</td><td>Assemble <code>bug_context.md</code> from Jira, keywords, search, memory, and git; compute a context-quality score.</td></tr>
             <tr><td><span class="m">core/prompts.py</span></td><td class="loc">270</td><td>Generate the agent hand-off package (<code>copilot_task.md</code>, <code>copilot_handoff.md</code>, <code>copilot_team_instructions.md</code>); inject the optional developer hint and the opt-in (<code>--jira-comment</code>) Jira-comment block.</td></tr>
@@ -370,19 +370,25 @@
         such as "description found", "high-value keywords found", "related files found", and "git context available" — a
         quick read on how much the agent has to work with.</p>
 
-      <h3 id="deep-search">6.2 Search confidence</h3>
-      <p><code>search.py</code> runs ripgrep per keyword (restricted to source globs, excluding build/vendor dirs), then
-        ranks files by a score and assigns a confidence label. The two are distinct: <em>score</em> only orders results;
-        <em>confidence</em> answers "can we trust this is the real code?"</p>
+      <h3 id="deep-search">6.2 Keywords &amp; search confidence</h3>
+      <p><b>Keyword extraction</b> ranks candidates by how much they look like a <em>code identifier</em>, not by raw
+        frequency — a bug report is mostly prose, so frequency would put "when"/"click" on top while the real class or
+        function (mentioned once) sank. Identifier shape wins: camelCase with an internal hump, snake_case, qualified
+        names (<code>Foo::bar</code>, <code>a.b</code>), and file names (<code>widget.cpp</code>); original case is
+        preserved. It also extracts quoted <b>phrases</b> (UI/error strings), splits compounds into lower-tier
+        <b>expanded</b> sub-tokens (generic parts like Widget/Dialog dropped), and <b>boosts</b> anything appearing in
+        stack traces / error messages.</p>
+      <p><b>Search</b> runs ripgrep per keyword and phrase (source globs only, build/vendor excluded), then ranks files.
+        Ranking is <b>specificity-first, not frequency</b>: score is summed per <em>distinct</em> keyword with diminishing
+        returns, so a file hitting one common name 100× can't beat a file with a couple of exact-identifier hits.</p>
       <div class="kv">
-        <dt>score</dt><dd>+8/+5 high-quality keyword hit, +2 medium, +1 low; bonuses for keyword-in-path and header/source pairs; −4 for noisy paths; +3 for application source paths.</dd>
-        <dt>confidence</dt><dd><strong>High</strong> = high-quality keyword × in an application path × no noise; <strong>Medium</strong> = plausible; <strong>Low</strong> = generic keyword or noisy path.</dd>
+        <dt>weight</dt><dd>exact phrase 12 · qualified <code>Foo::bar</code> 10 · high 6 · medium 2 · low/expanded 1; +bonus when a keyword matches the file's own name; +breadth for several distinct high-value keywords; −4 noisy path; +3 app-source path; +2 header/source pair.</dd>
+        <dt>confidence</dt><dd><strong>High</strong> = high-value keyword in an app path <em>or</em> a file-name / phrase / multi-keyword match, with no noise; <strong>Medium</strong> = plausible; <strong>Low</strong> = generic keyword or noisy path.</dd>
       </div>
-      <p>Keyword "quality" is itself derived: code-like identifiers (mixed case, <code>::</code>, <code>.</code>) rank high;
-        generic words like <code>error</code>/<code>issue</code>/<code>stale</code> rank low. The overall
-        <code>search_quality.json</code> is High if any file is High, else Medium/Low, and is downgraded when matches are
-        mostly noise. When confidence is Low, the generated task explicitly tells the agent not to edit on the strength of
-        keyword matches alone.</p>
+      <p>The overall <code>search_quality.json</code> is High if any file is High, else Medium/Low, and is downgraded when
+        matches are mostly noise. When confidence is Low, the generated task tells the agent not to edit on keyword
+        matches alone. (Real-issue check: this ranking moved the actual fix file from not-in-top-10 to #1, and dropped a
+        generic-keyword false positive from #1 to #7.)</p>
 
       <h3 id="deep-jira">6.3 Jira &amp; ADF</h3>
       <p><code>jira.py::fetch_issue</code> calls Jira Cloud REST v3 with Basic auth built from env credentials. HTTP errors

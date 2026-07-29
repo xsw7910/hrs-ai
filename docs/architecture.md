@@ -237,17 +237,31 @@ parsing goes through `_clean_env` / `_env_int` / `_env_bool` / `_parse_recipient
 
 ### 5.3 Analysis — `keywords.py`, `search.py`, `memory.py`, `git_ops.py`, `context.py`
 
-- **`keywords.py` (~41 lines)** — `extract_keywords(text, max_keywords=15)`
-  returns high-value (top 5), normal, and dropped keywords via a `STOP_WORDS`
-  set and `Counter`. `keywords_json` serializes.
-- **`search.py` (~483 lines)** — ripgrep-driven code search.
+- **`keywords.py`** — `extract_keywords(text, max_keywords=15, priority_text="")`
+  ranks candidates by how much they look like a **code identifier**, not by raw
+  frequency (bug reports are mostly prose, so frequency put "when"/"click" on
+  top while the real class/function sank). `_identifier_score` rewards camelCase
+  with an internal hump, snake_case, qualified names (`Foo::bar`, `a.b`), and
+  file names (`widget.cpp`); original case is preserved so the downstream
+  identifier check still works. It also mines file-name **stems**, extracts
+  quoted **phrases** (`_extract_phrases`), splits compound identifiers into
+  lower-tier **expanded** sub-tokens (`_expanded_keywords`, generic parts like
+  Widget/Dialog dropped), and **boosts** any token found in `priority_text`
+  (stack traces / error messages passed by `keywords_step`). Output keys:
+  `high_value` / `normal` / `dropped` / `phrase` / `expanded`.
+- **`search.py`** — ripgrep-driven code search.
   `run_code_search(repo_root, issue_key, keywords)` → `(markdown, related_files,
   quality)`. It shells out to `rg --fixed-strings --ignore-case --line-number`
-  per keyword (guarded by `git_ops.command_available`, so a missing `rg` skips
-  gracefully), then scores/ranks files (`_rank_related_files`,
-  `_apply_header_implementation_bonus`, `_apply_path_adjustments`), flags noise
-  (`_noise_flags`, `NOISE_PATH_INDICATORS`), and assigns confidence
-  (`_assign_confidence`, `_overall_quality`). Caps keep artifacts bounded
+  per keyword and phrase (guarded by `git_ops.command_available`, so a missing
+  `rg` skips gracefully), then ranks files (`_rank_related_files`). Ranking is
+  **specificity-first**, not frequency: score is summed per *distinct* keyword
+  with **diminishing returns** (`_match_weight` — phrase 12 > qualified `::` 10 >
+  high 6 > medium 2 > low/expanded 1), plus a breadth bonus for matching several
+  distinct high-value keywords and a bonus when a keyword matches the file's own
+  name. `_apply_header_implementation_bonus`, `_apply_path_adjustments`
+  (`_noise_flags` / `NOISE_PATH_INDICATORS`), and `_assign_confidence` /
+  `_overall_quality` finish; a file-name / phrase / multi-keyword match counts as
+  high confidence even outside an app-source path. Caps bound the artifacts
   (`MAX_TOTAL_RELATED_FILES = 10`, `MAX_TOTAL_CODE_SEARCH_LINES = 300`).
 - **`memory.py` (~124 lines)** — the `.ai_memory/bugs` store.
   `build_memory_entry` / `add_memory_entry` write `<key>.md`; `search_memory`
