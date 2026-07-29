@@ -110,36 +110,20 @@
   <div class="step">
     <header><span class="num">1</span><h3>Double-click <code>install.cmd</code></h3></header>
     <p>One double-click does everything: it installs <b>Python</b> if you don't have it, installs <b>bugpilot</b>, then
-      runs <b>bugpilot setup</b> to configure Jira. Keep the <code>installer\</code> folder next to it.</p>
+      runs <b>bugpilot setup</b> — where you enter your <b>Jira email</b> and <b>API token</b> (create one at
+      <code>id.atlassian.com/manage-profile/security/api-tokens</code>), saved to <code>~/.bugpilot/config.toml</code>.
+      Keep the <code>installer\</code> folder next to install.cmd; re-run setup anytime with <code>bugpilot setup</code>.</p>
     <div class="files">
       <b>install.cmd</b> &nbsp;·&nbsp; double-click this<br>
       <b>installer\</b> &nbsp;·&nbsp; install.ps1 + wheel (leave alone)
     </div>
-    <div class="note tip"><div class="h">Notes</div><p>Security prompt → <b>Run</b>. If it installs Python, it asks you to
-      <b>close the window, open a new terminal, and double-click install.cmd again</b> to finish — Windows needs a fresh
-      terminal to see the new Python.</p></div>
-  </div>
-
-  <div class="note"><div class="h">No Python? Use the standalone bugpilot.exe</div><p>Ask for the single
-    <code>bugpilot.exe</code>, save it (e.g. <code>C:\tools\bugpilot\</code>), optionally add to PATH — then the same
-    <code>bugpilot setup</code> / <code>bugpilot &lt;issue&gt;</code>. First run → SmartScreen → <b>Run anyway</b>.</p></div>
-
-  <!-- ===================== SETUP ===================== -->
-  <h2 id="setup">2 · First-time setup (Jira)</h2>
-
-  <div class="step">
-    <header><span class="num">2</span><h3><code>bugpilot setup</code> — run for you by the installer</h3></header>
-    <p>install.cmd runs this automatically at the end. It asks for your <b>Jira email</b> and <b>API token</b> (shown as
-      you type; create one at <code>id.atlassian.com/manage-profile/security/api-tokens</code>) and saves them to
-      <code>~/.bugpilot/config.toml</code>. Re-run anytime:</p>
-    <div class="term"><div class="bar"><span class="d"></span><span class="d"></span><span class="d"></span><span class="path">PowerShell</span><button class="copy">Copy</button></div><pre><span class="p">❯</span> bugpilot setup</pre></div>
   </div>
 
   <!-- ===================== QUICK START ===================== -->
-  <h2 id="usage">3 · Run it</h2>
+  <h2 id="usage">2 · Run it</h2>
 
   <div class="step">
-    <header><span class="num">3</span><h3>From your product repo, run one command</h3></header>
+    <header><span class="num">2</span><h3>From your product repo, run one command</h3></header>
     <p>Run from your <b>product repo</b> root.</p>
     <div class="term"><div class="bar"><span class="d"></span><span class="d"></span><span class="d"></span><span class="path">your-product-repo</span><button class="copy">Copy</button></div><pre><span class="p">❯</span> cd C:\path\to\your-product-repo  <span class="o">#C:\sandbox\monorepo</span>
 <span class="p">❯</span> bugpilot HR-26609</pre></div>
@@ -148,13 +132,13 @@
   </div>
 
   <div class="step">
-    <header><span class="num">4</span><h3>Verify</h3></header>
+    <header><span class="num">3</span><h3>Verify</h3></header>
     <div class="term"><div class="bar"><span class="d"></span><span class="d"></span><span class="d"></span><span class="path">new PowerShell window</span><button class="copy">Copy</button></div><pre><span class="p">❯</span> bugpilot --help</pre></div>
     <p>See the command list? You're installed.</p>
   </div>
 
   <!-- ===================== OPTIONS ===================== -->
-  <h2 id="options">4 · Options</h2>
+  <h2 id="options">3 · Options</h2>
   <p class="sub" style="margin-bottom:14px">Flags for <code>bugpilot &lt;issue&gt;</code> — replace <code>HR-26609</code> with your issue key.</p>
   <div class="term"><div class="bar"><span class="d"></span><span class="d"></span><span class="d"></span><span class="path">bugpilot &lt;issue&gt; options</span><button class="copy">Copy</button></div><pre><span class="p">❯</span> bugpilot HR-26609 <span class="f">--prepare-only</span>   <span class="o"># just build artifacts, don't launch an agent</span>
 <span class="p">❯</span> bugpilot HR-26609 <span class="f">--copilot</span>        <span class="o"># use Copilot CLI instead of Claude</span>
@@ -167,7 +151,7 @@
     (<code>--resume</code> to keep artifacts).</p></div>
 
   <!-- ===================== COMMAND REFERENCE ===================== -->
-  <h2 id="reference">5 · All commands (reference)</h2>
+  <h2 id="reference">4 · All commands (reference)</h2>
   <p class="sub" style="margin-bottom:14px">Every command, grouped. Base commands are copy-ready; comments note the
     useful flags. Replace <code>HR-26609</code> with your issue key.</p>
 
@@ -218,7 +202,7 @@
   <div class="term"><div class="bar"><span class="d"></span><span class="d"></span><span class="d"></span><span class="path">cleanup</span><button class="copy">Copy</button></div><pre><span class="p">❯</span> bugpilot clean HR-26609                <span class="o"># delete .ai/HR-26609/  (--include-memory also removes memory)</span></pre></div>
 
   <!-- ===================== CONFIG ===================== -->
-  <h2 id="config">6 · Configuration</h2>
+  <h2 id="config">5 · Configuration</h2>
   <div class="step">
     <header><h3>Where settings come from</h3></header>
     <p>Jira credentials resolve in this order: <b>environment variables → <code>~/.bugpilot/config.toml</code> → fixed
@@ -239,7 +223,7 @@
   </div>
 
   <!-- ===================== TROUBLESHOOTING ===================== -->
-  <h2 id="troubleshooting">7 · Troubleshooting</h2>
+  <h2 id="troubleshooting">6 · Troubleshooting</h2>
   <div class="step">
     <ul>
       <li><b>“bugpilot is not recognized”</b> — close and reopen PowerShell (PATH was updated during install). Still
@@ -259,7 +243,7 @@
     </ul>
   </div>
 
-  <h2 id="update">8 · Update / uninstall</h2>
+  <h2 id="update">7 · Update / uninstall</h2>
   <div class="step">
     <p><b>Update:</b> re-run <code>install.cmd</code> with the newer <code>bugpilot-*.whl</code> (it reinstalls in place).
       exe users: replace <code>bugpilot.exe</code> with the new one. Your <code>~/.bugpilot/config.toml</code> is kept.</p>
