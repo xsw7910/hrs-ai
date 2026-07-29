@@ -108,20 +108,16 @@
   <h2 id="install">1 · Install</h2>
 
   <div class="step">
-    <header><span class="num">1</span><h3>Install Python 3.10+ <span style="font-weight:400;color:var(--muted)">(skip if you have one)</span></h3></header>
-    <div class="term"><div class="bar"><span class="d"></span><span class="d"></span><span class="d"></span><span class="path">PowerShell</span><button class="copy">Copy</button></div><pre><span class="p">❯</span> winget install -e --id Python.Python.3.12 --scope user</pre></div>
-    <p>No admin needed. Then <b>reopen the terminal</b>.</p>
-  </div>
-
-  <div class="step">
-    <header><span class="num">2</span><h3>Install bugpilot — double-click <code>install.cmd</code></h3></header>
-    <p>Keep the <code>installer\</code> folder next to it.</p>
+    <header><span class="num">1</span><h3>Double-click <code>install.cmd</code></h3></header>
+    <p>One double-click does everything: it installs <b>Python</b> if you don't have it, installs <b>bugpilot</b>, then
+      runs <b>bugpilot setup</b> to configure Jira. Keep the <code>installer\</code> folder next to it.</p>
     <div class="files">
       <b>install.cmd</b> &nbsp;·&nbsp; double-click this<br>
       <b>installer\</b> &nbsp;·&nbsp; install.ps1 + wheel (leave alone)
     </div>
-    <div class="note tip"><div class="h">Notes</div><p>Security prompt → <b>Run</b>. "PATH changed" → reopen the terminal.
-      No Python? It offers to install one via winget.</p></div>
+    <div class="note tip"><div class="h">Notes</div><p>Security prompt → <b>Run</b>. If it installs Python, it asks you to
+      <b>close the window, open a new terminal, and double-click install.cmd again</b> to finish — Windows needs a fresh
+      terminal to see the new Python.</p></div>
   </div>
 
   <div class="note"><div class="h">No Python? Use the standalone bugpilot.exe</div><p>Ask for the single
@@ -132,18 +128,18 @@
   <h2 id="setup">2 · First-time setup (Jira)</h2>
 
   <div class="step">
-    <header><span class="num">3</span><h3>Run <code>bugpilot setup</code></h3></header>
+    <header><span class="num">2</span><h3><code>bugpilot setup</code> — run for you by the installer</h3></header>
+    <p>install.cmd runs this automatically at the end. It asks for your <b>Jira email</b> and <b>API token</b> (shown as
+      you type; create one at <code>id.atlassian.com/manage-profile/security/api-tokens</code>) and saves them to
+      <code>~/.bugpilot/config.toml</code>. Re-run anytime:</p>
     <div class="term"><div class="bar"><span class="d"></span><span class="d"></span><span class="d"></span><span class="path">PowerShell</span><button class="copy">Copy</button></div><pre><span class="p">❯</span> bugpilot setup</pre></div>
-    <p>Enter your <b>Jira email</b> and <b>API token</b> (shown as you type). Create a token at
-      <code>id.atlassian.com/manage-profile/security/api-tokens</code>. On <b>✓ Login successful</b> it saves to
-      <code>~/.bugpilot/config.toml</code>.</p>
   </div>
 
   <!-- ===================== QUICK START ===================== -->
   <h2 id="usage">3 · Run it</h2>
 
   <div class="step">
-    <header><span class="num">4</span><h3>From your product repo, run one command</h3></header>
+    <header><span class="num">3</span><h3>From your product repo, run one command</h3></header>
     <p>Run from your <b>product repo</b> root.</p>
     <div class="term"><div class="bar"><span class="d"></span><span class="d"></span><span class="d"></span><span class="path">your-product-repo</span><button class="copy">Copy</button></div><pre><span class="p">❯</span> cd C:\path\to\your-product-repo  <span class="o">#C:\sandbox\monorepo</span>
 <span class="p">❯</span> bugpilot HR-26609</pre></div>
@@ -152,7 +148,7 @@
   </div>
 
   <div class="step">
-    <header><span class="num">5</span><h3>Verify</h3></header>
+    <header><span class="num">4</span><h3>Verify</h3></header>
     <div class="term"><div class="bar"><span class="d"></span><span class="d"></span><span class="d"></span><span class="path">new PowerShell window</span><button class="copy">Copy</button></div><pre><span class="p">❯</span> bugpilot --help</pre></div>
     <p>See the command list? You're installed.</p>
   </div>
