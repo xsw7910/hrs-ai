@@ -124,9 +124,10 @@
 
   <div class="step">
     <header><span class="num">2</span><h3>From your product repo, run one command</h3></header>
-    <p>Run from your <b>product repo</b> root.</p>
+    <p>Run from your <b>product repo</b> root, on a <b>clean</b> working tree and on <b>master</b> — the workflow creates a
+      feature branch (<code>feature/HR-12345-…</code>) based on the Jira item number, off your current branch.</p>
     <div class="term"><div class="bar"><span class="d"></span><span class="d"></span><span class="d"></span><span class="path">your-product-repo</span><button class="copy">Copy</button></div><pre><span class="p">❯</span> cd C:\path\to\your-product-repo  <span class="o">#C:\sandbox\monorepo</span>
-<span class="p">❯</span> bugpilot HR-26609</pre></div>
+<span class="p">❯</span> bugpilot HR-12345</pre></div>
     <p>Prepares the package, then <b>launches Claude</b> to make the fix. It stops at the commit gate — you review and
       commit. bugpilot never commits or pushes.</p>
   </div>
@@ -139,13 +140,13 @@
 
   <!-- ===================== OPTIONS ===================== -->
   <h2 id="options">3 · Options</h2>
-  <p class="sub" style="margin-bottom:14px">Flags for <code>bugpilot &lt;issue&gt;</code> — replace <code>HR-26609</code> with your issue key.</p>
-  <div class="term"><div class="bar"><span class="d"></span><span class="d"></span><span class="d"></span><span class="path">bugpilot &lt;issue&gt; options</span><button class="copy">Copy</button></div><pre><span class="p">❯</span> bugpilot HR-26609 <span class="f">--prepare-only</span>   <span class="o"># just build artifacts, don't launch an agent</span>
-<span class="p">❯</span> bugpilot HR-26609 <span class="f">--copilot</span>        <span class="o"># use Copilot CLI instead of Claude</span>
-<span class="p">❯</span> bugpilot HR-26609 <span class="f">--hint</span> <span class="o">"Fix in FooWidget.cxx: keep selection on tab switch"</span>
-<span class="p">❯</span> bugpilot HR-26609 <span class="f">--jira-comment</span>   <span class="o"># also post one Jira status comment</span>
-<span class="p">❯</span> bugpilot HR-26609 <span class="f">--resume</span>         <span class="o"># keep existing .ai/HR-26609/ artifacts</span>
-<span class="p">❯</span> bugpilot HR-26609 <span class="f">--allow-mock</span>     <span class="o"># demo without Jira credentials</span></pre></div>
+  <p class="sub" style="margin-bottom:14px">Flags for <code>bugpilot &lt;issue&gt;</code> — replace <code>HR-12345</code> with your issue key.</p>
+  <div class="term"><div class="bar"><span class="d"></span><span class="d"></span><span class="d"></span><span class="path">bugpilot &lt;issue&gt; options</span><button class="copy">Copy</button></div><pre><span class="p">❯</span> bugpilot HR-12345 <span class="f">--prepare-only</span>   <span class="o"># just build artifacts, don't launch an agent</span>
+<span class="p">❯</span> bugpilot HR-12345 <span class="f">--copilot</span>        <span class="o"># use Copilot CLI instead of Claude</span>
+<span class="p">❯</span> bugpilot HR-12345 <span class="f">--hint</span> <span class="o">"Fix in FooWidget.cxx: keep selection on tab switch"</span>
+<span class="p">❯</span> bugpilot HR-12345 <span class="f">--jira-comment</span>   <span class="o"># also post one Jira status comment</span>
+<span class="p">❯</span> bugpilot HR-12345 <span class="f">--resume</span>         <span class="o"># keep existing .ai/HR-12345/ artifacts</span>
+<span class="p">❯</span> bugpilot HR-12345 <span class="f">--allow-mock</span>     <span class="o"># demo without Jira credentials</span></pre></div>
   <div class="note"><div class="h">Defaults</div><p><b>Claude</b> launches by default (<code>--prepare-only</code> to skip).
     <b>Jira comment off</b> by default (<code>--jira-comment</code> to enable). Runs are <b>fresh</b>
     (<code>--resume</code> to keep artifacts).</p></div>
@@ -153,53 +154,53 @@
   <!-- ===================== COMMAND REFERENCE ===================== -->
   <h2 id="reference">4 · All commands (reference)</h2>
   <p class="sub" style="margin-bottom:14px">Every command, grouped. Base commands are copy-ready; comments note the
-    useful flags. Replace <code>HR-26609</code> with your issue key.</p>
+    useful flags. Replace <code>HR-12345</code> with your issue key.</p>
 
   <div class="term"><div class="bar"><span class="d"></span><span class="d"></span><span class="d"></span><span class="path">setup &amp; environment</span><button class="copy">Copy</button></div><pre><span class="p">❯</span> bugpilot setup                        <span class="o"># configure Jira email + token (--hide-token to hide it)</span>
 <span class="p">❯</span> bugpilot doctor                       <span class="o"># check Python, git, ripgrep, Jira, agents, email</span>
 <span class="p">❯</span> bugpilot copilot-check                 <span class="o"># Copilot / Claude / gh availability</span>
-<span class="p">❯</span> bugpilot status HR-26609               <span class="o"># step status + generated files for an issue</span></pre></div>
+<span class="p">❯</span> bugpilot status HR-12345               <span class="o"># step status + generated files for an issue</span></pre></div>
 
-  <div class="term"><div class="bar"><span class="d"></span><span class="d"></span><span class="d"></span><span class="path">main workflow</span><button class="copy">Copy</button></div><pre><span class="p">❯</span> bugpilot HR-26609                      <span class="o"># DEFAULT: prepare, then launch Claude</span>
-<span class="p">❯</span> bugpilot HR-26609 <span class="f">--prepare-only</span>   <span class="o"># artifacts only, no agent</span>
-<span class="p">❯</span> bugpilot HR-26609 <span class="f">--copilot</span>        <span class="o"># use Copilot instead of Claude</span>
-<span class="p">❯</span> bugpilot HR-26609 <span class="f">--jira-comment</span>   <span class="o"># add the pre-commit Jira status comment (off by default)</span>
-<span class="p">❯</span> bugpilot HR-26609 <span class="f">--hint</span> <span class="o">"…"        # point the agent at the fix location</span>
-<span class="p">❯</span> bugpilot HR-26609 <span class="f">--resume</span>         <span class="o"># keep artifacts  |  --fresh (default) re-cleans</span>
-<span class="p">❯</span> bugpilot HR-26609 <span class="f">--include-memory</span> <span class="o"># also reset this issue's shared memory (fresh only)</span>
-<span class="p">❯</span> bugpilot HR-26609 <span class="f">--allow-mock</span>     <span class="o"># demo without Jira  |  --no-mock = default (real)</span></pre></div>
+  <div class="term"><div class="bar"><span class="d"></span><span class="d"></span><span class="d"></span><span class="path">main workflow</span><button class="copy">Copy</button></div><pre><span class="p">❯</span> bugpilot HR-12345                      <span class="o"># DEFAULT: prepare, then launch Claude</span>
+<span class="p">❯</span> bugpilot HR-12345 <span class="f">--prepare-only</span>   <span class="o"># artifacts only, no agent</span>
+<span class="p">❯</span> bugpilot HR-12345 <span class="f">--copilot</span>        <span class="o"># use Copilot instead of Claude</span>
+<span class="p">❯</span> bugpilot HR-12345 <span class="f">--jira-comment</span>   <span class="o"># add the pre-commit Jira status comment (off by default)</span>
+<span class="p">❯</span> bugpilot HR-12345 <span class="f">--hint</span> <span class="o">"…"        # point the agent at the fix location</span>
+<span class="p">❯</span> bugpilot HR-12345 <span class="f">--resume</span>         <span class="o"># keep artifacts  |  --fresh (default) re-cleans</span>
+<span class="p">❯</span> bugpilot HR-12345 <span class="f">--include-memory</span> <span class="o"># also reset this issue's shared memory (fresh only)</span>
+<span class="p">❯</span> bugpilot HR-12345 <span class="f">--allow-mock</span>     <span class="o"># demo without Jira  |  --no-mock = default (real)</span></pre></div>
 
-  <div class="term"><div class="bar"><span class="d"></span><span class="d"></span><span class="d"></span><span class="path">jira</span><button class="copy">Copy</button></div><pre><span class="p">❯</span> bugpilot fetch HR-26609                <span class="o"># fetch the issue (real Jira; --allow-mock for demo)</span>
-<span class="p">❯</span> bugpilot jira-validate HR-26609        <span class="o"># fetch + field-mapping check (real Jira only)</span>
-<span class="p">❯</span> bugpilot parse HR-26609                <span class="o"># structured repro / actual / expected / errors</span></pre></div>
+  <div class="term"><div class="bar"><span class="d"></span><span class="d"></span><span class="d"></span><span class="path">jira</span><button class="copy">Copy</button></div><pre><span class="p">❯</span> bugpilot fetch HR-12345                <span class="o"># fetch the issue (real Jira; --allow-mock for demo)</span>
+<span class="p">❯</span> bugpilot jira-validate HR-12345        <span class="o"># fetch + field-mapping check (real Jira only)</span>
+<span class="p">❯</span> bugpilot parse HR-12345                <span class="o"># structured repro / actual / expected / errors</span></pre></div>
 
-  <div class="term"><div class="bar"><span class="d"></span><span class="d"></span><span class="d"></span><span class="path">analysis (individual prepare steps)</span><button class="copy">Copy</button></div><pre><span class="p">❯</span> bugpilot keywords HR-26609             <span class="o"># high / normal / dropped keywords</span>
-<span class="p">❯</span> bugpilot search HR-26609               <span class="o"># ripgrep code search + confidence (High/Med/Low)</span>
-<span class="p">❯</span> bugpilot git-context HR-26609          <span class="o"># branch, status, recent history</span>
-<span class="p">❯</span> bugpilot context HR-26609              <span class="o"># build bug_context.md</span></pre></div>
+  <div class="term"><div class="bar"><span class="d"></span><span class="d"></span><span class="d"></span><span class="path">analysis (individual prepare steps)</span><button class="copy">Copy</button></div><pre><span class="p">❯</span> bugpilot keywords HR-12345             <span class="o"># high / normal / dropped keywords</span>
+<span class="p">❯</span> bugpilot search HR-12345               <span class="o"># ripgrep code search + confidence (High/Med/Low)</span>
+<span class="p">❯</span> bugpilot git-context HR-12345          <span class="o"># branch, status, recent history</span>
+<span class="p">❯</span> bugpilot context HR-12345              <span class="o"># build bug_context.md</span></pre></div>
 
-  <div class="term"><div class="bar"><span class="d"></span><span class="d"></span><span class="d"></span><span class="path">agent hand-off package</span><button class="copy">Copy</button></div><pre><span class="p">❯</span> bugpilot prompt HR-26609               <span class="o"># regenerate copilot_task / handoff / team_instructions</span>
-<span class="p">❯</span> bugpilot copilot-task HR-26609         <span class="o"># regen task package (--jira-comment to include Jira step)</span>
-<span class="p">❯</span> bugpilot copilot-instructions HR-26609 <span class="o"># refresh per-issue team rules</span></pre></div>
+  <div class="term"><div class="bar"><span class="d"></span><span class="d"></span><span class="d"></span><span class="path">agent hand-off package</span><button class="copy">Copy</button></div><pre><span class="p">❯</span> bugpilot prompt HR-12345               <span class="o"># regenerate copilot_task / handoff / team_instructions</span>
+<span class="p">❯</span> bugpilot copilot-task HR-12345         <span class="o"># regen task package (--jira-comment to include Jira step)</span>
+<span class="p">❯</span> bugpilot copilot-instructions HR-12345 <span class="o"># refresh per-issue team rules</span></pre></div>
 
-  <div class="term"><div class="bar"><span class="d"></span><span class="d"></span><span class="d"></span><span class="path">results &amp; memory</span><button class="copy">Copy</button></div><pre><span class="p">❯</span> bugpilot check-results HR-26609        <span class="o"># verify agent output files (--strict to fail if missing)</span>
-<span class="p">❯</span> bugpilot manual-result HR-26609        <span class="o"># manual-fix templates (--overwrite to replace)</span>
-<span class="p">❯</span> bugpilot summarize-results HR-26609    <span class="o"># build result summary (--jira-comment posts a comment)</span>
-<span class="p">❯</span> bugpilot review-package HR-26609       <span class="o"># final review prompt</span>
-<span class="p">❯</span> bugpilot memory search HR-26609        <span class="o"># find similar past issues (or a free-text query)</span>
-<span class="p">❯</span> bugpilot memory add HR-26609           <span class="o"># create / refresh shared memory entry</span>
-<span class="p">❯</span> bugpilot memory update HR-26609        <span class="o"># fold the result summary into memory</span></pre></div>
+  <div class="term"><div class="bar"><span class="d"></span><span class="d"></span><span class="d"></span><span class="path">results &amp; memory</span><button class="copy">Copy</button></div><pre><span class="p">❯</span> bugpilot check-results HR-12345        <span class="o"># verify agent output files (--strict to fail if missing)</span>
+<span class="p">❯</span> bugpilot manual-result HR-12345        <span class="o"># manual-fix templates (--overwrite to replace)</span>
+<span class="p">❯</span> bugpilot summarize-results HR-12345    <span class="o"># build result summary (--jira-comment posts a comment)</span>
+<span class="p">❯</span> bugpilot review-package HR-12345       <span class="o"># final review prompt</span>
+<span class="p">❯</span> bugpilot memory search HR-12345        <span class="o"># find similar past issues (or a free-text query)</span>
+<span class="p">❯</span> bugpilot memory add HR-12345           <span class="o"># create / refresh shared memory entry</span>
+<span class="p">❯</span> bugpilot memory update HR-12345        <span class="o"># fold the result summary into memory</span></pre></div>
 
-  <div class="term"><div class="bar"><span class="d"></span><span class="d"></span><span class="d"></span><span class="path">notifications</span><button class="copy">Copy</button></div><pre><span class="p">❯</span> bugpilot jira-comment-draft HR-26609   <span class="o"># local draft (root cause + change summary)</span>
-<span class="p">❯</span> bugpilot jira-comment HR-26609         <span class="o"># preview; add --execute to post exactly one comment</span>
-<span class="p">❯</span> bugpilot notify HR-26609               <span class="o"># write email draft + .eml; add --execute to send</span>
-<span class="p">❯</span> bugpilot retry-prompt HR-26609         <span class="o"># second-attempt prompt + user_feedback.md</span></pre></div>
+  <div class="term"><div class="bar"><span class="d"></span><span class="d"></span><span class="d"></span><span class="path">notifications</span><button class="copy">Copy</button></div><pre><span class="p">❯</span> bugpilot jira-comment-draft HR-12345   <span class="o"># local draft (root cause + change summary)</span>
+<span class="p">❯</span> bugpilot jira-comment HR-12345         <span class="o"># preview; add --execute to post exactly one comment</span>
+<span class="p">❯</span> bugpilot notify HR-12345               <span class="o"># write email draft + .eml; add --execute to send</span>
+<span class="p">❯</span> bugpilot retry-prompt HR-12345         <span class="o"># second-attempt prompt + user_feedback.md</span></pre></div>
 
-  <div class="term"><div class="bar"><span class="d"></span><span class="d"></span><span class="d"></span><span class="path">delivery (plans only — bugpilot never runs git)</span><button class="copy">Copy</button></div><pre><span class="p">❯</span> bugpilot delivery-check HR-26609       <span class="o"># is it ready for manual commit / push?</span>
-<span class="p">❯</span> bugpilot commit-plan HR-26609          <span class="o"># commit plan (+ email at the gate; --no-email to skip)</span>
-<span class="p">❯</span> bugpilot push-plan HR-26609            <span class="o"># push plan</span></pre></div>
+  <div class="term"><div class="bar"><span class="d"></span><span class="d"></span><span class="d"></span><span class="path">delivery (plans only — bugpilot never runs git)</span><button class="copy">Copy</button></div><pre><span class="p">❯</span> bugpilot delivery-check HR-12345       <span class="o"># is it ready for manual commit / push?</span>
+<span class="p">❯</span> bugpilot commit-plan HR-12345          <span class="o"># commit plan (+ email at the gate; --no-email to skip)</span>
+<span class="p">❯</span> bugpilot push-plan HR-12345            <span class="o"># push plan</span></pre></div>
 
-  <div class="term"><div class="bar"><span class="d"></span><span class="d"></span><span class="d"></span><span class="path">cleanup</span><button class="copy">Copy</button></div><pre><span class="p">❯</span> bugpilot clean HR-26609                <span class="o"># delete .ai/HR-26609/  (--include-memory also removes memory)</span></pre></div>
+  <div class="term"><div class="bar"><span class="d"></span><span class="d"></span><span class="d"></span><span class="path">cleanup</span><button class="copy">Copy</button></div><pre><span class="p">❯</span> bugpilot clean HR-12345                <span class="o"># delete .ai/HR-12345/  (--include-memory also removes memory)</span></pre></div>
 
   <!-- ===================== CONFIG ===================== -->
   <h2 id="config">5 · Configuration</h2>
@@ -237,9 +238,9 @@
       <li><b>setup: “Authentication failed”</b> — wrong email or token, or the token was revoked. Create a fresh token and
         re-run <code>bugpilot setup</code>.</li>
       <li><b>Jira “not found or not accessible”</b> — the issue key is wrong, or your account can't view that project.
-        Open <code>&lt;JIRA_URL&gt;/browse/HR-26609</code> in a browser to confirm.</li>
+        Open <code>&lt;JIRA_URL&gt;/browse/HR-12345</code> in a browser to confirm.</li>
       <li><b>Fix didn't happen</b> — if you ran <code>--prepare-only</code>, no agent was launched. Re-run without it, or
-        open the agent yourself and paste: <code>Read .ai/HR-26609/copilot_task.md and complete the workflow.</code></li>
+        open the agent yourself and paste: <code>Read .ai/HR-12345/copilot_task.md and complete the workflow.</code></li>
     </ul>
   </div>
 
