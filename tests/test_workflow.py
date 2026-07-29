@@ -391,6 +391,29 @@ def test_keyword_schema_matches_phase_2_plan():
     assert isinstance(keywords["dropped_keywords"], list)
 
 
+def test_keywords_rank_identifiers_above_prose():
+    text = "When the user clicks the button the HrsQtProcessWidget should refresh but selection is lost"
+    kw = extract_keywords(text)
+    hv = kw["high_value_keywords"]
+
+    # The camelCase identifier is the standout, not the frequent prose words.
+    assert "HrsQtProcessWidget" in hv
+    # Case is preserved so search.py's identifier detector can recognise it.
+    assert any(c.isupper() for c in "".join(hv))
+    # Generic prose / bug boilerplate never becomes a keyword at all.
+    everything = {w.lower() for w in hv + kw["normal_keywords"] + kw["dropped_keywords"]}
+    assert everything.isdisjoint({"when", "the", "clicks", "should", "but", "is"})
+
+
+def test_keywords_extract_qualified_and_file_names():
+    kw = extract_keywords("Crash in HrsProcess::onTabChanged at hrs_process_widget.cxx line 42")
+    all_kw = kw["high_value_keywords"] + kw["normal_keywords"]
+
+    assert "HrsProcess::onTabChanged" in kw["high_value_keywords"]
+    assert "hrs_process_widget.cxx" in all_kw          # the file reference
+    assert "hrs_process_widget" in {k.lower() for k in all_kw}  # and its stem
+
+
 def test_search_command_generates_code_search_and_related_files(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     source = tmp_path / "employee_search.py"
