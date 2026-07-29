@@ -252,41 +252,67 @@ def _is_included_path(path: str) -> bool:
     return name == "CMakeLists.txt" or suffix in {".cpp", ".cxx", ".cc", ".h", ".hpp", ".ui", ".qrc", ".py", ".cmake", ".md"}
 
 
+def _match_weight(match: Match, high_set: set[str], normal_set: set[str]) -> tuple[int, str]:
+    """Per-keyword weight + quality. Specificity beats frequency: an exact
+    phrase or a qualified `Foo::bar` name is near-unique and weighted highest."""
+    if match.tier == "phrase":
+        return 12, "high"
+    if match.tier == "expanded":
+        return 1, "low"
+    if "::" in match.keyword:
+        return 10, "high"
+    keyword = match.keyword.lower()
+    quality = _keyword_quality(match.keyword, keyword in high_set, keyword in normal_set)
+    if quality == "high":
+        return 6, "high"
+    if quality == "medium":
+        return 2, "medium"
+    return 1, "low"
+
+
 def _rank_related_files(matches: list[Match], high_value: list[str], normal: list[str]) -> list[FileScore]:
     scores: dict[str, FileScore] = {}
     high_set = {keyword.lower() for keyword in high_value}
     normal_set = {keyword.lower() for keyword in normal}
 
+    # file -> keyword(lower) -> [count, weight, quality]
+    per_keyword: dict[str, dict[str, list]] = defaultdict(dict)
     for match in matches:
         item = scores.setdefault(match.file, FileScore(file=match.file))
-        if match.tier == "phrase":
-            # Exact quoted-string hit — the strongest, most specific signal.
-            item.score += 10
-            item.keyword_quality_counts["high"] += 1
-            if "exact phrase match" not in item.reasons:
-                item.reasons.append("exact phrase match")
-        elif match.tier == "expanded":
-            # Sub-token split from a compound identifier — recall only, low weight.
-            item.score += 1
-            item.keyword_quality_counts["low"] += 1
+        weight, quality = _match_weight(match, high_set, normal_set)
+        stats = per_keyword[match.file].get(match.keyword.lower())
+        if stats is None:
+            per_keyword[match.file][match.keyword.lower()] = [1, weight, quality]
         else:
-            keyword = match.keyword.lower()
-            quality = _keyword_quality(match.keyword, keyword in high_set, keyword in normal_set)
-            if quality == "high":
-                item.score += 8 if match.keyword.lower() in match.line.lower() else 5
-                item.keyword_quality_counts["high"] += 1
-            elif quality == "medium":
-                item.score += 2
-                item.keyword_quality_counts["medium"] += 1
-            else:
-                item.score += 1
-                item.keyword_quality_counts["low"] += 1
-            if keyword in match.file.lower():
-                item.score += 3 if quality == "high" else 1
+            stats[0] += 1
         item.matched_keywords.add(match.keyword)
         item.match_count += 1
         if len(item.snippets) < MAX_SNIPPETS_PER_FILE:
             item.snippets.append(match)
+        if match.tier == "phrase" and "exact phrase match" not in item.reasons:
+            item.reasons.append("exact phrase match")
+
+    for file, keyword_map in per_keyword.items():
+        item = scores[file]
+        base = Path(file).name.lower()
+        distinct_high = 0
+        for keyword, (count, weight, quality) in keyword_map.items():
+            # Diminishing returns: repeated hits of the SAME keyword add little,
+            # so 100x a common name can't outweigh a few specific matches.
+            item.score += int(round(weight * (1.0 + min(count - 1, 4) * 0.25)))
+            item.keyword_quality_counts[quality] += 1  # distinct keywords, not raw hits
+            if quality == "high":
+                distinct_high += 1
+                stem = keyword.split("::", 1)[0].rsplit(".", 1)[0]
+                if len(stem) >= 4 and stem in base:
+                    item.score += 6  # the file *is* the matched class/name
+                    if "keyword matches file name" not in item.reasons:
+                        item.reasons.append("keyword matches file name")
+        # Breadth: matching several DISTINCT high-value keywords is a strong,
+        # precision-friendly signal that this is the right spot.
+        if distinct_high >= 2:
+            item.score += (distinct_high - 1) * 3
+            item.reasons.append(f"matched {distinct_high} distinct high-value keywords")
 
     _apply_header_implementation_bonus(scores)
     for item in scores.values():
@@ -366,9 +392,20 @@ def _assign_confidence(item: FileScore) -> None:
     low = item.keyword_quality_counts["low"]
     has_app_path = _is_application_path(item.file)
     has_noise = bool(item.noise_flags)
-    if high and has_app_path and not has_noise:
+    # A keyword matching the file's own name, an exact phrase hit, or several
+    # distinct high-value keywords is a strong signal on its own — enough for
+    # high confidence even outside a recognised application-source directory.
+    strong_signal = (
+        "keyword matches file name" in item.reasons
+        or "exact phrase match" in item.reasons
+        or high >= 3
+    )
+    if high and (has_app_path or strong_signal) and not has_noise:
         item.confidence = "high"
-        item.reasons.append("matched high-value keyword in application source path")
+        item.reasons.append(
+            "matched high-value keyword in application source path" if has_app_path
+            else "strong file-name / phrase / multi-keyword match"
+        )
     elif (high or medium) and (has_app_path or not has_noise):
         item.confidence = "medium"
         item.reasons.append("matched plausible implementation keyword")
