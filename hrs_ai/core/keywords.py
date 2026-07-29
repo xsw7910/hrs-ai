@@ -62,6 +62,15 @@ _TOKEN_RE = re.compile(
     r"|[A-Za-z][A-Za-z0-9_-]{2,}"
 )
 
+# Quoted strings — UI labels, messages, exact error text — searched verbatim.
+# Straight single quotes are intentionally excluded (they collide with
+# contractions/possessives like don't, user's); smart quotes are safe.
+_PHRASE_RE = re.compile(
+    r'"([^"\n]{3,80})"'
+    r"|“([^”\n]{3,80})”"
+    r"|‘([^’\n]{3,80})’"
+)
+
 
 def _identifier_score(token: str) -> int:
     """Higher = more likely a useful, specific code identifier (0 = plain prose)."""
@@ -85,6 +94,20 @@ def _identifier_score(token: str) -> int:
     if len(token) >= 8:
         score += 1
     return score
+
+
+def _extract_phrases(text: str, max_phrases: int = 5) -> list[str]:
+    """Quoted UI/error strings, deduped, in first-seen order — searched verbatim."""
+    seen: dict[str, str] = {}
+    for match in _PHRASE_RE.finditer(text):
+        raw = match.group(1) or match.group(2) or match.group(3) or ""
+        phrase = " ".join(raw.split())  # collapse internal whitespace
+        if len(phrase) < 4 or not any(c.isalnum() for c in phrase):
+            continue
+        seen.setdefault(phrase.lower(), phrase)
+        if len(seen) >= max_phrases:
+            break
+    return list(seen.values())
 
 
 def _file_stem(token: str) -> str | None:
@@ -125,6 +148,7 @@ def extract_keywords(text: str, max_keywords: int = 15) -> dict[str, object]:
         "high_value_keywords": keywords[:5],
         "normal_keywords": keywords[5:max_keywords],
         "dropped_keywords": keywords[max_keywords:],
+        "phrase_keywords": _extract_phrases(text),
     }
 
 

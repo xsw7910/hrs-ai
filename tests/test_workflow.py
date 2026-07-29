@@ -385,10 +385,27 @@ def test_copilot_task_branch_uses_normalized_summary_fallback(tmp_path):
 def test_keyword_schema_matches_phase_2_plan():
     keywords = extract_keywords("EmployeeSearch stale filter query cache actual expected cache")
 
-    assert set(keywords) == {"high_value_keywords", "normal_keywords", "dropped_keywords"}
+    assert set(keywords) == {"high_value_keywords", "normal_keywords", "dropped_keywords", "phrase_keywords"}
     assert isinstance(keywords["high_value_keywords"], list)
     assert isinstance(keywords["normal_keywords"], list)
     assert isinstance(keywords["dropped_keywords"], list)
+    assert isinstance(keywords["phrase_keywords"], list)
+
+
+def test_keywords_extract_quoted_phrases():
+    kw = extract_keywords('The dialog shows "Selection is lost" when you don\'t save; see “Refresh table”.')
+    phrases = kw["phrase_keywords"]
+    assert "Selection is lost" in phrases      # straight double quotes
+    assert "Refresh table" in phrases          # smart double quotes
+    # A contraction's apostrophe must not be mistaken for a quoted phrase.
+    assert not any("save" in p and "don" in p for p in phrases)
+
+
+def test_code_search_matches_exact_phrase(tmp_path):
+    (tmp_path / "dialog.cpp").write_text('void f() { label->setText("Selection is lost"); }\n')
+    keywords = {"high_value_keywords": [], "normal_keywords": [], "phrase_keywords": ["Selection is lost"]}
+    _markdown, related, _quality = run_code_search(tmp_path, "HR-12345", keywords)
+    assert any("dialog.cpp" in r["file"] for r in related)
 
 
 def test_keywords_rank_identifiers_above_prose():

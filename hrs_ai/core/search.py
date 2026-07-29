@@ -119,6 +119,7 @@ class FileScore:
 def run_code_search(repo_root: Path, issue_key: str, keywords: dict[str, object]) -> tuple[str, list[dict[str, object]], dict[str, object]]:
     high_value = _keyword_list(keywords.get("high_value_keywords", []))
     normal = _keyword_list(keywords.get("normal_keywords", []))
+    phrases = _keyword_list(keywords.get("phrase_keywords", []))
 
     if not command_available("rg"):
         quality = _overall_quality([], ["rg is unavailable; code search was skipped."])
@@ -126,6 +127,7 @@ def run_code_search(repo_root: Path, issue_key: str, keywords: dict[str, object]
             issue_key,
             high_value,
             normal,
+            phrases,
             [],
             ["rg is unavailable; code search was skipped."],
             quality,
@@ -134,6 +136,10 @@ def run_code_search(repo_root: Path, issue_key: str, keywords: dict[str, object]
 
     all_matches: list[Match] = []
     warnings: list[str] = []
+    # Exact quoted phrases first — an exact UI/error-string hit is the strongest
+    # signal (rg --fixed-strings matches the literal string, spaces included).
+    for phrase in phrases:
+        all_matches.extend(_rg_keyword(repo_root, phrase, "phrase", warnings))
     for keyword in high_value:
         all_matches.extend(_rg_keyword(repo_root, keyword, "high_value", warnings))
     for keyword in normal:
@@ -145,7 +151,7 @@ def run_code_search(repo_root: Path, issue_key: str, keywords: dict[str, object]
 
     related = _related_files(ranked)
     quality = _overall_quality(related, warnings)
-    markdown = _render_markdown(issue_key, high_value, normal, ranked, warnings, quality)
+    markdown = _render_markdown(issue_key, high_value, normal, phrases, ranked, warnings, quality)
     return markdown, related, quality
 
 
@@ -248,19 +254,26 @@ def _rank_related_files(matches: list[Match], high_value: list[str], normal: lis
 
     for match in matches:
         item = scores.setdefault(match.file, FileScore(file=match.file))
-        keyword = match.keyword.lower()
-        quality = _keyword_quality(match.keyword, keyword in high_set, keyword in normal_set)
-        if quality == "high":
-            item.score += 8 if match.keyword.lower() in match.line.lower() else 5
+        if match.tier == "phrase":
+            # Exact quoted-string hit — the strongest, most specific signal.
+            item.score += 10
             item.keyword_quality_counts["high"] += 1
-        elif quality == "medium":
-            item.score += 2
-            item.keyword_quality_counts["medium"] += 1
+            if "exact phrase match" not in item.reasons:
+                item.reasons.append("exact phrase match")
         else:
-            item.score += 1
-            item.keyword_quality_counts["low"] += 1
-        if keyword in match.file.lower():
-            item.score += 3 if quality == "high" else 1
+            keyword = match.keyword.lower()
+            quality = _keyword_quality(match.keyword, keyword in high_set, keyword in normal_set)
+            if quality == "high":
+                item.score += 8 if match.keyword.lower() in match.line.lower() else 5
+                item.keyword_quality_counts["high"] += 1
+            elif quality == "medium":
+                item.score += 2
+                item.keyword_quality_counts["medium"] += 1
+            else:
+                item.score += 1
+                item.keyword_quality_counts["low"] += 1
+            if keyword in match.file.lower():
+                item.score += 3 if quality == "high" else 1
         item.matched_keywords.add(match.keyword)
         item.match_count += 1
         if len(item.snippets) < MAX_SNIPPETS_PER_FILE:
@@ -407,6 +420,7 @@ def _render_markdown(
     issue_key: str,
     high_value: list[str],
     normal: list[str],
+    phrases: list[str],
     ranked: list[FileScore],
     warnings: list[str],
     quality: dict[str, object],
@@ -425,6 +439,7 @@ def _render_markdown(
         lines.extend(f"- {reason}" for reason in reasons)
     else:
         lines.append("- No search quality reasons available.")
+    phrase_str = ", ".join('"' + phrase + '"' for phrase in phrases) or "_None_"
     lines.extend(
         [
             "",
@@ -432,6 +447,7 @@ def _render_markdown(
             "",
             f"- High value: {', '.join(high_value) or '_None_'}",
             f"- Normal: {', '.join(normal) or '_None_'}",
+            f"- Phrases: {phrase_str}",
             "",
         ]
     )
