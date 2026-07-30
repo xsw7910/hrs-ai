@@ -1,0 +1,301 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GeoView AI Command Layer — Why It Matters</title>
+<style>:root{color-scheme:light}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}</style>
+</head>
+<body>
+<style>
+  :root {
+    --ground:#f5f8fa; --surface:#ffffff; --surface-2:#eef3f6;
+    --ink:#10222c; --ink-2:#39505d; --muted:#6b7a84; --line:#d9e0e5;
+    --accent:#155e87; --accent-2:#1a6f9e; --warm:#b46e2b; --good:#2f7d5b;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --mono:ui-monospace,"Cascadia Code","SF Mono",Menlo,Consolas,monospace;
+    --maxw:1060px; color-scheme:light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ground:#0b1620; --surface:#0f202b; --surface-2:#152b38;
+      --ink:#e9f1f5; --ink-2:#b6c6cf; --muted:#7e929d; --line:#21384699;
+      --accent:#4aa6d0; --accent-2:#6cc0e6; --warm:#d79f57; --good:#5cb08a;
+      color-scheme:dark;
+    }
+  }
+  :root[data-theme="light"]{--ground:#f5f8fa;--surface:#ffffff;--surface-2:#eef3f6;--ink:#10222c;--ink-2:#39505d;--muted:#6b7a84;--line:#d9e0e5;--accent:#155e87;--accent-2:#1a6f9e;--warm:#b46e2b;--good:#2f7d5b;color-scheme:light;}
+  :root[data-theme="dark"]{--ground:#0b1620;--surface:#0f202b;--surface-2:#152b38;--ink:#e9f1f5;--ink-2:#b6c6cf;--muted:#7e929d;--line:#21384699;--accent:#4aa6d0;--accent-2:#6cc0e6;--warm:#d79f57;--good:#5cb08a;color-scheme:dark;}
+
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--ground); color:var(--ink); font-family:var(--sans); line-height:1.6; -webkit-font-smoothing:antialiased; }
+  .wrap { max-width:var(--maxw); margin:0 auto; padding:0 24px; }
+  h1,h2,h3 { text-wrap:balance; line-height:1.12; margin:0; }
+  p { margin:0; }
+  .eyebrow { font-family:var(--mono); font-size:.72rem; letter-spacing:.22em; text-transform:uppercase; color:var(--accent); }
+  .mono { font-family:var(--mono); }
+
+  /* hero */
+  .hero { position:relative; overflow:hidden; background:#08131b; color:#e9f1f5; border-bottom:1px solid #17303e; }
+  .hero-inner { position:relative; z-index:2; padding:78px 0 60px; }
+  .hero .eyebrow { color:#69c1e8; }
+  .hero h1 { font-size:clamp(2.4rem,6vw,4.2rem); font-weight:800; letter-spacing:-.025em; margin:16px 0 0; max-width:15ch; }
+  .hero .lede { margin-top:22px; max-width:60ch; font-size:1.14rem; color:#c4d4de; }
+  .hero .lede b { color:#f0d9b8; font-weight:600; }
+
+  /* dual-caller bridge diagram */
+  .bridge { position:relative; z-index:2; margin-top:38px; display:grid; grid-template-columns:1fr auto 1fr auto 1fr; align-items:center; gap:14px; }
+  .node { background:#0c1e29; border:1px solid #24485c; border-radius:12px; padding:16px 18px; }
+  .node .cap { font-family:var(--mono); font-size:.72rem; letter-spacing:.08em; color:#8fbdd6; }
+  .node .who { font-size:1.02rem; font-weight:700; margin-top:6px; display:flex; align-items:center; gap:8px; }
+  .node .ex  { font-family:var(--mono); font-size:.78rem; color:#e9f1f5; margin-top:9px; background:#0a1721; border-radius:6px; padding:6px 8px; }
+  .surface-node { background:#123246; border-color:#2f6a8a; text-align:center; }
+  .surface-node .who { justify-content:center; color:#bfe3f4; }
+  .arrow { color:#69c1e8; font-size:1.4rem; text-align:center; }
+  .arrow small { display:block; font-family:var(--mono); font-size:.6rem; letter-spacing:.05em; color:#6f93a6; margin-top:2px; }
+  @media (max-width:760px){ .bridge{ grid-template-columns:1fr; } .arrow{ transform:rotate(90deg); } }
+
+  section { padding:60px 0; border-bottom:1px solid var(--line); }
+  .sec-head { max-width:62ch; margin-bottom:30px; }
+  .sec-head h2 { font-size:clamp(1.5rem,3.2vw,2.15rem); font-weight:760; letter-spacing:-.015em; margin-top:10px; }
+  .sec-head p { color:var(--ink-2); margin-top:12px; font-size:1.04rem; }
+
+  /* two-users cards */
+  .two { display:grid; grid-template-columns:1fr 1fr; gap:18px; }
+  @media (max-width:680px){ .two{ grid-template-columns:1fr; } }
+  .u { background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:24px; }
+  .u .tag { font-family:var(--mono); font-size:.7rem; letter-spacing:.12em; text-transform:uppercase; color:var(--accent); }
+  .u h3 { font-size:1.2rem; margin:8px 0 8px; display:flex; gap:9px; align-items:center; }
+  .u p { color:var(--ink-2); font-size:.96rem; }
+  .u .ex { font-family:var(--mono); font-size:.82rem; margin-top:12px; background:var(--surface-2); border-radius:8px; padding:10px 12px; color:var(--ink); overflow-x:auto; }
+  .u .ex .c { color:var(--accent); }
+  .converge { text-align:center; margin-top:20px; font-size:.98rem; color:var(--ink-2); }
+  .converge b { color:var(--ink); }
+
+  /* the loop */
+  .loop { display:grid; grid-template-columns:repeat(4,1fr); gap:0; align-items:stretch; }
+  @media (max-width:820px){ .loop{ grid-template-columns:1fr 1fr; } }
+  @media (max-width:460px){ .loop{ grid-template-columns:1fr; } }
+  .lstep { position:relative; background:var(--surface); border:1px solid var(--line); padding:22px 20px; }
+  .loop .lstep:not(:last-child){ border-right:none; }
+  @media (max-width:820px){ .loop .lstep{ border-right:1px solid var(--line) !important; } }
+  .lstep:first-child{ border-radius:14px 0 0 14px; }
+  .lstep:last-child{ border-radius:0 14px 14px 0; }
+  @media (max-width:820px){ .lstep{ border-radius:12px !important; margin-bottom:-1px; } }
+  .lstep .n { font-family:var(--mono); font-size:.78rem; font-weight:700; color:var(--warm); }
+  .lstep h4 { font-size:1.04rem; margin:8px 0 6px; }
+  .lstep p { font-size:.9rem; color:var(--ink-2); }
+  .lstep .cmd { font-family:var(--mono); font-size:.78rem; color:var(--accent); margin-top:10px; display:block; word-break:break-word; }
+  .loopwrap { position:relative; }
+  .loopback { text-align:center; margin-top:14px; font-family:var(--mono); font-size:.8rem; color:var(--accent); }
+
+  .cmp { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:26px; }
+  @media (max-width:680px){ .cmp{ grid-template-columns:1fr; } }
+  .cmp .col { border:1px solid var(--line); border-radius:12px; padding:20px; }
+  .cmp .before { background:var(--surface-2); }
+  .cmp .after  { background:color-mix(in srgb,var(--accent) 9%, var(--surface)); border-color:color-mix(in srgb,var(--accent) 30%, var(--line)); }
+  .cmp h4 { font-size:.82rem; font-family:var(--mono); letter-spacing:.1em; text-transform:uppercase; margin-bottom:12px; }
+  .cmp .before h4 { color:var(--muted); }
+  .cmp .after h4 { color:var(--accent); }
+  .cmp ul { margin:0; padding:0; list-style:none; display:flex; flex-direction:column; gap:9px; }
+  .cmp li { font-size:.92rem; color:var(--ink-2); padding-left:20px; position:relative; }
+  .cmp li::before { position:absolute; left:0; top:0; }
+  .cmp .before li::before { content:"×"; color:var(--muted); }
+  .cmp .after li::before { content:"✓"; color:var(--good); font-weight:700; }
+
+  .adv { display:grid; grid-template-columns:repeat(auto-fit,minmax(250px,1fr)); gap:16px; }
+  .card { background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:22px; }
+  .card .k { font-family:var(--mono); font-size:.68rem; letter-spacing:.13em; text-transform:uppercase; color:var(--warm); }
+  .card h3 { font-size:1.08rem; margin:8px 0 6px; }
+  .card p { color:var(--ink-2); font-size:.93rem; }
+
+  .example { background:var(--surface); border:1px solid var(--line); border-left:3px solid var(--accent); border-radius:12px; padding:24px; }
+  .example .lbl { font-family:var(--mono); font-size:.7rem; letter-spacing:.12em; text-transform:uppercase; color:var(--accent); }
+  .example h3 { font-size:1.2rem; margin:8px 0 12px; }
+  .example p { color:var(--ink-2); font-size:.97rem; }
+  .example .run { font-family:var(--mono); font-size:.82rem; background:var(--surface-2); border-radius:8px; padding:12px 14px; margin-top:14px; overflow-x:auto; }
+  .example .run .c { color:var(--accent); }
+  .example .run .r { color:var(--good); }
+
+  .kicker { background:#08131b; color:#e9f1f5; border:none; }
+  .kicker .wrap { padding:56px 24px; text-align:center; }
+  .kicker h2 { font-size:clamp(1.6rem,3.6vw,2.4rem); font-weight:800; letter-spacing:-.02em; max-width:20ch; margin:0 auto; }
+  .kicker h2 .hl { color:#69c1e8; }
+  .kicker p { color:#a9c0cd; margin-top:16px; max-width:56ch; margin-left:auto; margin-right:auto; font-size:1.02rem; }
+
+  footer { padding:34px 0 56px; color:var(--muted); font-size:.84rem; }
+  footer .note { margin-top:8px; font-size:.8rem; }
+
+  .theme-toggle { position:fixed; top:14px; right:14px; z-index:20; font-family:var(--mono); font-size:.72rem; letter-spacing:.06em; background:var(--surface); color:var(--ink-2); border:1px solid var(--line); border-radius:20px; padding:7px 13px; cursor:pointer; }
+  .theme-toggle:hover { color:var(--accent); border-color:var(--accent); }
+  :focus-visible { outline:2px solid var(--accent); outline-offset:2px; border-radius:4px; }
+  @media (prefers-reduced-motion: reduce){ .reveal{ opacity:1 !important; transform:none !important; } }
+  .reveal { opacity:0; transform:translateY(14px); transition:opacity .6s ease, transform .6s ease; }
+  .reveal.in { opacity:1; transform:none; }
+</style>
+
+<button class="theme-toggle" id="tt" aria-label="Toggle light / dark theme">◐ theme</button>
+
+<header class="hero">
+  <div class="wrap hero-inner">
+    <div class="eyebrow">GeoView · AI Command Layer</div>
+    <h1>AI is a user, too.</h1>
+    <p class="lede">A command layer that links an AI directly to GeoView. The same interface that
+      lets a person drive the app in plain language lets an <b>AI drive it</b> — issue commands,
+      get <b>structured results back</b>, and act on what it sees.</p>
+
+    <div class="bridge">
+      <div class="node">
+        <div class="cap">USER · human</div>
+        <div class="who">🧑‍🔬 Interpreter</div>
+        <div class="ex">"stats volume AG_Spec_Bal"</div>
+      </div>
+      <div class="arrow">▸</div>
+      <div class="node surface-node">
+        <div class="cap">ONE COMMAND SURFACE</div>
+        <div class="who">⇄ GeoView</div>
+        <div class="ex">structured JSON result</div>
+      </div>
+      <div class="arrow">◂</div>
+      <div class="node">
+        <div class="cap">USER · machine</div>
+        <div class="who">🤖 AI agent</div>
+        <div class="ex">{"command":"volume.stats",…}</div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main>
+  <section><div class="wrap">
+    <div class="sec-head">
+      <div class="eyebrow">One surface, two kinds of user</div>
+      <h2>People and AI drive the same commands</h2>
+      <p>There is one set of read-only commands over the live project. A person reaches them in
+        natural language; an AI reaches them as tool calls. Same surface, same real data, same
+        machine-readable answers.</p>
+    </div>
+    <div class="two">
+      <div class="u">
+        <div class="tag">Human user</div>
+        <h3>🧑‍🔬 Ask in plain language</h3>
+        <p>Type a question or a short phrase in the in-app assistant. No menu hunting, no manual
+          steps — the app answers.</p>
+        <div class="ex"><span class="c">list wells</span><br>→ "This project has 4 wells…"</div>
+      </div>
+      <div class="u">
+        <div class="tag">AI user</div>
+        <h3>🤖 Call as a tool</h3>
+        <p>An AI agent issues the exact same command as a structured call and receives JSON it can
+          parse, check, and reason over — no screen to interpret.</p>
+        <div class="ex"><span class="c">{"command":"well.list"}</span><br>→ {"ok":true,"wells":[…4…]}</div>
+      </div>
+    </div>
+    <p class="converge">Both paths converge on <b>~24 read-only commands</b> that return the same
+      structured result — so whatever a person can ask, the AI can ask too.</p>
+  </div></section>
+
+  <section><div class="wrap">
+    <div class="sec-head">
+      <div class="eyebrow">The payoff — a development feedback loop</div>
+      <h2>The AI can verify its own work</h2>
+      <p>The real leverage shows up during development. When an AI fixes a bug or adds a feature,
+        it can call this tool to <b>exercise the change on a real project</b>, get the result back,
+        <b>see it</b>, and judge whether the change is correct — then iterate. Objective feedback,
+        in the loop, without waiting for a human to click through the app.</p>
+    </div>
+    <div class="loopwrap">
+      <div class="loop">
+        <div class="lstep"><div class="n">01</div><h4>Change</h4><p>The AI fixes a bug or adds a feature in the code.</p><span class="cmd">// new command, new behavior</span></div>
+        <div class="lstep"><div class="n">02</div><h4>Exercise</h4><p>It calls the tool to run the change against a real project.</p><span class="cmd">stats volume AG_Spec_Bal</span></div>
+        <div class="lstep"><div class="n">03</div><h4>Observe</h4><p>Structured JSON comes straight back to the AI — no GUI to read.</p><span class="cmd">{"ok":true,"min":-276.7,…}</span></div>
+        <div class="lstep"><div class="n">04</div><h4>Verify</h4><p>It checks the numbers against what the change should produce.</p><span class="cmd">✓ matches → done, else iterate</span></div>
+      </div>
+      <div class="loopback">↺ repeat until the result verifies — feedback in seconds, not review cycles</div>
+    </div>
+
+    <div class="cmp">
+      <div class="col before">
+        <h4>Without it</h4>
+        <ul>
+          <li>Rebuild, then click through the GUI by hand</li>
+          <li>Eyeball a screen — the AI can't "see" a window</li>
+          <li>Correctness is a guess until a human checks</li>
+          <li>Feedback waits for the next review cycle</li>
+        </ul>
+      </div>
+      <div class="col after">
+        <h4>With it</h4>
+        <ul>
+          <li>Exercise the change with one command</li>
+          <li>Result returns as data the AI can parse</li>
+          <li>Correctness is checked against real numbers</li>
+          <li>Feedback is immediate — velocity goes up sharply</li>
+        </ul>
+      </div>
+    </div>
+  </div></section>
+
+  <section><div class="wrap">
+    <div class="sec-head">
+      <div class="eyebrow">Why it works</div>
+      <h2>What makes the loop trustworthy</h2>
+    </div>
+    <div class="adv">
+      <div class="card"><div class="k">Machine-readable</div><h3>Results as data</h3><p>Every command returns structured JSON — something an AI can parse and assert on, not a screenshot to interpret.</p></div>
+      <div class="card"><div class="k">Real data</div><h3>Verified on real projects</h3><p>Commands run against actual surveys (e.g. GOM V3), not mocks — so a passing check actually means something.</p></div>
+      <div class="card"><div class="k">Headless</div><h3>No clicking required</h3><p>The AI verifies through commands and a JSON result file — no human at the GUI in the loop.</p></div>
+      <div class="card"><div class="k">One layer</div><h3>Reused everywhere</h3><p>The same commands back the CLI, the in-app chat, and AI tool calls — build once, drive three ways.</p></div>
+      <div class="card"><div class="k">Safe by design</div><h3>Human-gated writes</h3><p>The AI-driven surface is read-only queries, analysis, and opening dialogs; anything that changes data stays a human action. Local-first — project data stays on-prem.</p></div>
+      <div class="card"><div class="k">Deterministic</div><h3>Reliable dispatch</h3><p>Common intents route to commands deterministically, so verification doesn't hinge on a model guessing the right call.</p></div>
+    </div>
+  </div></section>
+
+  <section><div class="wrap">
+    <div class="sec-head">
+      <div class="eyebrow">A real instance</div>
+      <h2>Built with its own medicine</h2>
+    </div>
+    <div class="example">
+      <div class="lbl">Loop in action · GOM V3</div>
+      <h3>This tool verified the code that built it</h3>
+      <p>While developing the command layer, the AI used the layer itself to check each change on a
+        real project — closing the loop on its own work. After adding volume comparison, it ran a
+        self-compare and confirmed the scan math from the returned numbers:</p>
+      <div class="run">
+        <span class="c">compare volumes --volume-a AG_Spec_Bal --volume-b AG_Spec_Bal</span><br>
+        → <span class="r">{"compatible":true,"traces":23715,"rms_diff":0,"correlation":1.0}</span><br>
+        <span style="color:var(--muted)">// identical inputs → correlation 1.0, zero difference — the diff path is correct.</span>
+      </div>
+      <p style="margin-top:14px">Same pattern verified <span class="mono">list wells</span> (4 wells),
+        <span class="mono">stats volume</span> (amplitudes), and <span class="mono">spectrum volume</span>
+        (a Bandpass suggestion) — each change confirmed against real returned values before moving on.</p>
+    </div>
+  </div></section>
+
+  <section class="kicker">
+    <div class="wrap">
+      <h2>The interface is the bridge. <span class="hl">The feedback loop is the payoff.</span></h2>
+      <p>Link an AI to GeoView and it stops being a black box: the AI drives it, sees the result,
+        and verifies its own changes — so building on GeoView gets faster and safer at the same time.</p>
+    </div>
+  </section>
+</main>
+
+<footer><div class="wrap">
+  GeoView · AI Command Layer — feature/cli-foundation
+  <div class="note">Internal presentation material — verified on the GOM&nbsp;V3 survey. Review before any external use.</div>
+</div></footer>
+
+<script>
+  (function(){ var root=document.documentElement, b=document.getElementById('tt');
+    b.addEventListener('click', function(){ var c=root.getAttribute('data-theme'); if(!c) c=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'; root.setAttribute('data-theme', c==='dark'?'light':'dark'); }); })();
+  (function(){ var els=document.querySelectorAll('.u,.lstep,.card,.cmp .col,.example,.bridge .node');
+    els.forEach(function(e){ e.classList.add('reveal'); });
+    if(!('IntersectionObserver' in window)){ els.forEach(function(e){ e.classList.add('in'); }); return; }
+    var io=new IntersectionObserver(function(es){ es.forEach(function(en){ if(en.isIntersecting){ en.target.classList.add('in'); io.unobserve(en.target); } }); }, {threshold:.12});
+    els.forEach(function(e){ io.observe(e); }); })();
+</script>
+
+</body>
+</html>

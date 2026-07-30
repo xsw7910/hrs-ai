@@ -1,0 +1,602 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GeoView CLI &amp; AI Assistant — Demo Report</title>
+<style>:root{color-scheme:light}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}</style>
+</head>
+<body>
+<style>
+  :root {
+    --paper: #f5f7f9;
+    --surface: #ffffff;
+    --ink: #14202b;
+    --ink-soft: #4a5a68;
+    --ink-faint: #76858f;
+    --line: #dce3e9;
+    --line-soft: #e9eef2;
+    --blue: #155e87;
+    --blue-deep: #0e3a54;
+    --amber: #b86a1f;
+    --amber-soft: #f3e6d4;
+    --green: #2f7d56;
+    --green-soft: #e0eee7;
+    --term-bg: #0f1a24;
+    --term-fg: #cdd9e1;
+    --term-dim: #6f8194;
+    --term-green: #7cc59b;
+    --term-amber: #e0a85c;
+    --term-blue: #6db4dd;
+    --mono: "Cascadia Code", "Cascadia Mono", "Consolas", ui-monospace, "SFMono-Regular", monospace;
+    --sans: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--sans);
+    line-height: 1.62;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: 60rem;
+    margin: 0 auto;
+    padding: 0 1.5rem 6rem;
+  }
+
+  /* ---- Masthead ---- */
+  .masthead {
+    border-bottom: 2px solid var(--ink);
+    padding: 3rem 0 1.5rem;
+    margin-bottom: 2.5rem;
+  }
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--blue);
+    margin: 0 0 0.9rem;
+  }
+  h1 {
+    font-size: clamp(1.9rem, 4.5vw, 2.9rem);
+    line-height: 1.08;
+    letter-spacing: -0.02em;
+    margin: 0 0 0.6rem;
+    text-wrap: balance;
+    font-weight: 650;
+  }
+  .lede {
+    font-size: 1.12rem;
+    color: var(--ink-soft);
+    max-width: 42rem;
+    margin: 0 0 1.6rem;
+    text-wrap: pretty;
+  }
+  .status-strip {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 0.6rem;
+    font-family: var(--mono);
+    font-size: 0.78rem;
+  }
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.28rem 0.7rem;
+    border-radius: 2px;
+    border: 1px solid var(--line);
+    background: var(--surface);
+    color: var(--ink-soft);
+    white-space: nowrap;
+  }
+  .chip b { color: var(--ink); font-weight: 600; }
+  .chip.ok { border-color: var(--green); background: var(--green-soft); color: #245d40; }
+  .chip.ok b { color: #1c4a33; }
+
+  /* ---- Section scaffolding ---- */
+  section { margin: 3.2rem 0 0; scroll-margin-top: 1rem; }
+  .sec-head {
+    display: flex;
+    align-items: baseline;
+    gap: 0.9rem;
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 0.6rem;
+    margin-bottom: 1.4rem;
+  }
+  .sec-num {
+    font-family: var(--mono);
+    font-size: 0.85rem;
+    color: var(--amber);
+    font-weight: 600;
+    letter-spacing: 0.04em;
+  }
+  h2 {
+    font-size: 1.4rem;
+    margin: 0;
+    font-weight: 620;
+    letter-spacing: -0.01em;
+  }
+  h3 {
+    font-size: 1.04rem;
+    margin: 2rem 0 0.5rem;
+    font-weight: 620;
+    color: var(--blue-deep);
+  }
+  p { margin: 0 0 1rem; max-width: 44rem; text-wrap: pretty; }
+  a { color: var(--blue); }
+
+  .note { color: var(--ink-soft); font-size: 0.95rem; }
+
+  /* ---- Architecture layers ---- */
+  .layers { display: flex; flex-direction: column; gap: 0.5rem; margin: 1.2rem 0; }
+  .layer {
+    display: grid;
+    grid-template-columns: 7.5rem 1fr;
+    gap: 1rem;
+    align-items: center;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--blue);
+    padding: 0.8rem 1rem;
+  }
+  .layer .lname {
+    font-family: var(--mono);
+    font-size: 0.74rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--blue);
+    font-weight: 600;
+  }
+  .layer .ldesc { font-size: 0.92rem; color: var(--ink-soft); }
+  .layer .ldesc b { color: var(--ink); font-weight: 600; }
+  .layer.l1 { border-left-color: var(--ink-faint); }
+  .layer.l1 .lname { color: var(--ink-faint); }
+
+  /* ---- Tables ---- */
+  .table-scroll { overflow-x: auto; margin: 1.2rem 0; border: 1px solid var(--line); }
+  table { border-collapse: collapse; width: 100%; font-size: 0.88rem; }
+  th, td { text-align: left; padding: 0.55rem 0.85rem; border-bottom: 1px solid var(--line-soft); vertical-align: top; }
+  thead th {
+    background: #eef2f5;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: var(--ink-soft);
+    font-weight: 600;
+    border-bottom: 1px solid var(--line);
+    white-space: nowrap;
+  }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:hover { background: #f3f6f8; }
+  td.cmd { font-family: var(--mono); color: var(--blue-deep); font-weight: 600; white-space: nowrap; }
+  td.phrase { font-family: var(--mono); color: var(--ink-soft); white-space: nowrap; }
+  .tag {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    padding: 0.1rem 0.45rem;
+    border-radius: 2px;
+    letter-spacing: 0.03em;
+    white-space: nowrap;
+  }
+  .tag.read { background: #e6eef3; color: #1d557a; }
+  .tag.ai { background: var(--amber-soft); color: #8a4d14; }
+  .tag.viz { background: #e7ebf3; color: #3a4a7a; }
+
+  /* ---- Terminal command blocks ---- */
+  .demo { margin: 1.4rem 0 1.8rem; }
+  .demo-title {
+    display: flex;
+    align-items: baseline;
+    gap: 0.6rem;
+    margin: 0 0 0.55rem;
+  }
+  .demo-step {
+    font-family: var(--mono);
+    font-size: 0.74rem;
+    font-weight: 700;
+    color: var(--amber);
+  }
+  .demo-name { font-weight: 600; font-size: 1rem; }
+  .demo-desc { color: var(--ink-soft); font-size: 0.9rem; margin: 0 0 0.6rem; max-width: 44rem; }
+  .term {
+    background: var(--term-bg);
+    border-radius: 5px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(15,26,36,0.18);
+  }
+  .term-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.5rem 0.8rem;
+    background: #16242f;
+    border-bottom: 1px solid #243440;
+  }
+  .term-bar .dot { width: 0.6rem; height: 0.6rem; border-radius: 50%; background: #34495a; }
+  .term-bar .lbl {
+    margin-left: 0.4rem;
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    color: var(--term-dim);
+    letter-spacing: 0.04em;
+  }
+  .term-body { overflow-x: auto; padding: 0.85rem 1rem; }
+  pre {
+    margin: 0;
+    font-family: var(--mono);
+    font-size: 0.82rem;
+    line-height: 1.55;
+    color: var(--term-fg);
+    white-space: pre;
+  }
+  .term-body .pmt { color: var(--term-green); }
+  .term-body .flag { color: var(--term-blue); }
+  .term-body .cmt { color: var(--term-dim); }
+  .term-body .out { color: var(--term-fg); }
+  .term-body .hi { color: var(--term-amber); }
+
+  /* ---- Callout ---- */
+  .callout {
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--amber);
+    background: #fbf6ef;
+    padding: 1rem 1.2rem;
+    margin: 1.4rem 0;
+    font-size: 0.92rem;
+  }
+  .callout.sec { border-left-color: var(--green); background: var(--green-soft); }
+  .callout h4 {
+    margin: 0 0 0.5rem;
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-family: var(--mono);
+    color: var(--amber);
+  }
+  .callout.sec h4 { color: #245d40; }
+  .callout ul { margin: 0.4rem 0 0; padding-left: 1.1rem; }
+  .callout li { margin: 0.3rem 0; }
+
+  .key-list { list-style: none; padding: 0; margin: 1rem 0; display: flex; flex-direction: column; gap: 0.55rem; }
+  .key-list li {
+    display: grid;
+    grid-template-columns: 1.4rem 1fr;
+    gap: 0.6rem;
+    font-size: 0.94rem;
+    color: var(--ink-soft);
+  }
+  .key-list .mk { color: var(--green); font-weight: 700; font-family: var(--mono); }
+  .key-list b { color: var(--ink); font-weight: 600; }
+
+  code.inl {
+    font-family: var(--mono);
+    font-size: 0.85em;
+    background: #eaeff3;
+    padding: 0.08rem 0.32rem;
+    border-radius: 3px;
+    color: var(--blue-deep);
+  }
+
+  footer {
+    margin-top: 4rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--line);
+    font-size: 0.85rem;
+    color: var(--ink-faint);
+  }
+  footer b { color: var(--ink-soft); }
+
+  @media (max-width: 33rem) {
+    .layer { grid-template-columns: 1fr; gap: 0.25rem; }
+    .key-list li { grid-template-columns: 1.2rem 1fr; }
+  }
+</style>
+
+<div class="wrap">
+
+  <header class="masthead">
+    <p class="eyebrow">GeoView · Internal demo report</p>
+    <h1>CLI &amp; AI Assistant for GeoView</h1>
+    <p class="lede">A scriptable command layer and an in-app AI assistant for the seismic interpretation suite — built as a thin shell over existing C++ libraries, with one command registry shared by the CLI, the chat dialog, and (later) Python.</p>
+    <div class="status-strip">
+      <span class="chip">branch&nbsp;<b>feature/cli-foundation</b></span>
+      <span class="chip ok">✓&nbsp;<b>142</b>&nbsp;unit tests pass</span>
+      <span class="chip ok">✓&nbsp;verified on&nbsp;<b>GOM V3.prj</b></span>
+      <span class="chip">C++14 · Qt · Ollama / Claude</span>
+    </div>
+  </header>
+
+  <!-- 1. What it is -->
+  <section>
+    <div class="sec-head"><span class="sec-num">01</span><h2>What was built</h2></div>
+    <p>The work exposes GeoView's key read-only operations as scriptable commands and connects an AI assistant to that same surface. The architectural decision underneath everything: <b>one registry, three frontends</b>. A command is written once and reached identically from the CLI, the in-app chat, and the future Python binding — so behaviour can never drift between them.</p>
+    <p>Every command shipped so far is <b>read-only</b>. AI parameter suggestions are advisory, carry a "review by a geophysicist" caveat, and are never auto-applied — consistent with the no-autonomous-changes policy. The default LLM backend is a <b>local Ollama model</b>, so project data stays on the workstation unless a user explicitly opts into the Claude backend.</p>
+
+    <div class="layers">
+      <div class="layer l1">
+        <span class="lname">Layer 1</span>
+        <span class="ldesc"><b>Existing C++ libraries</b> — WellControlSystem, SeismicVolume, process chains. Unchanged.</span>
+      </div>
+      <div class="layer">
+        <span class="lname">Layer 2</span>
+        <span class="ldesc"><b>Command registry</b> (<code class="inl">hrs/cli/</code>, GUI-free) — <code class="inl">HrsCliCommandRegistry</code> + the <code class="inl">IProjectDataSource</code> / <code class="inl">ISeismicViewer</code> seams. Fully unit-tested against a mock.</span>
+      </div>
+      <div class="layer">
+        <span class="lname">Layer 3</span>
+        <span class="ldesc"><b>AI assistant service</b> — <code class="inl">HrsQtAiAssistantService</code> runs a tool-use loop over the registry; <code class="inl">HrsQtLocalLlmClient</code> talks to Ollama or Claude (async, non-blocking UI).</span>
+      </div>
+      <div class="layer">
+        <span class="lname">Layer 4</span>
+        <span class="ldesc"><b>Frontends</b> — <code class="inl">geoview --cli …</code> for scripting, the in-app chat dialog, and semantic Help Q&amp;A (RAG over the help docs).</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- 2. Command catalog -->
+  <section>
+    <div class="sec-head"><span class="sec-num">02</span><h2>Command catalog</h2></div>
+    <p>Every command accepts a dotted name (<code class="inl">volume.stats</code>) or a two-word human phrase (<code class="inl">stats volume</code>). Tags: <span class="tag read">read</span> read-only query · <span class="tag viz">viz</span> opens a window / image · <span class="tag ai">ai</span> analysis feeding an AI suggestion.</p>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr><th>Command</th><th>Phrase</th><th>What it does</th><th>Type</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="cmd">project.open</td><td class="phrase">open project</td><td>Load a project and stay interactive.</td><td><span class="tag read">read</span></td></tr>
+          <tr><td class="cmd">project.describe</td><td class="phrase">describe project</td><td>Counts of wells, volumes, horizons.</td><td><span class="tag read">read</span></td></tr>
+          <tr><td class="cmd">volume.list</td><td class="phrase">list volumes</td><td>Enumerate seismic volume names.</td><td><span class="tag read">read</span></td></tr>
+          <tr><td class="cmd">well.list</td><td class="phrase">list wells</td><td>Enumerate well names.</td><td><span class="tag read">read</span></td></tr>
+          <tr><td class="cmd">volume.describe</td><td class="phrase">describe volume</td><td>Real geometry: inline/xline range, sample rate, domain.</td><td><span class="tag read">read</span></td></tr>
+          <tr><td class="cmd">well.describe</td><td class="phrase">describe well</td><td>Logs, depth range, tops.</td><td><span class="tag read">read</span></td></tr>
+          <tr><td class="cmd">volume.stats</td><td class="phrase">stats volume</td><td>min/max/mean/RMS/percentiles + histogram; estimate or <code class="inl">--exact</code>; optional region window.</td><td><span class="tag read">read</span></td></tr>
+          <tr><td class="cmd">well.stats</td><td class="phrase">stats well</td><td>Per-log quantiles, null/missing rate, depth range.</td><td><span class="tag read">read</span></td></tr>
+          <tr><td class="cmd">well.compare</td><td class="phrase">compare logs</td><td>Side-by-side stats for several logs of one well.</td><td><span class="tag read">read</span></td></tr>
+          <tr><td class="cmd">seismic.show</td><td class="phrase">show seismic</td><td>Open a volume and navigate to an inline (clamped to range).</td><td><span class="tag viz">viz</span></td></tr>
+          <tr><td class="cmd">seismic.render</td><td class="phrase">render seismic</td><td>Render an inline section straight to a PNG.</td><td><span class="tag viz">viz</span></td></tr>
+          <tr><td class="cmd">volume.spectrum</td><td class="phrase">spectrum volume</td><td>Average amplitude spectrum → suggested <b>Bandpass</b> filter.</td><td><span class="tag ai">ai</span></td></tr>
+          <tr><td class="cmd">gather.qc</td><td class="phrase">gather qc</td><td>Prestack offset/angle QC → <b>conditioning</b> hint.</td><td><span class="tag ai">ai</span></td></tr>
+          <tr><td class="cmd">volume.scaling</td><td class="phrase">scaling volume</td><td>RMS → suggested <b>scaler</b> toward a target RMS.</td><td><span class="tag ai">ai</span></td></tr>
+          <tr><td class="cmd">volume.decon</td><td class="phrase">decon volume</td><td>Trace autocorrelation → <b>predictive-decon</b> params.</td><td><span class="tag ai">ai</span></td></tr>
+          <tr><td class="cmd">volume.agc</td><td class="phrase">agc volume</td><td>Amplitude envelope → suggested <b>AGC gain window</b>.</td><td><span class="tag ai">ai</span></td></tr>
+          <tr><td class="cmd">project.report</td><td class="phrase">report project</td><td>Aggregate project QC snapshot as JSON + Markdown.</td><td><span class="tag read">read</span></td></tr>
+          <tr><td class="cmd">chat</td><td class="phrase">—</td><td>One-shot natural-language question over the tool surface.</td><td><span class="tag ai">ai</span></td></tr>
+          <tr><td class="cmd">help.index / help.ask</td><td class="phrase">—</td><td>Build / query a semantic index over the help docs (RAG).</td><td><span class="tag ai">ai</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- 3. Demo setup -->
+  <section>
+    <div class="sec-head"><span class="sec-num">03</span><h2>Demo setup</h2></div>
+    <p>Demos run against <code class="inl">C:\test\GOM V3.prj</code> (4 wells, 18 volumes, 7 horizons). GeoView is a GUI-subsystem process with no console of its own, so query commands write their JSON to a <code class="inl">--out</code> file; the path convention is a trailing slash on <code class="inl">--dir</code> and the <code class="inl">.prj</code> suffix on <code class="inl">--name</code>.</p>
+
+    <div class="demo">
+      <p class="demo-desc">Launch template — start GeoView headless with PowerShell, then read the result file:</p>
+      <div class="term">
+        <div class="term-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="lbl">PowerShell — launch convention</span></div>
+        <div class="term-body"><pre><span class="cmt"># geoview is GUI-subsystem; --out is the reliable result channel</span>
+<span class="pmt">PS&gt;</span> $exe = "…\bin\win64\vs2022\hrs\Debug\geoview.exe"
+<span class="pmt">PS&gt;</span> Start-Process $exe <span class="flag">-ArgumentList</span> '--cli describe project <span class="flag">--dir</span> C:\test\ <span class="flag">--name</span> "GOM V3.prj" <span class="flag">--out</span> C:\test\out.json'
+<span class="pmt">PS&gt;</span> Get-Content C:\test\out.json</pre></div>
+      </div>
+    </div>
+
+    <div class="callout sec">
+      <h4>Security &amp; compliance posture</h4>
+      <ul>
+        <li><b>Local by default.</b> The assistant uses a local Ollama model; project data stays on-prem. Claude is explicit opt-in and warns before sending data off-machine.</li>
+        <li><b>No secrets in code.</b> The Claude API key is read only from <code class="inl">ANTHROPIC_API_KEY</code>, never hardcoded or persisted.</li>
+        <li><b>Advisory only.</b> Every AI parameter suggestion is a starting point with a geophysicist-review caveat and is never auto-applied.</li>
+        <li><b>Read-only surface.</b> No command shipped so far writes to the project.</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- 4. Demo script -->
+  <section>
+    <div class="sec-head"><span class="sec-num">04</span><h2>Demo script</h2></div>
+    <p>Seven scenarios, each a runnable command with the output actually observed on GOM V3. The <code class="inl">--dir / --name / --out</code> tail is omitted below for readability — add it per the launch template above.</p>
+
+    <h3>A · Project at a glance</h3>
+    <div class="demo">
+      <div class="demo-title"><span class="demo-step">A1</span><span class="demo-name">Describe the project</span></div>
+      <div class="term">
+        <div class="term-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="lbl">describe project</span></div>
+        <div class="term-body"><pre><span class="pmt">&gt;</span> geoview --cli <span class="hi">describe project</span>
+<span class="out">{ "ok": true, "wells": </span><span class="hi">4</span><span class="out">, "volumes": </span><span class="hi">18</span><span class="out">, "horizons": </span><span class="hi">7</span><span class="out"> }</span></pre></div>
+      </div>
+    </div>
+    <div class="demo">
+      <div class="demo-title"><span class="demo-step">A2</span><span class="demo-name">List volumes · describe one</span></div>
+      <div class="term">
+        <div class="term-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="lbl">list volumes / describe volume</span></div>
+        <div class="term-body"><pre><span class="pmt">&gt;</span> geoview --cli <span class="hi">list volumes</span>
+<span class="out">→ 18 names: AG_Spec_Bal, AG_Spec_Bal_Stk, Spec_Bal_Aki, … trim_statics</span>
+
+<span class="pmt">&gt;</span> geoview --cli <span class="hi">describe volume</span> <span class="flag">--volume</span> AG_Spec_Bal
+<span class="out">→ real geometry (inline/xline range, sample rate 4 ms, domain) read</span>
+<span class="out">  via DataVolumeFactory — no GUI window needed</span></pre></div>
+      </div>
+    </div>
+    <div class="demo">
+      <div class="demo-title"><span class="demo-step">A3</span><span class="demo-name">Describe a well</span></div>
+      <div class="term">
+        <div class="term-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="lbl">describe well</span></div>
+        <div class="term-body"><pre><span class="pmt">&gt;</span> geoview --cli <span class="hi">describe well</span> <span class="flag">--well</span> Well_1
+<span class="out">→ </span><span class="hi">36 logs</span><span class="out"> + tops, depth range 7600–9966 ft</span></pre></div>
+      </div>
+    </div>
+
+    <h3>B · Statistics</h3>
+    <div class="demo">
+      <div class="demo-title"><span class="demo-step">B1</span><span class="demo-name">Volume amplitude stats — estimate vs exact</span></div>
+      <div class="term">
+        <div class="term-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="lbl">stats volume</span></div>
+        <div class="term-body"><pre><span class="pmt">&gt;</span> geoview --cli <span class="hi">stats volume</span> <span class="flag">--volume</span> AG_Spec_Bal
+<span class="out">→ instant estimate from .inf metadata</span>
+
+<span class="pmt">&gt;</span> geoview --cli <span class="hi">stats volume</span> <span class="flag">--volume</span> AG_Spec_Bal <span class="flag">--exact</span>
+<span class="out">→ full scan of </span><span class="hi">11.88M samples</span><span class="out">: min -276.7 / max 713.3 /</span>
+<span class="out">  mean ~0 / rms 0.78, with p10 &lt; p50 &lt; p90 + histogram</span></pre></div>
+      </div>
+    </div>
+    <div class="demo">
+      <div class="demo-title"><span class="demo-step">B2</span><span class="demo-name">Log stats · multi-log compare</span></div>
+      <div class="term">
+        <div class="term-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="lbl">stats well / compare logs</span></div>
+        <div class="term-body"><pre><span class="pmt">&gt;</span> geoview --cli <span class="hi">stats well</span> <span class="flag">--well</span> Well_1 <span class="flag">--log</span> "Gamma Ray"
+<span class="out">→ 4733 samples, mean </span><span class="hi">90.7 gAPI</span><span class="out">, + null/missing rate, depth range</span>
+
+<span class="pmt">&gt;</span> geoview --cli <span class="hi">compare logs</span> <span class="flag">--well</span> Well_1 <span class="flag">--logs</span> "GR,Resistivity,Density"
+<span class="out">→ side-by-side, correct units: gAPI / ohm·m / g·cc</span></pre></div>
+      </div>
+    </div>
+    <div class="demo">
+      <div class="demo-title"><span class="demo-step">B3</span><span class="demo-name">Region-windowed stats</span></div>
+      <div class="term">
+        <div class="term-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="lbl">stats volume — region</span></div>
+        <div class="term-body"><pre><span class="pmt">&gt;</span> geoview --cli <span class="hi">stats volume</span> <span class="flag">--volume</span> AG_Spec_Bal <span class="flag">--inline-min</span> 14700 <span class="flag">--inline-max</span> 14750
+<span class="out">→ </span><span class="hi">153,306 samples</span><span class="out"> (vs 11.88M whole-volume); stats narrower as expected</span></pre></div>
+      </div>
+    </div>
+
+    <h3>C · Visualization</h3>
+    <div class="demo">
+      <div class="demo-title"><span class="demo-step">C1</span><span class="demo-name">Open a seismic inline (interactive)</span></div>
+      <div class="term">
+        <div class="term-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="lbl">show seismic</span></div>
+        <div class="term-body"><pre><span class="pmt">&gt;</span> geoview --cli <span class="hi">show seismic</span> <span class="flag">--volume</span> AG_Spec_Bal <span class="flag">--inline</span> 14700
+<span class="out">→ opens the section window on inline 14700 (range 14600–14900);</span>
+<span class="out">  out-of-range requests clamp — e.g. inline 100 → 14600</span></pre></div>
+      </div>
+    </div>
+    <div class="demo">
+      <div class="demo-title"><span class="demo-step">C2</span><span class="demo-name">Render an inline to PNG (headless)</span></div>
+      <div class="term">
+        <div class="term-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="lbl">render seismic</span></div>
+        <div class="term-body"><pre><span class="pmt">&gt;</span> geoview --cli <span class="hi">render seismic</span> <span class="flag">--volume</span> AG_Spec_Bal <span class="flag">--inline</span> 14700 <span class="flag">--out</span> slice.png
+<span class="out">→ </span><span class="hi">640×453 PNG</span><span class="out"> of the real section written to disk</span></pre></div>
+      </div>
+    </div>
+
+    <h3>D · AI parameter suggestions <span style="font-weight:400;color:var(--ink-faint);font-size:0.85rem;">— one recipe, five processes</span></h3>
+    <p class="note">Each command computes a real data feature and a deterministic rule baseline. The AI layer is reused with <b>no extra wiring</b>: the command's own description is enough for the assistant to call it for a parameter question and narrate the numbers — always with the review caveat.</p>
+    <div class="demo">
+      <div class="demo-title"><span class="demo-step">D1</span><span class="demo-name">Spectrum → Bandpass</span></div>
+      <div class="term">
+        <div class="term-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="lbl">spectrum volume</span></div>
+        <div class="term-body"><pre><span class="pmt">&gt;</span> geoview --cli <span class="hi">spectrum volume</span> <span class="flag">--volume</span> AG_Spec_Bal
+<span class="out">→ 2156 traces, Nyquist 125 Hz, peak ~5 Hz, −6 dB band [2.5, 40]</span>
+<span class="out">  suggested Bandpass </span><span class="hi">1.2 – 2.5 – 40 – 50 Hz</span><span class="out">  (review caveat)</span></pre></div>
+      </div>
+    </div>
+    <div class="demo">
+      <div class="demo-title"><span class="demo-step">D2</span><span class="demo-name">Gather QC → conditioning</span></div>
+      <div class="term">
+        <div class="term-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="lbl">gather qc</span></div>
+        <div class="term-body"><pre><span class="pmt">&gt;</span> geoview --cli <span class="hi">gather qc</span> <span class="flag">--volume</span> AG_Spec_Bal
+<span class="out">→ </span><span class="hi">prestack ANGLE gather</span><span class="out">: 2–44°, fold 15, full coverage</span>
+<span class="out">  (23,715 live traces over 1581 bins) → super-gather / mute hints</span></pre></div>
+      </div>
+    </div>
+    <div class="demo">
+      <div class="demo-title"><span class="demo-step">D3</span><span class="demo-name">RMS → scaler</span></div>
+      <div class="term">
+        <div class="term-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="lbl">scaling volume</span></div>
+        <div class="term-body"><pre><span class="pmt">&gt;</span> geoview --cli <span class="hi">scaling volume</span> <span class="flag">--volume</span> AG_Spec_Bal <span class="flag">--exact</span>
+<span class="out">→ current_rms 0.78 → suggested scaler </span><span class="hi">1.28</span><span class="out"> (target RMS 1.0), scaled_max 914</span></pre></div>
+      </div>
+    </div>
+    <div class="demo">
+      <div class="demo-title"><span class="demo-step">D4</span><span class="demo-name">Autocorrelation → predictive decon</span></div>
+      <div class="term">
+        <div class="term-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="lbl">decon volume</span></div>
+        <div class="term-body"><pre><span class="pmt">&gt;</span> geoview --cli <span class="hi">decon volume</span> <span class="flag">--volume</span> AG_Spec_Bal
+<span class="out">→ ACF [1, 0.85, 0.47, 0.05, −0.23, …] → operator </span><span class="hi">28 ms</span><span class="out"> /</span>
+<span class="out">  gap 16 ms / white-noise 1%</span></pre></div>
+      </div>
+    </div>
+    <div class="demo">
+      <div class="demo-title"><span class="demo-step">D5</span><span class="demo-name">Envelope → AGC gain window</span></div>
+      <div class="term">
+        <div class="term-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="lbl">agc volume</span></div>
+        <div class="term-body"><pre><span class="pmt">&gt;</span> geoview --cli <span class="hi">agc volume</span> <span class="flag">--volume</span> AG_Spec_Bal
+<span class="out">→ 32-seg RMS envelope (peak seg 24), decay 0.91 → gain window</span>
+<span class="out">  </span><span class="hi">200 ms</span><span class="out"> / type rms</span></pre></div>
+      </div>
+    </div>
+
+    <h3>E · Project QC report</h3>
+    <div class="demo">
+      <div class="demo-title"><span class="demo-step">E1</span><span class="demo-name">One-shot QC snapshot (JSON + Markdown)</span></div>
+      <div class="term">
+        <div class="term-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="lbl">report project</span></div>
+        <div class="term-body"><pre><span class="pmt">&gt;</span> geoview --cli <span class="hi">report project</span>
+<span class="out">→ counts 4 / 18 / 7 + per-well log &amp; depth detail + volume/horizon</span>
+<span class="out">  listings + QC observations, and a ready </span><span class="hi">report_markdown</span><span class="out"> document:</span>
+
+  <span class="cmt"># Project QC Report: GOM V3.prj</span>
+  <span class="cmt">## Wells</span>
+  <span class="cmt">| Well        | Logs | Depth range  | Unit |</span>
+  <span class="cmt">| Well_1      | 36   | 7600–9966    | ft   |</span>
+  <span class="cmt">| Well_1_ST1  | 43   | 0–10560.23   | ft   | …</span></pre></div>
+      </div>
+    </div>
+
+    <h3>F · In-app AI chat</h3>
+    <div class="demo">
+      <div class="demo-title"><span class="demo-step">F1</span><span class="demo-name">Natural language → tool call → answer</span></div>
+      <div class="term">
+        <div class="term-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="lbl">chat (one-shot CLI)</span></div>
+        <div class="term-body"><pre><span class="pmt">&gt;</span> geoview --cli <span class="hi">chat</span> "how many wells"
+<span class="out">→ assistant calls </span><span class="flag">well.list</span><span class="out"> → "There are four wells."</span>
+
+<span class="pmt">&gt;</span> geoview --cli <span class="hi">chat</span> "suggest bandpass for AG_Spec_Bal"
+<span class="out">→ assistant calls </span><span class="flag">volume.spectrum</span><span class="out"> → quotes the numbers + geophysicist caveat</span></pre></div>
+      </div>
+    </div>
+    <p class="note">In the GUI, an <b>AI Assistant</b> button in the status bar opens a non-modal chat popup. A <b>Backend</b> selector switches Local ⇄ Claude (Claude disabled until a key is set), and <b>Settings…</b> edits the endpoint and model — persisted across restarts.</p>
+
+    <h3>G · Semantic help (RAG)</h3>
+    <div class="demo">
+      <div class="demo-title"><span class="demo-step">G1</span><span class="demo-name">Ask the help docs in natural language</span></div>
+      <div class="term">
+        <div class="term-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="lbl">help.index / help.ask</span></div>
+        <div class="term-body"><pre><span class="pmt">&gt;</span> geoview --cli <span class="hi">help.index</span> <span class="flag">--dir</span> …\help\content <span class="flag">--out</span> help_full.idx
+<span class="out">→ 967 docs → </span><span class="hi">5042 chunks</span><span class="out"> embedded (nomic-embed-text), ~6 min</span>
+
+<span class="pmt">&gt;</span> geoview --cli <span class="hi">help.ask</span> "how do I import a SEGY volume"
+<span class="out">→ retrieves import_seismic.htm + seismic.htm → answer + cited sources</span></pre></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 5. Engineering notes -->
+  <section>
+    <div class="sec-head"><span class="sec-num">05</span><h2>How it holds together</h2></div>
+    <ul class="key-list">
+      <li><span class="mk">▸</span><span><b>Seam-based &amp; testable.</b> Commands depend only on <code class="inl">IProjectDataSource</code> / <code class="inl">ISeismicViewer</code>; a mock backs 142 unit tests with zero Qt/GeoView dependency in <code class="inl">hrs/cli/</code>.</span></li>
+      <li><span class="mk">▸</span><span><b>One reusable AI recipe.</b> Each of the five parameter suggestions = an analysis command (a data feature) + a deterministic rule baseline. The LLM layer is reused verbatim — a new process needs no prompt changes.</span></li>
+      <li><span class="mk">▸</span><span><b>Honest about the data.</b> AG_Spec_Bal turned out to be a prestack <i>angle gather</i>, not poststack — surfaced by <code class="inl">gather.qc</code>, and the reason decon/AGC scan widely for the few live sequential traces.</span></li>
+      <li><span class="mk">▸</span><span><b>Async assistant.</b> Only the LLM HTTP wait is async; widget-building commands stay on the main thread by design.</span></li>
+    </ul>
+  </section>
+
+  <footer>
+    <p><b>Status.</b> Phase 0–4 of the roadmap complete, plus five AI parameter suggestions, a project QC report, semantic Help RAG, and a switchable Local/Claude backend — all on <b>feature/cli-foundation</b>, 142 unit tests passing, end-to-end verified on GOM V3. Full plan: <code class="inl">docs/cli-ai-roadmap.md</code>.</p>
+    <p>Generated as an internal demo aid. Commands and outputs reflect runs recorded against GOM V3.prj; numbers shown are observed values, not targets.</p>
+  </footer>
+
+</div>
+
+</body>
+</html>

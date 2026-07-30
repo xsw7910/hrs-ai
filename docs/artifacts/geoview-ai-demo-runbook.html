@@ -1,0 +1,446 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GeoView AI — Demo Runbook (every feature)</title>
+<style>:root{color-scheme:light}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}</style>
+</head>
+<body>
+<style>
+  :root{
+    --ground:#f5f7f9; --surface:#ffffff; --surface-2:#eef3f6; --code:#0d1e29;
+    --ink:#12222c; --ink-2:#3c4b56; --muted:#6c7b85; --line:#dde4e9;
+    --accent:#155e87; --accent-2:#1a6f9e; --warm:#a4611f; --good:#2f7d5b; --crit:#b23b30;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --mono:ui-monospace,"Cascadia Code","SF Mono",Menlo,Consolas,monospace;
+    color-scheme:light;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{ --ground:#0b1620; --surface:#0f202b; --surface-2:#152a37; --code:#06121a;
+      --ink:#e8f1f5; --ink-2:#b4c5ce; --muted:#7e929d; --line:#213847aa;
+      --accent:#5ab0d8; --accent-2:#7cc4e8; --warm:#d79f57; --good:#5cb08a; --crit:#e07a6f; color-scheme:dark; }
+  }
+  :root[data-theme="light"]{--ground:#f5f7f9;--surface:#ffffff;--surface-2:#eef3f6;--code:#0d1e29;--ink:#12222c;--ink-2:#3c4b56;--muted:#6c7b85;--line:#dde4e9;--accent:#155e87;--warm:#a4611f;--good:#2f7d5b;--crit:#b23b30;color-scheme:light;}
+  :root[data-theme="dark"]{--ground:#0b1620;--surface:#0f202b;--surface-2:#152a37;--code:#06121a;--ink:#e8f1f5;--ink-2:#b4c5ce;--muted:#7e929d;--line:#213847aa;--accent:#5ab0d8;--warm:#d79f57;--good:#5cb08a;--crit:#e07a6f;color-scheme:dark;}
+
+  *{ box-sizing:border-box; }
+  body{ margin:0; background:var(--ground); color:var(--ink); font-family:var(--sans); line-height:1.6; -webkit-font-smoothing:antialiased; }
+  .wrap{ max-width:900px; margin:0 auto; padding:0 24px; }
+  h1,h2,h3{ line-height:1.2; margin:0; text-wrap:balance; }
+  p{ margin:9px 0; }
+  a{ color:var(--accent); }
+
+  header.top{ background:linear-gradient(160deg,#0b1a24,#0e2634); color:#e8f1f5; }
+  header.top .wrap{ padding:36px 24px 28px; }
+  .eyebrow{ font-family:var(--mono); font-size:.72rem; letter-spacing:.2em; text-transform:uppercase; color:#69c1e8; }
+  header.top h1{ font-size:clamp(1.6rem,3.4vw,2.3rem); font-weight:800; letter-spacing:-.02em; margin-top:10px; }
+  header.top p{ color:#c2d4de; max-width:72ch; margin-top:10px; font-size:.98rem; }
+
+  section{ padding:30px 0; border-bottom:1px solid var(--line); }
+  h2.sec{ font-size:1.3rem; font-weight:750; display:flex; gap:10px; align-items:baseline; }
+  h2.sec .ic{ font-size:1.1rem; }
+  .sub{ color:var(--muted); font-family:var(--mono); font-size:.72rem; letter-spacing:.1em; text-transform:uppercase; margin:2px 0 6px; }
+
+  .legend{ background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:16px 18px; margin:14px 0; }
+  .legend b{ color:var(--ink); }
+  .shell-h{ font-family:var(--mono); font-size:.72rem; letter-spacing:.1em; text-transform:uppercase; color:var(--accent); margin:14px 0 6px; }
+  .shell-h.two{ color:var(--warm); }
+
+  .callout{ border-left:3px solid var(--warm); background:color-mix(in srgb,var(--warm) 9%, var(--surface)); border-radius:0 10px 10px 0; padding:12px 16px; margin:14px 0; font-size:.92rem; color:var(--ink-2); }
+  .callout b{ color:var(--ink); }
+  .callout code{ font-family:var(--mono); font-size:.85em; }
+
+  .feat{ border-top:1px solid var(--line); padding:15px 0; }
+  .feat:first-of-type{ border-top:none; }
+  .feat .fh{ display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; }
+  .feat .fname{ font-weight:700; font-size:1rem; }
+  .feat .dot{ font-family:var(--mono); font-size:.72rem; color:var(--accent); background:color-mix(in srgb,var(--accent) 12%, transparent); padding:2px 7px; border-radius:6px; }
+  .feat .shows{ color:var(--muted); font-size:.88rem; margin-top:2px; }
+  .lines{ margin-top:9px; display:flex; flex-direction:column; gap:6px; }
+  .line{ display:grid; grid-template-columns:70px 1fr; gap:10px; align-items:start; }
+  @media (max-width:560px){ .line{ grid-template-columns:1fr; gap:2px; } }
+  .lab{ font-family:var(--mono); font-size:.64rem; letter-spacing:.08em; text-transform:uppercase; padding-top:8px; color:var(--muted); }
+  .lab.nl{ color:var(--good); } .lab.cli{ color:var(--accent); }
+  .say{ font-size:.9rem; background:color-mix(in srgb,var(--good) 9%, var(--surface)); border:1px solid color-mix(in srgb,var(--good) 26%, var(--line)); border-radius:8px; padding:8px 12px; color:var(--ink); }
+  .say::before{ content:"“"; color:var(--good); } .say::after{ content:"”"; color:var(--good); }
+  code.cmd{ font-family:var(--mono); font-size:.82rem; background:var(--code); color:#dbe7ef; border:1px solid #24414f; border-radius:8px; padding:8px 11px; display:block; overflow-x:auto; cursor:pointer; position:relative; white-space:pre; }
+  code.cmd:hover{ border-color:var(--accent); }
+  code.cmd.copied::after{ content:"copied"; position:absolute; right:8px; top:6px; font-size:.64rem; color:#7fd0a3; letter-spacing:.08em; }
+
+  footer{ padding:24px 0 60px; color:var(--muted); font-size:.82rem; }
+  .toggle{ position:fixed; top:14px; right:16px; z-index:20; font-family:var(--mono); font-size:.7rem; background:var(--surface); color:var(--ink-2); border:1px solid var(--line); border-radius:20px; padding:6px 12px; cursor:pointer; }
+  .toggle:hover{ color:var(--accent); border-color:var(--accent); }
+  .cnote{ position:fixed; bottom:14px; left:0; right:0; text-align:center; font-family:var(--mono); font-size:.68rem; color:var(--muted); pointer-events:none; }
+  :focus-visible{ outline:2px solid var(--accent); outline-offset:2px; }
+  @media print{ .toggle,.cnote{ display:none; } header.top{ background:none; color:#000; } body{ background:#fff; } .feat{ break-inside:avoid; } code.cmd{ white-space:pre-wrap; } }
+</style>
+
+<button class="toggle" id="tt" aria-label="Toggle light / dark theme">◐ theme</button>
+
+<header class="top"><div class="wrap">
+  <div class="eyebrow">GeoView · AI Command Layer — Demo Runbook</div>
+  <h1>Every feature — natural language &amp; command line</h1>
+  <p>For each capability: what to <b>say</b> in the AI Assistant (natural language) and the equivalent
+    <b>CLI</b> command, plus what it demonstrates. Project: <b>AVO GOM Workshop</b>; names are from the
+    project tree. Click any command to copy.</p>
+</div></header>
+
+<div class="wrap">
+
+  <section>
+    <h2 class="sec"><span class="ic">⚙️</span>Setup for cmd vs PowerShell</h2>
+    <p class="sub">Define two shorthands once per terminal session, then every CLI line below just works.</p>
+
+    <div class="legend">
+      <div class="shell-h two">cmd.exe</div>
+      <code class="cmd">set GV="C:\sandbox\monorepo_cli\monorepo\hrs\build\bin\win64\vs2022\hrs\Debug\geoview.exe"</code>
+      <code class="cmd" style="margin-top:6px">set PROJ=--dir C:\test\ --name "AVO GOM Workshop.prj" --out C:\Users\sxing\r.json</code>
+      <p style="margin-top:8px">Use (cmd re-tokenizes the text, so quotes are honored):</p>
+      <code class="cmd">%GV% --cli stats volume --volume cdp_stack %PROJ%</code>
+
+      <div class="shell-h">PowerShell &nbsp;(your default shell)</div>
+      <code class="cmd">$GV   = 'C:\sandbox\monorepo_cli\monorepo\hrs\build\bin\win64\vs2022\hrs\Debug\geoview.exe'</code>
+      <code class="cmd" style="margin-top:6px">$PROJ = '--dir','C:\test\','--name','AVO GOM Workshop.prj','--out','C:\Users\sxing\r.json'</code>
+      <p style="margin-top:8px">Use the call operator <b>&amp;</b> and splat the array with <b>@PROJ</b>:</p>
+      <code class="cmd">&amp; $GV --cli stats volume --volume cdp_stack @PROJ</code>
+      <p style="margin-top:8px">Read the result:</p>
+      <code class="cmd">Get-Content C:\Users\sxing\r.json</code>
+    </div>
+
+    <div class="callout">
+      <b>NL vs CLI.</b> The <span style="color:var(--good)">NL</span> lines are what you <b>say</b> in the AI
+      Assistant popup — plain sentences, routed by the model (use <code>qwen2.5:7b</code> for reliable routing).
+      The <span style="color:var(--accent)">CLI</span> lines are the exact, deterministic equivalents; the short
+      command phrases (<code>list wells</code>, <code>stats volume cdp_stack</code>, <code>describe well 01-08</code>)
+      also work verbatim in the chat and route without the model.
+    </div>
+    <div class="callout">
+      <b>PowerShell notes.</b> Use <code>&amp;</code> to run an exe stored in a variable, and <code>@PROJ</code>
+      (splat) so the array becomes separate args. Quote comma-lists (<code>--logs 'P-wave,Density,S-wave_trans'</code>).
+      <code>'AVO GOM Workshop.prj'</code> is one quoted token. Per-command CLI lines below are PowerShell; in cmd use
+      <code>%GV% … %PROJ%</code>.
+    </div>
+    <div class="callout">
+      <b>Four gotchas.</b> (1) CLI-direct needs explicit flags. (2) Use an absolute <code>--out</code>.
+      (3) Don’t run a volume-data CLI command while a GeoView holds the same project (file lock). (4) In the
+      Bandpass dialog, close with <b>Cancel</b>, not “X”.
+    </div>
+    <div class="callout">
+      <b>Every one-shot <code>--cli</code> launches GeoView</b> (it’s a mode of the GUI app, not a headless binary):
+      each command boots GeoView, runs, writes <code>--out</code>, exits (a window flashes). <b>For a live demo don’t
+      run one-shot commands repeatedly</b> — start <b>one</b> <code>open project</code> session (it stays open) and
+      drive everything from the chat popup. Reserve one-shot <code>--cli</code> for scripting.
+    </div>
+  </section>
+
+  <section>
+    <h2 class="sec"><span class="ic">📁</span>Project</h2>
+    <div class="feat">
+      <div class="fh"><span class="fname">Open a project</span><span class="dot">project.open</span></div>
+      <div class="shows">Loads the project and stays interactive (the one command that keeps a window open).</div>
+      <div class="lines">
+        <div class="line"><span class="lab nl">NL</span><div class="say">Open the project at C:\test\AVO GOM Workshop.prj</div></div>
+        <div class="line"><span class="lab cli">CLI</span><code class="cmd">&amp; $GV --cli open project --dir C:\test\ --name 'AVO GOM Workshop.prj'</code></div>
+      </div>
+    </div>
+    <div class="feat">
+      <div class="fh"><span class="fname">Describe the project</span><span class="dot">project.describe</span></div>
+      <div class="shows">One-glance overview — well / volume / horizon counts.</div>
+      <div class="lines">
+        <div class="line"><span class="lab nl">NL</span><div class="say">Give me an overview of this project.</div></div>
+        <div class="line"><span class="lab cli">CLI</span><code class="cmd">&amp; $GV --cli describe project @PROJ</code></div>
+      </div>
+    </div>
+    <div class="feat">
+      <div class="fh"><span class="fname">Project QC report</span><span class="dot">project.report</span></div>
+      <div class="shows">Structured JSON + a readable Markdown QC report (counts, per-well logs, rule-based observations).</div>
+      <div class="lines">
+        <div class="line"><span class="lab nl">NL</span><div class="say">Generate a QC report for this project.</div></div>
+        <div class="line"><span class="lab cli">CLI</span><code class="cmd">&amp; $GV --cli report project @PROJ</code></div>
+      </div>
+    </div>
+    <div class="feat">
+      <div class="fh"><span class="fname">List projects in a folder</span><span class="dot">project.list</span></div>
+      <div class="shows">Directory scan — needs no loaded project.</div>
+      <div class="lines">
+        <div class="line"><span class="lab nl">NL</span><div class="say">What projects are in C:\test?</div></div>
+        <div class="line"><span class="lab cli">CLI</span><code class="cmd">&amp; $GV --cli list projects --dir C:\test\ --out C:\Users\sxing\r.json</code></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2 class="sec"><span class="ic">🛢️</span>Wells</h2>
+    <div class="feat">
+      <div class="fh"><span class="fname">List wells</span><span class="dot">well.list</span></div>
+      <div class="shows">The project’s wells (01-08, 01-17, … Well 1, Well 2) with inline/xline positions.</div>
+      <div class="lines">
+        <div class="line"><span class="lab nl">NL</span><div class="say">What wells are in this project?</div></div>
+        <div class="line"><span class="lab cli">CLI</span><code class="cmd">&amp; $GV --cli list wells @PROJ</code></div>
+      </div>
+    </div>
+    <div class="feat">
+      <div class="fh"><span class="fname">Describe a well</span><span class="dot">well.describe</span></div>
+      <div class="shows">Well 01-08 — Tops(4), depth range, and its logs (P-wave, Density, S-wave, Poisson, …).</div>
+      <div class="lines">
+        <div class="line"><span class="lab nl">NL</span><div class="say">Tell me about well 01-08.</div></div>
+        <div class="line"><span class="lab cli">CLI</span><code class="cmd">&amp; $GV --cli describe well --well 01-08 @PROJ</code></div>
+      </div>
+    </div>
+    <div class="feat">
+      <div class="fh"><span class="fname">Log statistics</span><span class="dot">well.stats</span></div>
+      <div class="shows">min/max/mean/median/p10/p90 + null rate + depth range for one curve.</div>
+      <div class="lines">
+        <div class="line"><span class="lab nl">NL</span><div class="say">What are the statistics of the P-wave log in well 01-08?</div></div>
+        <div class="line"><span class="lab cli">CLI</span><code class="cmd">&amp; $GV --cli stats well --well 01-08 --log P-wave @PROJ</code></div>
+      </div>
+    </div>
+    <div class="feat">
+      <div class="fh"><span class="fname">Compare logs side by side</span><span class="dot">well.compare</span></div>
+      <div class="shows">Several curves compared; an unknown name comes back <code>found:false</code> (graceful, not an error).</div>
+      <div class="lines">
+        <div class="line"><span class="lab nl">NL</span><div class="say">Compare the P-wave, Density and S-wave_trans logs for well 01-08.</div></div>
+        <div class="line"><span class="lab cli">CLI</span><code class="cmd">&amp; $GV --cli compare logs --well 01-08 --logs 'P-wave,Density,S-wave_trans' @PROJ</code></div>
+      </div>
+    </div>
+    <div class="feat">
+      <div class="fh"><span class="fname">Find wells — spatial query</span><span class="dot">well.find</span></div>
+      <div class="shows">All / nearest-K / inside a box, by inline·xline (use positions from “list wells”).</div>
+      <div class="lines">
+        <div class="line"><span class="lab nl">NL</span><div class="say">Which wells are nearest to inline 250, xline 250?</div></div>
+        <div class="line"><span class="lab nl">NL</span><div class="say">Which wells lie between inline 200 and 300?</div></div>
+        <div class="line"><span class="lab cli">CLI</span><code class="cmd">&amp; $GV --cli find wells --inline-min 200 --inline-max 300 @PROJ</code></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2 class="sec"><span class="ic">🌊</span>Volumes</h2>
+    <div class="feat">
+      <div class="fh"><span class="fname">List volumes</span><span class="dot">volume.list</span></div>
+      <div class="shows">Pre-stack (RawGathers, angle_gather, gathers, super_gather, …) and post-stack (cdp_stack, avo, …).</div>
+      <div class="lines">
+        <div class="line"><span class="lab nl">NL</span><div class="say">What volumes does this project have?</div></div>
+        <div class="line"><span class="lab cli">CLI</span><code class="cmd">&amp; $GV --cli list volumes @PROJ</code></div>
+      </div>
+    </div>
+    <div class="feat">
+      <div class="fh"><span class="fname">Describe a volume</span><span class="dot">volume.describe</span></div>
+      <div class="shows">Real geometry, read without the GUI.</div>
+      <div class="lines">
+        <div class="line"><span class="lab nl">NL</span><div class="say">Describe the cdp_stack volume.</div></div>
+        <div class="line"><span class="lab cli">CLI</span><code class="cmd">&amp; $GV --cli describe volume --volume cdp_stack @PROJ</code></div>
+      </div>
+    </div>
+    <div class="feat">
+      <div class="fh"><span class="fname">Volume statistics</span><span class="dot">volume.stats</span></div>
+      <div class="shows">Fast estimate, or exact for a full scan + percentile histogram.</div>
+      <div class="lines">
+        <div class="line"><span class="lab nl">NL</span><div class="say">What are the amplitude statistics of cdp_stack?</div></div>
+        <div class="line"><span class="lab nl">NL</span><div class="say">Give me the exact statistics of cdp_stack.</div></div>
+        <div class="line"><span class="lab cli">CLI</span><code class="cmd">&amp; $GV --cli stats volume --volume cdp_stack --exact @PROJ</code></div>
+      </div>
+    </div>
+    <div class="feat">
+      <div class="fh"><span class="fname">Region statistics</span><span class="dot">volume.stats · window</span></div>
+      <div class="shows">Restrict stats to an inline/xline/domain window.</div>
+      <div class="lines">
+        <div class="line"><span class="lab nl">NL</span><div class="say">What are the statistics of cdp_stack between inline 200 and 260?</div></div>
+        <div class="line"><span class="lab cli">CLI</span><code class="cmd">&amp; $GV --cli stats volume --volume cdp_stack --inline-min 200 --inline-max 260 --exact @PROJ</code></div>
+      </div>
+    </div>
+    <div class="feat">
+      <div class="fh"><span class="fname">Compare two volumes</span><span class="dot">volume.compare</span></div>
+      <div class="shows">Geometry gate + sample-by-sample RMS &amp; Pearson correlation (self-compare → correlation 1.0; a mismatched pair → compatible:false).</div>
+      <div class="lines">
+        <div class="line"><span class="lab nl">NL</span><div class="say">Compare the cdp_stack and Brine-30_Gas-70_01-08 volumes.</div></div>
+        <div class="line"><span class="lab cli">CLI</span><code class="cmd">&amp; $GV --cli compare volumes --volume-a cdp_stack --volume-b cdp_stack @PROJ</code></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2 class="sec"><span class="ic">🖼️</span>Imaging &amp; output</h2>
+    <div class="feat">
+      <div class="fh"><span class="fname">Show a seismic section</span><span class="dot">seismic.show</span></div>
+      <div class="shows">Opens a section window and jumps to an inline (clamped to the volume’s range; stays interactive).</div>
+      <div class="lines">
+        <div class="line"><span class="lab nl">NL</span><div class="say">Show me inline 14500 of cdp_stack.</div></div>
+        <div class="line"><span class="lab cli">CLI</span><code class="cmd">&amp; $GV --cli show seismic --volume cdp_stack --inline 14500 --dir C:\test\ --name 'AVO GOM Workshop.prj'</code></div>
+      </div>
+    </div>
+    <div class="feat">
+      <div class="fh"><span class="fname">Render a section to PNG</span><span class="dot">seismic.render</span></div>
+      <div class="shows">Writes a PNG of the section. <code>--out</code> is <b>optional</b> — if omitted it saves to a temp file (<code>%TEMP%\geoview_render_&lt;volume&gt;_inline_&lt;N&gt;.png</code>) and reports the path.</div>
+      <div class="lines">
+        <div class="line"><span class="lab nl">NL</span><div class="say">Render inline 14500 of cdp_stack to an image.</div></div>
+        <div class="line"><span class="lab cli">CLI</span><code class="cmd">&amp; $GV --cli render seismic --volume cdp_stack --inline 14500 --dir C:\test\ --name 'AVO GOM Workshop.prj'</code></div>
+        <div class="line"><span class="lab cli">CLI</span><code class="cmd">&amp; $GV --cli render seismic --volume cdp_stack --inline 14500 --out C:\Users\sxing\sec.png --dir C:\test\ --name 'AVO GOM Workshop.prj'</code></div>
+      </div>
+    </div>
+    <div class="feat">
+      <div class="fh"><span class="fname">Screenshot the window</span><span class="dot">window.screenshot</span></div>
+      <div class="shows">Captures the current main window to a PNG (best in an interactive session).</div>
+      <div class="lines">
+        <div class="line"><span class="lab nl">NL</span><div class="say">Take a screenshot of the window.</div></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2 class="sec"><span class="ic">📐</span>Prestack</h2>
+    <div class="feat">
+      <div class="fh"><span class="fname">Gather QC</span><span class="dot">gather.qc</span></div>
+      <div class="shows">Auto prestack detection on <code>angle_gather</code> → offset/angle range, fold, coverage + histogram + a conditioning hint. (Poststack like cdp_stack reports is_prestack:false.)</div>
+      <div class="lines">
+        <div class="line"><span class="lab nl">NL</span><div class="say">Run a gather QC on angle_gather.</div></div>
+        <div class="line"><span class="lab nl">NL</span><div class="say">Is angle_gather a prestack gather?</div></div>
+        <div class="line"><span class="lab cli">CLI</span><code class="cmd">&amp; $GV --cli gather qc --volume angle_gather @PROJ</code></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2 class="sec"><span class="ic">🎚️</span>AI parameter suggestions</h2>
+    <p class="sub">Each = a real data measurement + a rule baseline; always “a starting point, review with a geophysicist,” never auto-applied.</p>
+    <div class="feat">
+      <div class="fh"><span class="fname">Bandpass (from spectrum)</span><span class="dot">volume.spectrum</span></div>
+      <div class="shows">Averaged amplitude spectrum → peak / −6 dB band → a suggested Bandpass filter.</div>
+      <div class="lines">
+        <div class="line"><span class="lab nl">NL</span><div class="say">Suggest a bandpass filter for cdp_stack.</div></div>
+        <div class="line"><span class="lab nl">NL</span><div class="say">What does the frequency spectrum of cdp_stack look like?</div></div>
+        <div class="line"><span class="lab cli">CLI</span><code class="cmd">&amp; $GV --cli spectrum volume --volume cdp_stack @PROJ</code></div>
+      </div>
+    </div>
+    <div class="feat">
+      <div class="fh"><span class="fname">RMS scaling</span><span class="dot">volume.scaling</span></div>
+      <div class="shows">Scaler = target RMS / current RMS. Normalizes amplitude level for display / comparison (a single global gain).</div>
+      <div class="lines">
+        <div class="line"><span class="lab nl">NL</span><div class="say">What RMS scaling factor should I use for cdp_stack?</div></div>
+        <div class="line"><span class="lab cli">CLI</span><code class="cmd">&amp; $GV --cli scaling volume --volume cdp_stack --exact @PROJ</code></div>
+      </div>
+    </div>
+    <div class="feat">
+      <div class="fh"><span class="fname">Deconvolution</span><span class="dot">volume.decon</span></div>
+      <div class="shows">Trace autocorrelation → prediction gap / operator length / white noise. Compresses the wavelet, improves resolution.</div>
+      <div class="lines">
+        <div class="line"><span class="lab nl">NL</span><div class="say">Suggest deconvolution parameters for cdp_stack.</div></div>
+        <div class="line"><span class="lab cli">CLI</span><code class="cmd">&amp; $GV --cli decon volume --volume cdp_stack @PROJ</code></div>
+      </div>
+    </div>
+    <div class="feat">
+      <div class="fh"><span class="fname">AGC</span><span class="dot">volume.agc</span></div>
+      <div class="shows">RMS envelope → gain window sized to the energy-decay time. Equalizes amplitude down the trace (for display).</div>
+      <div class="lines">
+        <div class="line"><span class="lab nl">NL</span><div class="say">Suggest an AGC window for cdp_stack.</div></div>
+        <div class="line"><span class="lab cli">CLI</span><code class="cmd">&amp; $GV --cli agc volume --volume cdp_stack @PROJ</code></div>
+      </div>
+    </div>
+    <div class="feat">
+      <div class="fh"><span class="fname">Gather conditioning</span><span class="dot">gather.qc · hint</span></div>
+      <div class="shows">The conditioning hint (super-gather / infill / mute, from fold, coverage, angle range) is <b>part of Gather QC's output</b> — there is no separate command. Use the deterministic phrase below; the free-form question relies on the model and may hallucinate steps instead of calling the command.</div>
+      <div class="lines">
+        <div class="line"><span class="lab nl">NL</span><div class="say">gather qc angle_gather</div></div>
+        <div class="line"><span class="lab cli">CLI</span><code class="cmd">&amp; $GV --cli gather qc --volume angle_gather @PROJ</code></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2 class="sec"><span class="ic">🎛️</span>Real process dialog</h2>
+    <div class="feat">
+      <div class="fh"><span class="fname">Open the Bandpass Filter dialog</span><span class="dot">bandpass.dialog</span></div>
+      <div class="shows">Computes the suggestion, then opens GeoView’s <b>real</b> Bandpass Filter dialog for you to set and run. <b>Close with Cancel, not “X”.</b></div>
+      <div class="lines">
+        <div class="line"><span class="lab nl">NL</span><div class="say">Open the bandpass filter for cdp_stack.</div></div>
+        <div class="line"><span class="lab nl">NL</span><div class="say">Let me set up a bandpass filter on cdp_stack.</div></div>
+        <div class="line"><span class="lab cli">CLI</span><code class="cmd">&amp; $GV --cli bandpass volume --volume cdp_stack --dir C:\test\ --name 'AVO GOM Workshop.prj'</code></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2 class="sec"><span class="ic">📚</span>Knowledge (Help RAG)</h2>
+    <div class="feat">
+      <div class="fh"><span class="fname">How-to question (auto-routed)</span><span class="dot">→ help.ask</span></div>
+      <div class="shows">Any “how do I…” routes to the docs and answers <b>with cited sources</b>.</div>
+      <div class="lines">
+        <div class="line"><span class="lab nl">NL</span><div class="say">How do I import a SEGY volume?</div></div>
+        <div class="line"><span class="lab nl">NL</span><div class="say">How do I run an AVO analysis?</div></div>
+      </div>
+    </div>
+    <div class="feat">
+      <div class="fh"><span class="fname">Ask the docs directly</span><span class="dot">help.ask</span></div>
+      <div class="shows">Semantic retrieval + answer + sources (add <code>--index</code> if none preloaded).</div>
+      <div class="lines">
+        <div class="line"><span class="lab cli">CLI</span><code class="cmd">&amp; $GV --cli help ask --question 'how do I import a SEGY volume' --index C:\test\help_full.idx --out C:\Users\sxing\r.json</code></div>
+      </div>
+    </div>
+    <div class="feat">
+      <div class="fh"><span class="fname">Build the doc index</span><span class="dot">help.index</span></div>
+      <div class="shows">One-time: embeds the help docs into a JSON-Lines index.</div>
+      <div class="lines">
+        <div class="line"><span class="lab cli">CLI</span><code class="cmd">&amp; $GV --cli help index --dir C:\path\to\help --out C:\test\help_full.idx --max 200</code></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2 class="sec"><span class="ic">💬</span>Meta</h2>
+    <div class="feat">
+      <div class="fh"><span class="fname">One-shot natural-language chat</span><span class="dot">chat</span></div>
+      <div class="shows">The NL front end to everything, from a terminal.</div>
+      <div class="lines">
+        <div class="line"><span class="lab cli">CLI</span><code class="cmd">&amp; $GV --cli chat 'how many wells are there' @PROJ</code></div>
+      </div>
+    </div>
+    <div class="feat">
+      <div class="fh"><span class="fname">Command help</span><span class="dot">help</span></div>
+      <div class="shows">List commands, or show one command’s parameters.</div>
+      <div class="lines">
+        <div class="line"><span class="lab cli">CLI</span><code class="cmd">&amp; $GV --cli help</code></div>
+        <div class="line"><span class="lab cli">CLI</span><code class="cmd">&amp; $GV --cli help --command volume.stats</code></div>
+      </div>
+    </div>
+  </section>
+
+  <section style="border-bottom:none">
+    <h2 class="sec"><span class="ic">▶️</span>Suggested 4-minute live flow</h2>
+    <p class="sub">Start one open-project session, then just talk to the assistant.</p>
+    <ul style="color:var(--ink-2)">
+      <li><b>1.</b> Launch once: <code style="font-family:var(--mono)">&amp; $GV --cli open project --dir C:\test\ --name 'AVO GOM Workshop.prj'</code></li>
+      <li><b>2.</b> In the popup, say: <span class="say">What wells are in this project?</span></li>
+      <li><b>3.</b> <span class="say">Tell me about well 01-08.</span></li>
+      <li><b>4.</b> <span class="say">What are the amplitude statistics of cdp_stack?</span></li>
+      <li><b>5.</b> <span class="say">Run a gather QC on angle_gather.</span></li>
+      <li><b>6.</b> <span class="say">Suggest a bandpass filter for cdp_stack.</span></li>
+      <li><b>7.</b> <span class="say">Open the bandpass filter for cdp_stack.</span> (close it with Cancel)</li>
+      <li><b>8.</b> <span class="say">How do I import a SEGY volume?</span></li>
+      <li><b>9.</b> Land it: “all local — the data never left the machine.”</li>
+    </ul>
+  </section>
+
+</div>
+
+<footer><div class="wrap">
+  GeoView · AI Command Layer — demo runbook · project: AVO GOM Workshop. Names from the project tree;
+  expected outputs are qualitative — run once to confirm. NL is model-routed; CLI is exact.
+  Internal material — review before external use.
+</div></footer>
+<div class="cnote">click any command to copy</div>
+
+<script>
+  (function(){ var r=document.documentElement, b=document.getElementById('tt');
+    b.addEventListener('click', function(){ var c=r.getAttribute('data-theme'); if(!c) c=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'; r.setAttribute('data-theme', c==='dark'?'light':'dark'); }); })();
+  document.addEventListener('click', function(e){
+    var el = e.target.closest('code.cmd'); if(!el) return;
+    var text = el.textContent;
+    var done = function(){ el.classList.add('copied'); setTimeout(function(){ el.classList.remove('copied'); }, 1200); };
+    if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(text).then(done, function(){}); }
+    else { try { var r=document.createRange(); r.selectNodeContents(el); var s=getSelection(); s.removeAllRanges(); s.addRange(r); document.execCommand('copy'); s.removeAllRanges(); done(); } catch(_){} }
+  });
+</script>
+
+</body>
+</html>

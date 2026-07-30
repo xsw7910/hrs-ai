@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GeoView CLI/AI 功能总结与演示手册</title>
+<style>:root{color-scheme:light}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}</style>
+</head>
+<body>
+<style>
+  :root{
+    --bg:#0f1419;--card:#1a212b;--card2:#212b37;--ink:#e6edf3;--muted:#9bafc4;
+    --line:#2b3744;--acc:#58a6ff;--ok:#3fb950;--warn:#e3934f;--ai:#bc8cff;
+    --code:#0c1117;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;
+    line-height:1.55;padding:30px 20px 70px}
+  .wrap{max-width:1080px;margin:0 auto}
+  h1{font-size:1.65rem;margin:0 0 4px}
+  .sub{color:var(--muted);margin:0 0 22px;font-size:.92rem}
+  h2{font-size:1.15rem;margin:30px 0 12px;border-bottom:1px solid var(--line);padding-bottom:6px}
+  h2 .n{color:var(--acc);font-weight:700;margin-right:8px}
+  h3{font-size:.95rem;margin:16px 0 8px;color:var(--acc)}
+  p{margin:8px 0}
+  code{font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;font-size:.82rem;
+    background:#1d2530;border:1px solid var(--line);border-radius:4px;padding:1px 5px;color:#cfe3ff}
+  pre{background:var(--code);border:1px solid var(--line);border-radius:8px;padding:12px 14px;
+    overflow-x:auto;font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;font-size:.8rem;
+    color:#c9d6e3;margin:8px 0}
+  pre .c{color:#6b7d8f}
+  pre .k{color:#bc8cff}
+  table{border-collapse:collapse;width:100%;margin:8px 0;font-size:.84rem}
+  th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{color:var(--muted);font-weight:600;background:var(--card2)}
+  td code{white-space:nowrap}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:0 0 8px;overflow:hidden}
+  .card h3{margin:0;padding:10px 14px;background:var(--card2);border-bottom:1px solid var(--line);color:var(--ink)}
+  .card ul{margin:6px 0;padding:0 14px;list-style:none}
+  .card li{padding:6px 0;border-bottom:1px dashed #243140;font-size:.83rem}
+  .card li:last-child{border-bottom:0}
+  .card li b{color:#cfe3ff;font-family:ui-monospace,Consolas,monospace;font-weight:600}
+  .m{display:block;color:var(--muted);font-size:.78rem;margin-top:2px}
+  .pill{display:inline-block;border-radius:999px;padding:1px 8px;font-size:.7rem;margin-left:6px}
+  .p-cli{background:#10233a;color:#7cc0ff;border:1px solid #1e3a57}
+  .p-gui{background:#1c1430;color:#c9a9ff;border:1px solid #3a2a5a}
+  .note{background:#1a1410;border:1px solid #4a3420;border-radius:8px;padding:10px 14px;margin:10px 0;font-size:.84rem;color:#f0c89a}
+  .ok{background:#13201a;border:1px solid #214a2e;border-radius:8px;padding:10px 14px;margin:10px 0;font-size:.84rem;color:#9fe0ad}
+  ol{margin:8px 0;padding-left:22px}
+  ol li{margin:6px 0;font-size:.86rem}
+</style>
+
+<div class="wrap">
+  <h1>🧭 GeoView CLI / AI 助手 — 功能总结与演示手册</h1>
+  <p class="sub">分支 feature/cli-foundation（13 commits）。在运行的 GeoView 里用 <code>--cli</code> 跑脚本化命令，或用 in-app AI 聊天用自然语言驱动同一套命令。</p>
+
+  <div class="ok"><b>架构一句话</b>：所有能力是注册到一个命令表（HrsCliCommandRegistry）的命令；同一套命令被三个前端复用——命令行 <code>--cli</code>、应用内 AI 聊天、（未来）Python。命令通过抽象层（seam）访问 GeoView 数据，所以核心库不依赖 Qt、可单测。</p></div>
+
+  <h2><span class="n">0</span>前置条件</h2>
+  <table>
+    <tr><th>项</th><th>说明</th></tr>
+    <tr><td>geoview.exe</td><td><code>hrs\build\bin\win64\vs2022\hrs\Debug\geoview.exe</code>（用 <code>hrs\BUILD_HRS_WIN64_DEBUG.bat ... TARGET geoview</code> 构建，buildtools 在 PATH）</td></tr>
+    <tr><td>项目</td><td><code>C:\test\GOM V3.prj</code>（演示用；4 wells / 18 volumes / 7 horizons）</td></tr>
+    <tr><td>Ollama</td><td>本地运行；<code>gemma3:4b</code>（聊天）+ <code>nomic-embed-text</code>（Help RAG 嵌入）</td></tr>
+    <tr><td>Help 索引</td><td><code>setx GEOVIEW_HELP_INDEX C:\test\help_full.idx</code> 后重启（聊天里用 Help RAG）</td></tr>
+    <tr><td>Claude（可选）</td><td><code>ANTHROPIC_API_KEY</code> 环境变量（聊天切到 Claude 后端时）</td></tr>
+  </table>
+
+  <h2><span class="n">1</span>已实现的命令</h2>
+  <div class="grid">
+    <div class="card">
+      <h3>项目 / 导航</h3>
+      <ul>
+        <li><b>open project</b> <span class="m">加载工程并保持窗口交互</span></li>
+        <li><b>list projects</b> <span class="m">列目录下的 .prj</span></li>
+        <li><b>describe project</b> <span class="m">wells / volumes / horizons 计数</span></li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>井 (well)</h3>
+      <ul>
+        <li><b>list wells</b></li>
+        <li><b>describe well</b> <code>--well W</code> <span class="m">logs + depth range + tops</span></li>
+        <li><b>stats well</b> <code>--well W --log L</code> <span class="m">min/max/mean/median/p10/p90 + 缺失率 + 深度</span></li>
+        <li><b>compare logs</b> <code>--well W --logs "L1,L2,…"</code> <span class="m">多 log 并排对比</span></li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>体 (volume)</h3>
+      <ul>
+        <li><b>list volumes</b></li>
+        <li><b>describe volume</b> <code>--volume V</code> <span class="m">inline/xline 范围、samples、domain</span></li>
+        <li><b>stats volume</b> <code>--volume V [--exact]</code> <span class="m">估算或全量扫描；--exact 加百分位+直方图</span></li>
+        <li><b>stats volume</b> <code>--inline-min/-max …</code> <span class="m">inline/xline/domain 区域统计</span></li>
+        <li><b>spectrum volume</b> <code>--volume V</code> <span class="m">平均振幅谱 + 主频/带宽 + AI Bandpass 建议</span></li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>可视化</h3>
+      <ul>
+        <li><b>show seismic</b> <code>--volume V --inline N</code> <span class="m">打开剖面窗口（保持交互）</span></li>
+        <li><b>render seismic</b> <code>--volume V --inline N --out png</code> <span class="m">导出剖面截图</span></li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>AI 助手</h3>
+      <ul>
+        <li><b>chat</b> <code>"自然语言问题"</code> <span class="m">LLM 工具调用循环驱动上面的命令</span></li>
+        <li>本地 Ollama ↔ Claude 可切换；异步（不卡 UI）；Preferences 可配模型/端点</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Help RAG（文档问答）</h3>
+      <ul>
+        <li><b>help.index</b> <code>--dir &lt;help&gt; --out idx [--max N]</code> <span class="m">嵌入 help HTML 建索引</span></li>
+        <li><b>help.ask</b> <code>--question "…" [--index idx]</code> <span class="m">检索 + LLM 答 + 来源引用</span></li>
+      </ul>
+    </div>
+  </div>
+
+  <h2><span class="n">2</span>怎么跑 CLI <span class="pill p-cli">命令行</span></h2>
+  <p>GeoView 是 GUI 子系统进程（无自带控制台、shell 不等待），所以脚本化时：<b>查询结果写到 <code>--out</code> 文件</b>，跑完读它；需要工程的命令带 <code>--dir</code> + <code>--name</code>。PowerShell 用单字符串 ArgumentList，给含空格的参数（如项目名）加引号：</p>
+  <pre><span class="c"># 通用模板</span>
+$exe = <span class="k">"...\hrs\build\bin\win64\vs2022\hrs\Debug\geoview.exe"</span>
+Start-Process -FilePath $exe -Wait -ArgumentList <span class="k">'--cli stats volume --dir C:\test\ --name "GOM V3.prj" --volume AG_Spec_Bal --out C:\test\out.json'</span>
+Get-Content C:\test\out.json</pre>
+  <div class="note"><b>路径约定</b>：<code>--dir C:\test\</code>（带尾斜杠）+ <code>--name "GOM V3.prj"</code>（带 .prj、有空格必须引号）。<br>
+  <b>--out 例外</b>：<code>render seismic</code> 的 <code>--out</code> 是 PNG 图片、<code>help.index</code> 的 <code>--out</code> 是索引文件——它们的 JSON 结果自动走默认文件，不会覆盖产物。</div>
+
+  <h2><span class="n">3</span>怎么用 GUI <span class="pill p-gui">应用内</span></h2>
+  <ol>
+    <li>启动 GeoView（普通启动，或 <code>--cli open project --dir … --name …</code> 直接加载工程并保持交互）</li>
+    <li>右下角状态栏点 <b>AI Assistant</b> 按钮 → 弹出聊天框</li>
+    <li>输入自然语言问题（"how many wells"、"describe AG_Spec_Bal"、"suggest bandpass for AG_Spec_Bal"…）→ 异步回答，思考时输入框禁用、UI 不卡</li>
+    <li><b>Backend 下拉</b>：Local (Ollama) / Claude（后者需 <code>ANTHROPIC_API_KEY</code>，否则置灰）</li>
+    <li><b>Settings…</b> 按钮 → Preferences：改后端 / Ollama 端点 / Ollama 模型 / Claude 模型，持久保存、无需重启</li>
+    <li><b>Help 问答</b>：设好 <code>GEOVIEW_HELP_INDEX</code> 并重启后，聊天里问操作问题（"how do I import SEGY"）→ 从 967 篇 help 文档检索作答 + 引用来源</li>
+  </ol>
+
+  <h2><span class="n">4</span>端到端演示脚本（GOM V3）</h2>
+  <p>把 <code>$exe</code> / <code>$dn</code> 设好后逐条跑；每条读对应 <code>--out</code> 文件看结果。</p>
+  <pre>$exe = <span class="k">"...\geoview.exe"</span>
+<span class="c"># 工程概览 -> wells:4, volumes:18, horizons:7</span>
+... -ArgumentList <span class="k">'--cli describe project --dir C:\test\ --name "GOM V3.prj" --out C:\test\r.json'</span>
+
+<span class="c"># 体统计：估算（秒级）/ 精确（扫全量，加百分位+直方图）/ 区域（inline 14700-14750）</span>
+'--cli stats volume --dir C:\test\ --name "GOM V3.prj" --volume AG_Spec_Bal --out …'
+'--cli stats volume … --volume AG_Spec_Bal --exact --out …'
+'--cli stats volume … --volume AG_Spec_Bal --inline-min 14700 --inline-max 14750 --out …'
+
+<span class="c"># 井：单 log 统计 / 多 log 对比</span>
+'--cli stats well … --well Well_1 --log "Gamma Ray" --out …'      <span class="c"># mean 90.7 gAPI</span>
+'--cli compare logs … --well Well_1 --logs "Gamma Ray,Resistivity,Density" --out …'
+
+<span class="c"># 频谱 + AI Bandpass 建议</span>
+'--cli spectrum volume … --volume AG_Spec_Bal --out …'            <span class="c"># peak~5Hz, 建议 1.2/2.5/40/50Hz</span>
+
+<span class="c"># 截图导出（--out 是 PNG）</span>
+'--cli render seismic … --volume AG_Spec_Bal --inline 14700 --out C:\test\inline14700.png'
+
+<span class="c"># AI 聊天（自然语言 -> 工具调用）</span>
+'--cli chat "how many wells are in this project" … --out …'      <span class="c"># "four wells"</span>
+
+<span class="c"># Help RAG 文档问答（--question；预加载或 --index）</span>
+'--cli help.ask --index C:\test\help_full.idx --question "how do I import a SEGY volume" --out …'
+
+<span class="c"># GUI 交互：打开剖面 / 加载工程并保持窗口</span>
+'--cli show seismic … --volume AG_Spec_Bal --inline 14700'
+'--cli open project --dir C:\test\ --name "GOM V3.prj"'           <span class="c"># 然后点 AI Assistant 按钮</span></pre>
+
+  <div class="note"><b>小模型提示</b>：聊天默认 gemma3:4b（小模型），工具调用偶尔把参数写歪——遇到换 Preferences 里的 qwen2.5 或 Claude 后端更稳。所有命令直接用 <code>--cli</code> 跑则总是可靠。<br>
+  <b>合规</b>：默认本地 Ollama、数据不外发；Claude 是显式 opt-in，切换提示会警告勿用真实客户/受管数据；AI 给的处理参数（如 Bandpass）是建议、带"geophysicist review"提示，绝不自动改工程。</div>
+</div>
+
+</body>
+</html>

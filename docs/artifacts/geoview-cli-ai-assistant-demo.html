@@ -1,0 +1,470 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GeoView CLI + AI Assistant — Demo</title>
+<style>:root{color-scheme:light}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}</style>
+</head>
+<body>
+<style>
+  :root {
+    --ground:#f5f8fa; --surface:#ffffff; --surface-2:#eef3f6;
+    --ink:#10222c; --ink-2:#39505d; --muted:#6b7a84; --line:#d9e0e5;
+    --accent:#155e87; --accent-2:#1a6f9e; --warm:#b46e2b;
+    --good:#2f7d5b; --crit:#c0392b;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --mono:ui-monospace,"Cascadia Code","SF Mono",Menlo,Consolas,monospace;
+    --maxw:1080px;
+    color-scheme:light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ground:#0b1620; --surface:#0f202b; --surface-2:#152b38;
+      --ink:#e9f1f5; --ink-2:#b6c6cf; --muted:#7e929d; --line:#21384698;
+      --accent:#4aa6d0; --accent-2:#6cc0e6; --warm:#d79f57;
+      --good:#5cb08a; --crit:#e07a6f;
+      color-scheme:dark;
+    }
+  }
+  :root[data-theme="light"] {
+    --ground:#f5f8fa; --surface:#ffffff; --surface-2:#eef3f6;
+    --ink:#10222c; --ink-2:#39505d; --muted:#6b7a84; --line:#d9e0e5;
+    --accent:#155e87; --accent-2:#1a6f9e; --warm:#b46e2b;
+    --good:#2f7d5b; --crit:#c0392b; color-scheme:light;
+  }
+  :root[data-theme="dark"] {
+    --ground:#0b1620; --surface:#0f202b; --surface-2:#152b38;
+    --ink:#e9f1f5; --ink-2:#b6c6cf; --muted:#7e929d; --line:#21384698;
+    --accent:#4aa6d0; --accent-2:#6cc0e6; --warm:#d79f57;
+    --good:#5cb08a; --crit:#e07a6f; color-scheme:dark;
+  }
+
+  * { box-sizing:border-box; }
+  body {
+    margin:0; background:var(--ground); color:var(--ink);
+    font-family:var(--sans); line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap { max-width:var(--maxw); margin:0 auto; padding:0 24px; }
+  h1,h2,h3 { text-wrap:balance; line-height:1.12; margin:0; }
+  p { margin:0; }
+  a { color:var(--accent); }
+
+  .eyebrow {
+    font-family:var(--mono); font-size:.72rem; letter-spacing:.22em;
+    text-transform:uppercase; color:var(--accent);
+  }
+
+  /* ---------- HERO (always-dark seismic panel) ---------- */
+  .hero { position:relative; overflow:hidden; background:#08131b; color:#e9f1f5; border-bottom:1px solid #17303e; }
+  .hero canvas { position:absolute; inset:0; width:100%; height:100%; display:block; opacity:.5; }
+  .hero::after {
+    content:""; position:absolute; inset:0;
+    background:radial-gradient(120% 90% at 15% 0%, transparent 30%, #08131bcc 78%, #08131b 100%);
+    pointer-events:none;
+  }
+  .hero-inner { position:relative; z-index:2; padding:84px 0 68px; }
+  .hero .eyebrow { color:#69c1e8; }
+  .hero h1 {
+    font-size:clamp(2.3rem,5.6vw,4rem); font-weight:800; letter-spacing:-.02em;
+    margin:16px 0 0; max-width:16ch;
+  }
+  .hero .lede { margin-top:20px; max-width:56ch; font-size:1.12rem; color:#c4d4de; }
+  .prompt {
+    margin-top:30px; display:inline-flex; align-items:center; gap:12px;
+    font-family:var(--mono); font-size:.95rem; color:#e9f1f5;
+    background:#0c1e29cc; border:1px solid #24485c; border-radius:8px;
+    padding:11px 15px; backdrop-filter:blur(2px);
+  }
+  .prompt .sig { color:#69c1e8; }
+  .prompt .cmd { color:#f0d9b8; }
+  .caret { width:8px; height:1.05em; background:#69c1e8; display:inline-block; border-radius:1px; animation:blink 1.1s steps(1) infinite; }
+  @keyframes blink { 50% { opacity:0; } }
+
+  .stats {
+    position:relative; z-index:2;
+    display:grid; grid-template-columns:repeat(4,1fr); gap:1px;
+    background:#17303e; border-top:1px solid #17303e;
+  }
+  .stat { background:#0a1721; padding:20px 22px; }
+  .stat .n { font-family:var(--mono); font-size:1.7rem; font-weight:700; color:#e9f1f5; font-variant-numeric:tabular-nums; letter-spacing:-.01em; }
+  .stat .l { font-size:.78rem; color:#8fa6b2; margin-top:3px; }
+
+  /* ---------- SECTIONS ---------- */
+  section { padding:64px 0; border-bottom:1px solid var(--line); }
+  .sec-head { max-width:60ch; margin-bottom:34px; }
+  .sec-head h2 { font-size:clamp(1.5rem,3vw,2.05rem); font-weight:750; letter-spacing:-.015em; margin-top:10px; }
+  .sec-head p { color:var(--ink-2); margin-top:12px; font-size:1.03rem; }
+
+  .cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:18px; }
+  .card {
+    background:var(--surface); border:1px solid var(--line); border-radius:12px;
+    padding:24px; display:flex; flex-direction:column; gap:9px;
+  }
+  .card .k { font-family:var(--mono); font-size:.7rem; letter-spacing:.14em; text-transform:uppercase; color:var(--warm); }
+  .card h3 { font-size:1.16rem; font-weight:700; }
+  .card p { color:var(--ink-2); font-size:.96rem; }
+  .card.hl { border-left:3px solid var(--accent); }
+
+  /* feature domains */
+  .domains { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:16px; }
+  .dom { background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:20px 22px; }
+  .dom h3 { font-size:1.02rem; font-weight:700; display:flex; align-items:baseline; gap:9px; }
+  .dom h3 .tag { font-family:var(--mono); font-size:.66rem; letter-spacing:.12em; text-transform:uppercase; color:var(--accent); background:color-mix(in srgb,var(--accent) 12%, transparent); padding:3px 7px; border-radius:5px; }
+  .dom ul { margin:14px 0 0; padding:0; list-style:none; display:flex; flex-direction:column; gap:9px; }
+  .dom li { font-size:.92rem; color:var(--ink-2); display:flex; gap:10px; }
+  .dom code { font-family:var(--mono); font-size:.82rem; color:var(--ink); background:var(--surface-2); padding:1px 6px; border-radius:5px; white-space:nowrap; }
+
+  /* command table */
+  .tablewrap { overflow-x:auto; border:1px solid var(--line); border-radius:12px; background:var(--surface); }
+  table { border-collapse:collapse; width:100%; font-size:.9rem; min-width:560px; }
+  th,td { text-align:left; padding:12px 18px; border-bottom:1px solid var(--line); vertical-align:top; }
+  th { font-family:var(--mono); font-size:.68rem; letter-spacing:.13em; text-transform:uppercase; color:var(--muted); font-weight:600; }
+  tbody tr:last-child td { border-bottom:none; }
+  td.cmd { font-family:var(--mono); color:var(--accent); white-space:nowrap; font-size:.85rem; }
+  td.desc { color:var(--ink-2); }
+  .grouprow td { background:var(--surface-2); font-family:var(--mono); font-size:.7rem; letter-spacing:.13em; text-transform:uppercase; color:var(--ink-2); font-weight:700; }
+
+  /* AI suggest strip */
+  .suggest { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:14px; }
+  .sg { background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:18px; }
+  .sg .p { font-family:var(--mono); font-size:.72rem; color:var(--warm); letter-spacing:.06em; }
+  .sg .arrow { color:var(--muted); margin:0 6px; }
+  .sg h4 { margin:8px 0 4px; font-size:1rem; }
+  .sg p { font-size:.86rem; color:var(--ink-2); }
+
+  /* timeline / steps */
+  .flow { display:flex; flex-direction:column; gap:2px; counter-reset:step; }
+  .step { display:grid; grid-template-columns:44px 1fr; gap:18px; padding:16px 0; border-top:1px solid var(--line); }
+  .step:first-child { border-top:none; }
+  .step .num { font-family:var(--mono); font-size:.9rem; font-weight:700; color:var(--accent); font-variant-numeric:tabular-nums; }
+  .step h4 { font-size:1rem; font-weight:700; }
+  .step p { color:var(--ink-2); font-size:.93rem; margin-top:3px; }
+  .step code { font-family:var(--mono); background:var(--surface-2); padding:1px 6px; border-radius:5px; font-size:.82rem; color:var(--ink); }
+
+  .phases { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:14px; }
+  .ph { background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:16px; }
+  .ph .p { font-family:var(--mono); font-size:.7rem; letter-spacing:.12em; color:var(--accent); text-transform:uppercase; }
+  .ph h4 { font-size:.98rem; margin:7px 0 4px; }
+  .ph p { font-size:.85rem; color:var(--ink-2); }
+
+  .callout {
+    background:color-mix(in srgb,var(--accent) 9%, var(--surface));
+    border:1px solid color-mix(in srgb,var(--accent) 28%, var(--line));
+    border-radius:12px; padding:22px 24px; display:flex; gap:16px; align-items:flex-start;
+  }
+  .callout .mk { font-size:1.4rem; line-height:1; }
+  .callout h3 { font-size:1.05rem; margin-bottom:6px; }
+  .callout p { color:var(--ink-2); font-size:.95rem; }
+
+  footer { padding:40px 0 60px; color:var(--muted); font-size:.85rem; }
+  footer .note { font-size:.8rem; margin-top:10px; }
+
+  .theme-toggle {
+    position:fixed; top:14px; right:14px; z-index:20;
+    font-family:var(--mono); font-size:.72rem; letter-spacing:.06em;
+    background:var(--surface); color:var(--ink-2); border:1px solid var(--line);
+    border-radius:20px; padding:7px 13px; cursor:pointer;
+  }
+  .theme-toggle:hover { color:var(--accent); border-color:var(--accent); }
+  :focus-visible { outline:2px solid var(--accent); outline-offset:2px; border-radius:4px; }
+
+  @media (max-width:640px) {
+    .stats { grid-template-columns:repeat(2,1fr); }
+    .hero-inner { padding:60px 0 48px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .caret { animation:none; }
+    .reveal { opacity:1 !important; transform:none !important; }
+  }
+  .reveal { opacity:0; transform:translateY(14px); transition:opacity .6s ease, transform .6s ease; }
+  .reveal.in { opacity:1; transform:none; }
+</style>
+
+<button class="theme-toggle" id="tt" aria-label="Toggle light / dark theme">◐ theme</button>
+
+<header class="hero">
+  <canvas id="seis" aria-hidden="true"></canvas>
+  <div class="wrap hero-inner">
+    <div class="eyebrow">GeoView · CLI + AI Assistant</div>
+    <h1>Talk to your seismic project.</h1>
+    <p class="lede">A GUI-free command core and a local-first AI assistant inside GeoView.
+      Ask in plain language — query wells and volumes, run analyses, render sections,
+      and get data-driven processing-parameter suggestions. Project data stays on your machine by default.</p>
+    <div class="prompt">
+      <span class="sig">&gt;</span>
+      <span>suggest a bandpass for <span class="cmd">AG_Spec_Bal</span></span>
+      <span class="caret" aria-hidden="true"></span>
+    </div>
+  </div>
+  <div class="wrap"><div class="stats">
+    <div class="stat"><div class="n">~24</div><div class="l">read-only commands</div></div>
+    <div class="stat"><div class="n">173</div><div class="l">unit tests · 28 suites</div></div>
+    <div class="stat"><div class="n">5</div><div class="l">AI parameter suggestions</div></div>
+    <div class="stat"><div class="n">100%</div><div class="l">local by default</div></div>
+  </div></div>
+</header>
+
+<main>
+  <section><div class="wrap">
+    <div class="sec-head">
+      <div class="eyebrow">Why it stands out</div>
+      <h2>Five things worth demoing first</h2>
+      <p>Each is grounded in real data on a real project — nothing is mocked.</p>
+    </div>
+    <div class="cards">
+      <div class="card hl">
+        <div class="k">Local-first</div>
+        <h3>Your data stays on-prem</h3>
+        <p>Defaults to a local Ollama model, so well and volume names, stats and logs never leave the machine. Claude is an explicit opt-in backend with a clear data-egress warning; the API key is read from the environment only — never hardcoded or persisted.</p>
+      </div>
+      <div class="card hl">
+        <div class="k">Deterministic routing</div>
+        <h3>It doesn't rely on the model to guess</h3>
+        <p>A GUI-free parser maps phrases like <code>stats volume AG_Spec_Bal</code> straight to the right command. The model only turns the JSON result into prose — so even small local models stay reliable.</p>
+      </div>
+      <div class="card hl">
+        <div class="k">Parameter advice</div>
+        <h3>Data-driven processing suggestions</h3>
+        <p>Bandpass, gather conditioning, scaling, deconvolution and AGC — each computed from the volume's own measured features, always flagged as a starting point for a geophysicist to review, never applied automatically.</p>
+      </div>
+      <div class="card hl">
+        <div class="k">Help RAG</div>
+        <h3>Answers from the manual, with citations</h3>
+        <p>Semantic Q&amp;A over 967 help documents (5,042 indexed chunks). Ask “how do I import a SEGY volume” and get an answer that cites the source pages.</p>
+      </div>
+      <div class="card hl">
+        <div class="k">Responsive UI</div>
+        <h3>Streaming, never frozen</h3>
+        <p>Answers stream in as they generate and the window stays interactive while the model works. The model is kept warm between messages to avoid cold-reload stalls.</p>
+      </div>
+    </div>
+  </div></section>
+
+  <section><div class="wrap">
+    <div class="sec-head">
+      <div class="eyebrow">Capabilities</div>
+      <h2>What you can ask it to do</h2>
+      <p>One consistent command set, reachable three ways: the in-app chat popup, a one-shot CLI, or direct command phrases.</p>
+    </div>
+    <div class="domains">
+      <div class="dom">
+        <h3>Project <span class="tag">project</span></h3>
+        <ul>
+          <li><code>open project</code> load a workspace and stay interactive</li>
+          <li><code>describe project</code> wells / volumes / horizons at a glance</li>
+          <li><code>report project</code> a readable Markdown QC report</li>
+        </ul>
+      </div>
+      <div class="dom">
+        <h3>Wells <span class="tag">well</span></h3>
+        <ul>
+          <li><code>describe well</code> logs, depth range, tops</li>
+          <li><code>stats well</code> · <code>compare logs</code> per-curve statistics, side by side</li>
+          <li><code>find wells</code> spatial query — nearest, region, or all</li>
+        </ul>
+      </div>
+      <div class="dom">
+        <h3>Volumes <span class="tag">volume</span></h3>
+        <ul>
+          <li><code>stats volume</code> fast estimate or <code>--exact</code> full scan + percentiles</li>
+          <li><code>compare volumes</code> sample-by-sample RMS &amp; correlation</li>
+          <li><code>describe volume</code> real geometry, no GUI needed</li>
+        </ul>
+      </div>
+      <div class="dom">
+        <h3>Imaging <span class="tag">seismic</span></h3>
+        <ul>
+          <li><code>show seismic</code> open a section and jump to an inline</li>
+          <li><code>render seismic</code> write a PNG of the section</li>
+          <li><code>window screenshot</code> capture the main window</li>
+        </ul>
+      </div>
+      <div class="dom">
+        <h3>Prestack <span class="tag">gather</span></h3>
+        <ul>
+          <li><code>gather qc</code> offset/angle range, fold, coverage + histogram</li>
+          <li>identifies prestack vs poststack automatically</li>
+          <li>rule-based conditioning hints included</li>
+        </ul>
+      </div>
+      <div class="dom">
+        <h3>Knowledge <span class="tag">help</span></h3>
+        <ul>
+          <li><code>help ask</code> semantic Q&amp;A over the docs</li>
+          <li><code>help index</code> build the embedding index</li>
+          <li>answers cite their source pages</li>
+        </ul>
+      </div>
+    </div>
+  </div></section>
+
+  <section><div class="wrap">
+    <div class="sec-head">
+      <div class="eyebrow">The differentiator</div>
+      <h2>AI processing-parameter suggestions</h2>
+      <p>One reusable recipe — an analysis command that measures a real feature of the data, plus a transparent rule baseline. The AI layer narrates the numbers and always defers the final call to a geophysicist.</p>
+    </div>
+    <div class="suggest">
+      <div class="sg"><div class="p">spectrum <span class="arrow">→</span> Bandpass</div><h4>Bandpass filter</h4><p>Peak frequency and −6 dB band from an averaged amplitude spectrum.</p></div>
+      <div class="sg"><div class="p">gather qc <span class="arrow">→</span> conditioning</div><h4>Gather conditioning</h4><p>Super-gather, infill and mute hints from fold, coverage and angle range.</p></div>
+      <div class="sg"><div class="p">stats <span class="arrow">→</span> RMS</div><h4>Scaling</h4><p>A scaler from the measured RMS toward a target amplitude.</p></div>
+      <div class="sg"><div class="p">autocorr <span class="arrow">→</span> operator</div><h4>Deconvolution</h4><p>Prediction gap and operator length from the trace autocorrelation.</p></div>
+      <div class="sg"><div class="p">envelope <span class="arrow">→</span> window</div><h4>AGC</h4><p>Gain window sized to the energy-decay time of the RMS envelope.</p></div>
+    </div>
+  </div></section>
+
+  <section><div class="wrap">
+    <div class="sec-head">
+      <div class="eyebrow">Command reference</div>
+      <h2>The full command set</h2>
+      <p>Every command is read-only and returns structured JSON; the assistant turns that into an answer.</p>
+    </div>
+    <div class="tablewrap"><table>
+      <thead><tr><th>Command</th><th>What it does</th></tr></thead>
+      <tbody>
+        <tr class="grouprow"><td colspan="2">Project</td></tr>
+        <tr><td class="cmd">open · list · describe · report project</td><td class="desc">Load, enumerate, summarize, and generate a Markdown QC report.</td></tr>
+        <tr class="grouprow"><td colspan="2">Wells</td></tr>
+        <tr><td class="cmd">list · describe · stats · compare · find wells</td><td class="desc">Well &amp; log inventory, curve statistics, side-by-side compare, spatial query.</td></tr>
+        <tr class="grouprow"><td colspan="2">Volumes</td></tr>
+        <tr><td class="cmd">list · describe · stats · compare volume</td><td class="desc">Geometry, real statistics (estimate or exact + percentiles), region windows, volume-to-volume diff.</td></tr>
+        <tr class="grouprow"><td colspan="2">Imaging &amp; prestack</td></tr>
+        <tr><td class="cmd">show · render seismic · gather qc · window screenshot</td><td class="desc">Open/navigate a section, render a PNG, QC prestack gathers, capture the window.</td></tr>
+        <tr class="grouprow"><td colspan="2">AI parameter suggestions</td></tr>
+        <tr><td class="cmd">spectrum · scaling · decon · agc volume</td><td class="desc">Analysis + rule baseline for Bandpass / RMS scaling / deconvolution / AGC.</td></tr>
+        <tr class="grouprow"><td colspan="2">Knowledge &amp; chat</td></tr>
+        <tr><td class="cmd">help index · help ask · chat</td><td class="desc">Build the doc index, semantic Q&amp;A with citations, natural-language front end.</td></tr>
+      </tbody>
+    </table></div>
+  </div></section>
+
+  <section><div class="wrap">
+    <div class="sec-head">
+      <div class="eyebrow">Under the hood</div>
+      <h2>Engineered to stay clean</h2>
+    </div>
+    <div class="cards">
+      <div class="card"><div class="k">Layering</div><h3>GUI-free core + seams</h3><p>The command library is pure std C++14 with no GUI dependency, bound to GeoView through two interfaces — a project data source and a seismic viewer — so command logic is unit-testable without the app.</p></div>
+      <div class="card"><div class="k">Quality</div><h3>Test-driven</h3><p>173 unit tests across 28 suites; commands and the phrase parser were written test-first.</p></div>
+      <div class="card"><div class="k">Proof</div><h3>Verified on a real project</h3><p>Exercised end-to-end on the GOM V3 survey — 4 wells, 18 volumes, 7 horizons — not synthetic fixtures.</p></div>
+      <div class="card"><div class="k">Extensibility</div><h3>A repeatable recipe</h3><p>A new process needs only an analysis command and a rule baseline; the AI layer is reused unchanged.</p></div>
+    </div>
+  </div></section>
+
+  <section><div class="wrap">
+    <div class="sec-head">
+      <div class="eyebrow">How it came together</div>
+      <h2>Built in phases</h2>
+      <p>Roughly forty commits on a single feature branch, each phase verified before the next.</p>
+    </div>
+    <div class="phases">
+      <div class="ph"><div class="p">Phase 0–1</div><h4>Foundation</h4><p>CLI library, data-source seam, read-only project queries.</p></div>
+      <div class="ph"><div class="p">Phase 2</div><h4>Data &amp; imaging</h4><p>Deeper describe, section display and navigation.</p></div>
+      <div class="ph"><div class="p">Phase 3</div><h4>AI chat</h4><p>In-app assistant, async LLM, switchable backend, preferences.</p></div>
+      <div class="ph"><div class="p">Phase 4</div><h4>Analysis</h4><p>Stats, render, compare, and the five parameter suggestions.</p></div>
+      <div class="ph"><div class="p">Latest</div><h4>Polish</h4><p>Deterministic routing, Help RAG, streaming replies.</p></div>
+    </div>
+  </div></section>
+
+  <section><div class="wrap">
+    <div class="sec-head">
+      <div class="eyebrow">Live demo</div>
+      <h2>A four-minute run</h2>
+      <p>Type each line into the AI Assistant popup with a project loaded.</p>
+    </div>
+    <div class="flow">
+      <div class="step"><div class="num">01</div><div><h4>List the wells</h4><p>Send <code>list wells</code> — four wells stream back with their inline/xline positions.</p></div></div>
+      <div class="step"><div class="num">02</div><div><h4>Volume statistics</h4><p><code>stats volume AG_Spec_Bal</code> — amplitude min / max / mean / RMS.</p></div></div>
+      <div class="step"><div class="num">03</div><div><h4>A parameter suggestion</h4><p><code>suggest bandpass for AG_Spec_Bal</code> — the assistant runs the spectrum analysis and proposes a Bandpass, with a review caveat.</p></div></div>
+      <div class="step"><div class="num">04</div><div><h4>Ask the manual</h4><p><code>how do I import SEGY data</code> — a documented answer with cited source pages.</p></div></div>
+      <div class="step"><div class="num">05</div><div><h4>Make the point</h4><p>All of it ran on the local machine — the project data never left.</p></div></div>
+    </div>
+  </div></section>
+
+  <section style="border-bottom:none;"><div class="wrap">
+    <div class="callout">
+      <div class="mk">🔒</div>
+      <div>
+        <h3>Local by default, remote by explicit choice</h3>
+        <p>The assistant runs against on-prem models unless someone deliberately switches to the remote backend, and even then it warns before project data is sent. That posture is what makes the tool safe to put in front of real interpreters.</p>
+      </div>
+    </div>
+  </div></section>
+</main>
+
+<footer><div class="wrap">
+  GeoView CLI + AI Assistant · feature/cli-foundation
+  <div class="note">Internal demonstration material — verified on the GOM&nbsp;V3 survey. Review before any external use.</div>
+</div></footer>
+
+<script>
+  // Theme toggle: stamp data-theme so it wins over the OS media query both ways.
+  (function () {
+    var root = document.documentElement, btn = document.getElementById('tt');
+    btn.addEventListener('click', function () {
+      var cur = root.getAttribute('data-theme');
+      if (!cur) cur = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      root.setAttribute('data-theme', cur === 'dark' ? 'light' : 'dark');
+    });
+  })();
+
+  // Gentle scroll reveal (skipped under reduced-motion via CSS override).
+  (function () {
+    var els = document.querySelectorAll('.cards .card, .dom, .sg, .ph, .step, .callout');
+    els.forEach(function (e) { e.classList.add('reveal'); });
+    if (!('IntersectionObserver' in window)) { els.forEach(function (e){ e.classList.add('in'); }); return; }
+    var io = new IntersectionObserver(function (ents) {
+      ents.forEach(function (en) { if (en.isIntersecting) { en.target.classList.add('in'); io.unobserve(en.target); } });
+    }, { threshold:.12 });
+    els.forEach(function (e) { io.observe(e); });
+  })();
+
+  // Hero backdrop: a variable-area seismic wiggle section, drawn once.
+  (function () {
+    var c = document.getElementById('seis'), x = c.getContext('2d');
+    function seed(s){ return function(){ s=(s*1664525+1013904223)%4294967296; return s/4294967296; }; }
+    function draw() {
+      var w = c.clientWidth, h = c.clientHeight, dpr = Math.min(devicePixelRatio||1, 2);
+      c.width = w*dpr; c.height = h*dpr; x.setTransform(dpr,0,0,dpr,0,0);
+      x.clearRect(0,0,w,h);
+      var rnd = seed(20260719);
+      var traces = Math.max(26, Math.floor(w/26));
+      // per-depth reflectivity shared across traces, warped laterally -> coherent reflectors
+      var nd = 240, refl = [];
+      for (var d=0; d<nd; d++) refl.push((rnd()*2-1) * (rnd()<0.14 ? 1 : 0.16));
+      for (var t=0; t<traces; t++) {
+        var cx = (t+0.5) * (w/traces);
+        var amp = (w/traces) * 0.62;
+        var mix = t/traces;                         // blue -> warm across the panel
+        var col = 'rgba(' + Math.round(90+120*mix) + ',' + Math.round(180-70*mix) + ',' + Math.round(226-120*mix) + ',';
+        x.beginPath(); x.moveTo(cx, 0);
+        var pts = [];
+        for (var d2=0; d2<nd; d2++) {
+          var y = d2/(nd-1)*h;
+          var warp = Math.sin(d2*0.06 + t*0.20) * 0.5 + Math.sin(d2*0.017 + t*0.5)*0.5;
+          var a = refl[d2]*warp;
+          // light smoothing with neighbours
+          var a1 = refl[Math.max(0,d2-1)], a2 = refl[Math.min(nd-1,d2+1)];
+          a = (a + (a1+a2)*0.35*warp);
+          pts.push([cx + a*amp, y]);
+        }
+        // outline
+        x.beginPath();
+        for (var i=0;i<pts.length;i++){ i?x.lineTo(pts[i][0],pts[i][1]):x.moveTo(pts[i][0],pts[i][1]); }
+        x.strokeStyle = col + '0.55)'; x.lineWidth = 1; x.stroke();
+        // positive-lobe fill (variable area)
+        x.beginPath(); x.moveTo(cx, 0);
+        for (var j=0;j<pts.length;j++){ x.lineTo(Math.max(cx, pts[j][0]), pts[j][1]); }
+        x.lineTo(cx, h); x.closePath();
+        x.fillStyle = col + '0.22)'; x.fill();
+      }
+    }
+    draw();
+    var to; addEventListener('resize', function(){ clearTimeout(to); to=setTimeout(draw,180); });
+  })();
+</script>
+
+</body>
+</html>
