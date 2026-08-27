@@ -89,10 +89,10 @@ def generate_git_context(repo_root: Path, issue_key: str) -> str:
 def branch_name(issue_key: str, description: str | None = None) -> str:
     slug = summary_slug(description)
     branch = f"feature/{issue_key}-{slug or 'jira-workflow'}"
-    return branch[:100].rstrip("-")
+    return branch[:120].rstrip("-")
 
 
-def summary_slug(description: str | None, max_length: int = 55) -> str:
+def summary_slug(description: str | None, max_length: int = 80) -> str:
     if not description:
         return ""
     slug = re.sub(r"[^a-z0-9]+", "-", description.lower())

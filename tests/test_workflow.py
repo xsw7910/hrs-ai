@@ -63,14 +63,14 @@ def test_branch_name_generation():
 
 def test_summary_slug_rules():
     assert summary_slug("[Import] As a user, I can import a 3D, post-stack VDS file into Geoview") == (
-        "import-as-a-user-i-can-import-a-3d-post-stack-vds-file"
+        "import-as-a-user-i-can-import-a-3d-post-stack-vds-file-into-geoview"
     )
     assert summary_slug("Amplitude Spectrum - min/max ranges are not converted to dB") == (
         "amplitude-spectrum-min-max-ranges-not-converted-to-db"
     )
     assert summary_slug("Fix --- crash /// OpenVDS") == "fix-crash-openvds"
     assert summary_slug("") == ""
-    assert len(summary_slug("word " * 40)) <= 60
+    assert len(summary_slug("word " * 40)) <= 85
 
 
 def test_workflow_status_json_generation(tmp_path):
